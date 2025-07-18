@@ -1,4 +1,4 @@
-// app/noticia/[slug]/page.tsx
+// src/app/noticia/[slug]/page.tsx
 
 import { notFound } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
@@ -24,8 +24,9 @@ interface NewsItem {
   tags?: string[]
 }
 
+// ✅ ESTA ES LA FIRMA CORRECTA
 export default async function NoticiaPage({ params }: { params: { slug: string } }) {
-  const { slug } = params
+  const slug = params.slug // 👈 ya es sincrónico
 
   const { data, error } = await supabase
     .from('news')
@@ -48,7 +49,7 @@ export default async function NoticiaPage({ params }: { params: { slug: string }
         <meta property="og:image" content={data.image_url} />
       </Head>
 
-      <main className="min-h-screen  py-16 px-4">
+      <main className="min-h-screen py-16 px-4">
         <div className="max-w-3xl mx-auto">
           <article className="bg-black rounded-3xl shadow-2xl overflow-hidden border border-yellow-400">
             <header className="px-8 pt-8">
