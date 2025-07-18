@@ -14,7 +14,11 @@ interface MatchResult {
   country_code?: string;
 }
 
-export default function LiveScoresWidget() {
+interface LiveScoresWidgetProps {
+  horizontal?: boolean;
+}
+
+export default function LiveScoresWidget({ horizontal = false }: LiveScoresWidgetProps) {
   const [matches, setMatches] = useState<MatchResult[]>([]);
 
   useEffect(() => {
@@ -39,7 +43,7 @@ export default function LiveScoresWidget() {
     return () => clearInterval(interval);
   }, []);
 
-  const liveStatuses = [ "Halftime", "Second Half", "First Half"];
+  const liveStatuses = ["Halftime", "Second Half", "First Half"];
   const isLive = (match: MatchResult) => liveStatuses.includes(match.status);
 
   const statusTranslations: Record<string, string> = {
@@ -89,39 +93,39 @@ export default function LiveScoresWidget() {
   const MatchCard = (match: MatchResult) => (
     <div
       key={match.id}
-      className="bg-neutral-900 text-white rounded-2xl px-4 py-3 shadow-md hover:shadow-lg transition-all duration-300 animate-fade-in border border-neutral-700"
+      className={`bg-[#111111] text-white rounded-xl px-3 py-2 md:px-4 md:py-3 border border-neutral-800 shadow-sm transition-all duration-200 font-sans ${
+        horizontal ? "min-w-[220px] w-[220px] shrink-0" : ""
+      }`}
     >
-      <div className="flex justify-between items-center text-neutral-400 text-xs mb-2">
-        <span className="uppercase truncate font-medium">
-          {match.league.replace(/\.\d+$/, "")}
-        </span>
+      <div className="flex justify-between items-center text-gray-400 text-[10px] md:text-xs mb-1 tracking-wide">
+        <span className="uppercase font-medium truncate">{match.league.replace(/\.\d+$/, "")}</span>
         <span>{formatDate(match.date)}</span>
       </div>
 
-      <div className="flex justify-between items-center mb-1 gap-2">
-        <div className="flex flex-col w-1/3 truncate text-left">
-          <span className="text-xl font-bold">{abbreviate(match.home_team)}</span>
-          <span className="text-xs text-neutral-300 truncate">{match.home_team}</span>
+      <div className="flex items-center justify-between gap-3 mb-1">
+        <div className="w-1/3 truncate text-left">
+          <div className="text-[12px] md:text-sm font-semibold text-white leading-tight">{abbreviate(match.home_team)}</div>
+          <div className="text-[10px] text-gray-400 truncate">{match.home_team}</div>
         </div>
 
-        <div className="text-lg font-bold text-center w-1/3">
+        <div className="w-1/3 text-center text-white text-sm md:text-base font-bold">
           {match.home_score} - {match.away_score}
         </div>
 
-        <div className="flex flex-col w-1/3 text-right truncate">
-          <span className="text-xl font-bold">{abbreviate(match.away_team)}</span>
-          <span className="text-xs text-neutral-300 truncate">{match.away_team}</span>
+        <div className="w-1/3 truncate text-right">
+          <div className="text-[12px] md:text-sm font-semibold text-white leading-tight">{abbreviate(match.away_team)}</div>
+          <div className="text-[10px] text-gray-400 truncate">{match.away_team}</div>
         </div>
       </div>
 
-      <div className="mt-2 flex justify-between text-xs items-center">
-        <span className="text-white">
+      <div className="flex justify-between items-center mt-1 text-[10px] md:text-xs text-gray-300">
+        <span>
           {statusTranslations[match.status] || match.status}
           {match.time && ` - ${match.time}`}
         </span>
         {isLive(match) && (
           <span className="flex items-center gap-1 text-red-500 font-medium animate-pulse">
-            <span className="h-2 w-2 rounded-full bg-red-500" />
+            <span className="h-2 w-2 bg-red-500 rounded-full" />
             En Vivo
           </span>
         )}
@@ -130,22 +134,22 @@ export default function LiveScoresWidget() {
   );
 
   return (
-    <div className="space-y-6">
+    <div className={`${horizontal ? "flex gap-3 overflow-x-auto scrollbar-hide" : "space-y-4"}`}>
       {liveMatches.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-black mb-3">⚽ En Vivo</h2>
-          <div className="space-y-3">
+          {!horizontal && (
+            <h2 className="text-sm md:text-lg font-semibold text-white mb-2">⚽ En Vivo</h2>
+          )}
+          <div className={horizontal ? "flex gap-3" : "space-y-2"}>
             {liveMatches.map((match) => MatchCard(match))}
           </div>
         </div>
       )}
 
-      {finishedMatches.length > 0 && (
+      {!horizontal && finishedMatches.length > 0 && (
         <div>
-          <h2 className="text-lg font-semibold text-black mt-4 mb-3">
-            📋 Finalizados
-          </h2>
-          <div className="space-y-3">
+          <h2 className="text-sm md:text-lg font-semibold text-white mt-4 mb-2">📋 Finalizados</h2>
+          <div className="space-y-2">
             {finishedMatches.map((match) => MatchCard(match))}
           </div>
         </div>
