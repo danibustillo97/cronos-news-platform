@@ -151,7 +151,7 @@ const NewsFeed = () => {
   useEffect(() => {
     async function fetchNews() {
       try {
-        const res = await fetch('http://localhost:8000/api/news/published')
+        const res = await fetch('https://backendcronosnews-production.up.railway.app/api/news/published')
         const data = await res.json()
         if (data.success) {
           const sorted = data.news.sort(

@@ -20,7 +20,7 @@ export default function LiveScoresWidget() {
   useEffect(() => {
     async function fetchMatches() {
       try {
-        const res = await fetch("http://localhost:8000/api/match-results");
+        const res = await fetch("https://backendcronosnews-production.up.railway.app/api/match-results");
         const data = await res.json();
         if (data.success) {
           const sorted = data.results.slice().sort(
