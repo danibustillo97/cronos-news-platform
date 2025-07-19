@@ -1,6 +1,6 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState, useRef } from "react";
+import React, { useEffect, useState, useRef } from 'react';
 import {
   ThumbsUp,
   MessageCircle,
@@ -9,9 +9,9 @@ import {
   Facebook,
   Twitter,
   Linkedin,
-} from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
-import Link from "next/link";
+} from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Link from 'next/link';
 
 interface NewsItem {
   id: string;
@@ -38,14 +38,26 @@ const SkeletonCard = () => (
   </div>
 );
 
-// 🔁 Reemplazamos este banner por el real de Adsterra
+// ✅ Componente de Banner de Adsterra integrado correctamente
 const AdBanner = () => {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (containerRef.current && containerRef.current.childNodes.length === 0) {
+      const script = document.createElement('script');
+      script.async = true;
+      script.setAttribute('data-cfasync', 'false');
+      script.src = '//pl27202447.profitableratecpm.com/2d3367d208ec3c9c2bb649af8ebfbc0f/invoke.js';
+      containerRef.current.appendChild(script);
+    }
+  }, []);
+
   return (
-    <div className="my-6 max-w-2xl mx-auto">
+    <div className="my-6 max-w-2xl mx-auto px-4">
       <div
-        dangerouslySetInnerHTML={{
-          __html: `<script async="async" data-cfasync="false" src="//upgulpinon.com/na/0z/6e/0z6ep2ctjs0j0xw9vl34jsz1bnmljyoj.js"></script>`,
-        }}
+        id="container-2d3367d208ec3c9c2bb649af8ebfbc0f"
+        ref={containerRef}
+        style={{ minHeight: 100 }}
       />
     </div>
   );
@@ -58,21 +70,21 @@ const timeAgo = (dateStr: string) => {
   const hours = Math.floor(minutes / 60);
   const days = Math.floor(hours / 24);
 
-  if (days > 0) return `hace ${days} día${days > 1 ? "s" : ""}`;
-  if (hours > 0) return `hace ${hours} hora${hours > 1 ? "s" : ""}`;
-  if (minutes > 0) return `hace ${minutes} minuto${minutes > 1 ? "s" : ""}`;
-  return "hace unos segundos";
+  if (days > 0) return `hace ${days} día${days > 1 ? 's' : ''}`;
+  if (hours > 0) return `hace ${hours} hora${hours > 1 ? 's' : ''}`;
+  if (minutes > 0) return `hace ${minutes} minuto${minutes > 1 ? 's' : ''}`;
+  return 'hace unos segundos';
 };
 
 const removeLinks = (html: string) => {
-  return html.replace(/https?:\/\/[\w./\-_%#?=&]+/gi, "");
+  return html.replace(/https?:\/\/[\w./\-_%#?=&]+/gi, '');
 };
 
 const ShareButton = ({ slug }: { slug: string }) => {
   const [open, setOpen] = useState(false);
   const [copied, setCopied] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
-  const url = `${typeof window !== "undefined" ? window.location.origin : ""}/noticia/${slug}`;
+  const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/noticia/${slug}`;
 
   const handleCopy = () => {
     navigator.clipboard.writeText(url);
@@ -86,8 +98,8 @@ const ShareButton = ({ slug }: { slug: string }) => {
         setOpen(false);
       }
     };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   return (
@@ -137,8 +149,11 @@ const ShareButton = ({ slug }: { slug: string }) => {
             </div>
             <div className="flex items-center justify-between text-xs bg-neutral-800 rounded-md px-3 py-2">
               <span className="truncate text-neutral-400">{url}</span>
-              <button onClick={handleCopy} className="text-yellow-400 hover:text-yellow-300 transition">
-                {copied ? "✅" : <Copy size={14} />}
+              <button
+                onClick={handleCopy}
+                className="text-yellow-400 hover:text-yellow-300 transition"
+              >
+                {copied ? '✅' : <Copy size={14} />}
               </button>
             </div>
           </motion.div>
@@ -156,7 +171,9 @@ const NewsFeed = () => {
   useEffect(() => {
     async function fetchNews() {
       try {
-        const res = await fetch("https://backendcronosnews-production.up.railway.app/api/news/published");
+        const res = await fetch(
+          'https://backendcronosnews-production.up.railway.app/api/news/published'
+        );
         const data = await res.json();
         if (data.success) {
           const sorted = data.news.sort(
@@ -166,7 +183,7 @@ const NewsFeed = () => {
           setNews(sorted);
         }
       } catch (error) {
-        console.error("Error fetching news:", error);
+        console.error('Error fetching news:', error);
       } finally {
         setLoading(false);
       }
@@ -195,7 +212,7 @@ const NewsFeed = () => {
                       className="w-full rounded-xl aspect-video object-cover group-hover:brightness-90 transition"
                     />
                     <span className="absolute top-2 left-2 bg-yellow-400 text-black text-[10px] font-semibold px-1.5 py-0.5 rounded shadow">
-                      {item.author || "Fuente"}
+                      {item.author || 'Fuente'}
                     </span>
                   </div>
                 </Link>
@@ -210,7 +227,7 @@ const NewsFeed = () => {
 
                 <p
                   className={`text-sm text-neutral-300 leading-relaxed whitespace-pre-line ${
-                    expanded[item.id] ? "" : "line-clamp-5"
+                    expanded[item.id] ? '' : 'line-clamp-5'
                   }`}
                 >
                   {removeLinks(item.content)}
@@ -221,7 +238,7 @@ const NewsFeed = () => {
                     className="text-xs text-yellow-400 hover:underline"
                     onClick={() => toggleExpand(item.id)}
                   >
-                    {expanded[item.id] ? "Ver menos" : "Ver más"}
+                    {expanded[item.id] ? 'Ver menos' : 'Ver más'}
                   </button>
                 )}
 

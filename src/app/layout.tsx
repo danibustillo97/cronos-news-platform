@@ -25,7 +25,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         ></script>
       </head>
 
-      <body className={`${inter.className} bg-neutral-950 text-white selection:bg-yellow-400 selection:text-black`}>
+      <body className={`${inter.className} bg-neutral-950 text-white selection:bg-yellow-400 selection:text-black overflow-x-hidden max-w-full`}>
+
         {/* NAVBAR */}
         <header className="h-16 shadow-md bg-neutral-950 border-b border-neutral-800 z-50 sticky top-0">
           <Navbar />
@@ -46,7 +47,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </aside>
 
           {/* CONTENIDO CENTRAL */}
-          <main className="flex-1 overflow-y-auto h-full p-4 md:px-6 max-w-3xl mx-auto">
+          <main className="flex-1 overflow-y-auto overflow-x-hidden h-full p-4 md:px-6 max-w-3xl mx-auto">
+
             {children}
           </main>
 
