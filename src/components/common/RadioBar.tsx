@@ -8,7 +8,7 @@ const RadioBar = () => {
   const [playing, setPlaying] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
-  const streamUrl = 'https://icecast.radiofrance.fr/fip-midfi.mp3'
+  const streamUrl = 'https://streaming.intermediacolombia.com:8073/stream'
   const radioStatus = 'live'
 
   const togglePlay = () => {
@@ -59,7 +59,7 @@ const RadioBar = () => {
           </button>
 
           <div>
-            <p className="text-white font-semibold text-sm">Radio Noirs Virals</p>
+            <p className="text-white font-semibold text-sm">ORO STEREO</p>
             <div className="flex items-center gap-2">
               <RadioIcon className="w-3 h-3 text-white" />
               <span

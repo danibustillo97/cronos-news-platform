@@ -63,8 +63,8 @@ export default function Navbar() {
       <div className="relative z-10 flex items-center justify-between px-6 h-[56px] max-w-7xl mx-auto">
         {/* Logo refinado */}
         <div className="flex items-center space-x-1 text-lg font-extrabold">
-          <span className="text-white tracking-wide">Estadio</span>
-          <span className="text-[#D4AF37]">360</span>
+          <span className="text-white tracking-wide">OK4</span>
+          <span className="text-[#D4AF37]">NEWS</span>
         </div>
 
         {/* Fútbol link */}
