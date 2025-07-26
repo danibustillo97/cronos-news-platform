@@ -1,264 +1,220 @@
-'use client';
+'use client'
 
-import React, { useEffect, useState, useRef } from 'react';
-import {
-  ThumbsUp,
-  MessageCircle,
-  Share2,
-  Copy,
-  Facebook,
-  Twitter,
-  Linkedin,
-} from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
-import Link from 'next/link';
+import React, { useEffect, useState } from "react";
+import Link from "next/link";
+import { ThumbsUp, MessageCircle, Share2 } from "lucide-react";
 
-interface NewsItem {
-  id: string;
+// Categoría-colores (negro y amarillo, algunos detalles)
+type CategoryKey =
+  | "deporte"
+  | "economía"
+  | "política"
+  | "salud"
+  | "tecnología"
+  | "internacional"
+  | "cultura"
+  | "entretenimiento"
+  | "judicial"
+  | "colombia"
+  | "banderazo rojo"
+  | "actualidad";
+
+const categoryColors: Record<CategoryKey, string> = {
+  deporte: "bg-yellow-400 text-black",
+  economía: "bg-yellow-400 text-black",
+  política: "bg-yellow-400 text-black",
+  salud: "bg-yellow-400 text-black",
+  tecnología: "bg-yellow-400 text-black",
+  internacional: "bg-yellow-400 text-black",
+  cultura: "bg-yellow-400 text-black",
+  entretenimiento: "bg-yellow-400 text-black",
+  judicial: "bg-yellow-400 text-black",
+  colombia: "bg-yellow-400 text-black",
+  "banderazo rojo": "bg-gradient-to-r from-red-700 to-yellow-400 text-white border-2 border-yellow-300 shadow-lg",
+  actualidad: "bg-yellow-400 text-black",
+};
+
+function capitalize(text?: string) {
+  if (!text) return "";
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function formatDate(date: string | number | Date) {
+  if (!date) return "";
+  const d = new Date(date);
+  return d.toLocaleString("es-CO", { dateStyle: "medium", timeStyle: "short" });
+}
+
+// Limpieza y párrafos elegantes (saltos automáticos)
+function formatParagraphs(text?: string) {
+  if (!text) return [];
+  const cleaned = text
+    .replace(/https?:\/\/[\w./\-_%#?=&]+/gi, "")
+    .replace(/([.?!])(\s*)(?=[A-ZÁÉÍÓÚÑ])/g, "$1\n\n") // salto doble tras puntos y mayúscula
+    .replace(/\s{2,}/g, " ")
+    .trim();
+  return cleaned.split("\n\n").map(p => p.trim()).filter((p) => p.length > 20);
+}
+
+interface News {
+  id: string | number;
   title: string;
   content: string;
   image_url: string;
-  author: string;
   published_at: string;
+  category?: string;
+  author?: string;
+  league?: string;
+  country?: string;
+  team?: string;
+  tags?: string[];
   slug: string;
 }
 
-const SkeletonCard = () => (
-  <div className="bg-neutral-900 rounded-xl shadow p-4 space-y-3 animate-pulse max-w-2xl mx-auto">
-    <div className="w-full aspect-video bg-neutral-700 rounded-lg" />
-    <div className="h-3 w-1/3 bg-neutral-700 rounded" />
-    <div className="h-5 w-2/3 bg-neutral-600 rounded" />
-    <div className="h-3 w-full bg-neutral-700 rounded" />
-    <div className="h-3 w-5/6 bg-neutral-700 rounded" />
-    <div className="flex gap-3 mt-2">
-      <div className="h-3 w-14 bg-neutral-700 rounded" />
-      <div className="h-3 w-16 bg-neutral-700 rounded" />
-      <div className="h-3 w-20 bg-neutral-700 rounded" />
-    </div>
-  </div>
-);
-
-// ✅ Componente de Banner de Adsterra integrado correctamente
-const AdBanner = () => {
-  const containerRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (containerRef.current && containerRef.current.childNodes.length === 0) {
-      const script = document.createElement('script');
-      script.async = true;
-      script.setAttribute('data-cfasync', 'false');
-      script.src = '//pl27202447.profitableratecpm.com/2d3367d208ec3c9c2bb649af8ebfbc0f/invoke.js';
-      containerRef.current.appendChild(script);
-    }
-  }, []);
-
-  return (
-    <div className="my-6 max-w-2xl mx-auto px-4">
-      <div
-        id="container-2d3367d208ec3c9c2bb649af8ebfbc0f"
-        ref={containerRef}
-        style={{ minHeight: 100 }}
-      />
-    </div>
-  );
-};
-
-const timeAgo = (dateStr: string) => {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const seconds = Math.floor(diff / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-  const days = Math.floor(hours / 24);
-
-  if (days > 0) return `hace ${days} día${days > 1 ? 's' : ''}`;
-  if (hours > 0) return `hace ${hours} hora${hours > 1 ? 's' : ''}`;
-  if (minutes > 0) return `hace ${minutes} minuto${minutes > 1 ? 's' : ''}`;
-  return 'hace unos segundos';
-};
-
-const removeLinks = (html: string) => {
-  return html.replace(/https?:\/\/[\w./\-_%#?=&]+/gi, '');
-};
-
-const ShareButton = ({ slug }: { slug: string }) => {
-  const [open, setOpen] = useState(false);
-  const [copied, setCopied] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-  const url = `${typeof window !== 'undefined' ? window.location.origin : ''}/noticia/${slug}`;
-
-  const handleCopy = () => {
-    navigator.clipboard.writeText(url);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (ref.current && !ref.current.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
-  return (
-    <div className="relative" ref={ref}>
-      <button
-        onClick={() => setOpen(!open)}
-        className="flex items-center gap-1 hover:text-yellow-400 transition"
-      >
-        <Share2 size={16} /> Compartir
-      </button>
-
-      <AnimatePresence>
-        {open && (
-          <motion.div
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 6 }}
-            transition={{ duration: 0.2 }}
-            className="absolute right-0 mt-2 w-64 bg-neutral-950 border border-neutral-800 rounded-xl shadow-xl p-4 z-50 space-y-3"
-          >
-            <p className="text-xs text-neutral-400 font-medium">Compartir noticia</p>
-            <div className="flex justify-between gap-4 text-yellow-400">
-              <a
-                href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:scale-110 transition"
-              >
-                <Facebook size={20} />
-              </a>
-              <a
-                href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(url)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:scale-110 transition"
-              >
-                <Twitter size={20} />
-              </a>
-              <a
-                href={`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(url)}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="hover:scale-110 transition"
-              >
-                <Linkedin size={20} />
-              </a>
-            </div>
-            <div className="flex items-center justify-between text-xs bg-neutral-800 rounded-md px-3 py-2">
-              <span className="truncate text-neutral-400">{url}</span>
-              <button
-                onClick={handleCopy}
-                className="text-yellow-400 hover:text-yellow-300 transition"
-              >
-                {copied ? '✅' : <Copy size={14} />}
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-};
-
 const NewsFeed = () => {
-  const [news, setNews] = useState<NewsItem[]>([]);
+  const [news, setNews] = useState<News[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+  const [expandedId, setExpandedId] = useState<string | number | null>(null);
 
   useEffect(() => {
     async function fetchNews() {
       try {
-        const res = await fetch(
-          'https://backendcronosnews-production.up.railway.app/api/news/published'
-        );
+        const res = await fetch("https://backendcronosnews-production.up.railway.app/api/news/published");
         const data = await res.json();
         if (data.success) {
           const sorted = data.news.sort(
-            (a: NewsItem, b: NewsItem) =>
-              new Date(b.published_at).getTime() - new Date(a.published_at).getTime()
+            (a: News, b: News) =>
+              new Date(b.published_at).getTime() -
+              new Date(a.published_at).getTime()
           );
           setNews(sorted);
         }
       } catch (error) {
-        console.error('Error fetching news:', error);
+        // eslint-disable-next-line no-console
+        console.error("Error fetching news:", error);
       } finally {
         setLoading(false);
       }
     }
-
     fetchNews();
   }, []);
 
-  const toggleExpand = (id: string) => {
-    setExpanded((prev) => ({ ...prev, [id]: !prev[id] }));
+  const handleExpand = (id: string | number) => {
+    setExpandedId(prev => (prev === id ? null : id));
   };
 
   return (
-    <div className="space-y-6 px-4 max-w-2xl mx-auto">
-      {loading
-        ? Array.from({ length: 4 }).map((_, i) => <SkeletonCard key={i} />)
-        : news.map((item, index) => (
-            <React.Fragment key={item.id}>
-              {index > 0 && index % 4 === 0 && <AdBanner />}
-              <article className="bg-neutral-950 rounded-2xl shadow-lg p-5 space-y-4 border border-neutral-800">
-                <Link href={`/noticia/${item.slug}`}>
-                  <div className="relative cursor-pointer group">
-                    <img
-                      src={item.image_url}
-                      alt={item.title}
-                      className="w-full rounded-xl aspect-video object-cover group-hover:brightness-90 transition"
-                    />
-                    <span className="absolute top-2 left-2 bg-yellow-400 text-black text-[10px] font-semibold px-1.5 py-0.5 rounded shadow">
-                      {item.author || 'Fuente'}
+    <div className="max-w-2xl mx-auto px-4 py-10 bg-black min-h-screen space-y-10">
+      {loading ? (
+        <div className="text-center text-lg text-yellow-400 py-10 animate-pulse">
+          Cargando noticias...
+        </div>
+      ) : news.length === 0 ? (
+        <div className="text-center text-lg text-yellow-400 py-10">
+          No hay noticias recientes.
+        </div>
+      ) : (
+        news.map((item) => {
+          const paragraphs = formatParagraphs(item.content);
+          const cat = (item.category?.toLowerCase() as CategoryKey) || "actualidad";
+          const catColor = categoryColors[cat] || "bg-yellow-400 text-black";
+          const expanded = expandedId === item.id;
+
+          return (
+            <article
+              key={item.id}
+              className={`relative rounded-2xl overflow-hidden shadow-2xl border border-yellow-900 bg-black/90 hover:shadow-yellow-700/30 transition-shadow duration-300 group`}
+            >
+              {/* Imagen + etiqueta categoría */}
+              <div className="relative">
+                <img
+                  src={item.image_url}
+                  alt={item.title}
+                  title={item.title}
+                  loading="lazy"
+                  className="w-full h-48 md:h-56 object-cover object-center"
+                />
+                <span
+                  className={`absolute top-4 left-4 px-4 py-1 rounded-full text-xs font-extrabold uppercase tracking-widest shadow border ${catColor} drop-shadow-lg`}
+                >
+                  {capitalize(item.category)}
+                </span>
+                {cat === "banderazo rojo" && (
+                  <span className="absolute top-4 right-4 bg-yellow-400 text-red-900 px-3 py-1 rounded-full text-xs font-black shadow border-2 border-red-900 animate-pulse z-10">
+                    Junior Power
+                  </span>
+                )}
+              </div>
+              <div className="p-6 pt-5">
+                <div className="flex flex-wrap items-center gap-2 mb-3">
+                  <span className="text-xs font-medium text-yellow-200">{formatDate(item.published_at)}</span>
+                  {item.author && (
+                    <span className="text-xs text-neutral-400 ml-2 font-medium">
+                      {item.author}
                     </span>
-                  </div>
-                </Link>
-
-                <div className="text-xs text-neutral-400">{timeAgo(item.published_at)}</div>
-
+                  )}
+                  {item.league && (
+                    <span className="ml-2 text-xs bg-yellow-800 text-yellow-100 px-2 py-0.5 rounded font-medium border border-yellow-400">{item.league}</span>
+                  )}
+                  {item.team && (
+                    <span className="ml-2 text-xs bg-red-900 text-yellow-200 px-2 py-0.5 rounded font-medium border border-yellow-700">{item.team}</span>
+                  )}
+                </div>
                 <Link href={`/noticia/${item.slug}`}>
-                  <h2 className="text-xl font-semibold leading-snug text-white hover:text-yellow-400 transition">
-                    {item.title}
+                  <h2 className="text-2xl font-extrabold capitalize leading-tight mb-2 text-yellow-400 hover:underline transition tracking-tight">
+                    {capitalize(item.title)}
                   </h2>
                 </Link>
-
-                <p
-                  className={`text-sm text-neutral-300 leading-relaxed whitespace-pre-line ${
-                    expanded[item.id] ? '' : 'line-clamp-5'
-                  }`}
-                >
-                  {removeLinks(item.content)}
-                </p>
-
-                {item.content.length > 300 && (
-                  <button
-                    className="text-xs text-yellow-400 hover:underline"
-                    onClick={() => toggleExpand(item.id)}
-                  >
-                    {expanded[item.id] ? 'Ver menos' : 'Ver más'}
-                  </button>
-                )}
-
-                <div className="flex items-center justify-between pt-4 border-t border-neutral-800 text-xs text-neutral-400">
-                  <button className="flex items-center gap-1 hover:text-yellow-400 transition">
-                    <ThumbsUp size={16} /> Me gusta
-                  </button>
-
-                  <button className="flex items-center gap-1 hover:text-yellow-400 transition">
-                    <MessageCircle size={16} /> Comentarios
-                    <span className="ml-1 bg-yellow-400 text-black px-1.5 py-0.5 rounded-full text-[10px] font-bold shadow">
-                      3
-                    </span>
-                  </button>
-
-                  <ShareButton slug={item.slug} />
+                <div className="text-base text-yellow-50 leading-relaxed font-light space-y-6 mb-3">
+                  {(expanded ? paragraphs : paragraphs.slice(0, 2)).map((p, i) => (
+                    <p key={i} className="transition-all duration-300">{p}</p>
+                  ))}
                 </div>
-              </article>
-            </React.Fragment>
-          ))}
+                {paragraphs.length > 2 && (
+                  <div className="flex justify-center mt-2">
+                    <button
+                      className="fixed md:static z-30 left-1/2 bottom-16 md:bottom-auto -translate-x-1/2 md:translate-x-0 px-8 py-3 rounded-full font-black text-lg shadow-2xl bg-yellow-400 text-black hover:bg-yellow-300 focus:outline-none transition-all"
+                      style={{
+                        position: expanded ? "fixed" : "static",
+                      }}
+                      onClick={() => handleExpand(item.id)}
+                    >
+                      {expanded ? "Ver menos" : "Leer más"}
+                    </button>
+                  </div>
+                )}
+                {/* Tags */}
+                {item.tags && item.tags.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-4 mb-2">
+                    {item.tags.map((t) => (
+                      <span key={t} className="bg-black border border-yellow-800 text-yellow-300 px-3 py-0.5 rounded-full text-xs font-semibold">
+                        #{t}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {/* Acciones sociales */}
+                <div className="flex gap-6 items-center pt-3 border-t border-yellow-900 text-yellow-500 mt-4">
+                  <button className="flex items-center gap-2 hover:text-yellow-300 transition">
+                    <ThumbsUp size={17} /> Me gusta
+                  </button>
+                  <button className="flex items-center gap-2 hover:text-yellow-300 transition">
+                    <MessageCircle size={17} /> Comentar
+                  </button>
+                  <a
+                    href={`https://twitter.com/intent/tweet?url=https://noticias-cronos-366i.vercel.app/noticia/${item.slug}`}
+                    target="_blank"
+                    rel="noopener"
+                    className="flex items-center gap-2 hover:text-blue-400 transition"
+                  >
+                    <Share2 size={17} /> Compartir
+                  </a>
+                </div>
+              </div>
+            </article>
+          );
+        })
+      )}
     </div>
   );
 };
