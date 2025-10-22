@@ -1,11 +1,14 @@
 'use client'
 
-import { PlayIcon, PauseIcon, RadioIcon } from 'lucide-react'
+import { PlayIcon, PauseIcon, RadioIcon, Volume2, VolumeX } from 'lucide-react'
 import { useRef, useState, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 import clsx from 'clsx'
 
 const RadioBar = () => {
   const [playing, setPlaying] = useState(false)
+  const [volume, setVolume] = useState(0.8)
+  const [muted, setMuted] = useState(false)
   const audioRef = useRef<HTMLAudioElement | null>(null)
 
   const streamUrl = 'https://streaming.intermediacolombia.com:8073/stream'
@@ -23,6 +26,33 @@ const RadioBar = () => {
     setPlaying(!playing)
   }
 
+  const toggleMute = () => {
+    if (!audioRef.current) return
+    
+    if (muted) {
+      audioRef.current.volume = volume
+      setMuted(false)
+    } else {
+      audioRef.current.volume = 0
+      setMuted(true)
+    }
+  }
+
+  const handleVolumeChange = (newVolume: number) => {
+    if (!audioRef.current) return
+    
+    setVolume(newVolume)
+    if (!muted) {
+      audioRef.current.volume = newVolume
+    }
+  }
+
+  useEffect(() => {
+    if (audioRef.current) {
+      audioRef.current.volume = muted ? 0 : volume
+    }
+  }, [volume, muted])
+
   useEffect(() => {
     return () => {
       if (audioRef.current) {
@@ -32,85 +62,126 @@ const RadioBar = () => {
   }, [])
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 px-0 py-0 bg-black">
-      <div
-        className="relative w-full flex items-center justify-between p-4 overflow-hidden"
-        style={{
-          backgroundColor: '#000',
-        }}
-      >
-        {/* Fondo animado amarillo, sin bordes grises */}
-        <div className="absolute inset-0 opacity-20 pointer-events-none z-0">
-          <svg viewBox="0 0 1200 120" preserveAspectRatio="none" className="w-full h-full">
-            <path d="M0,0 C300,100 900,0 1200,100 L1200,0 L0,0 Z" fill="#FFD700" />
-          </svg>
-        </div>
+    <motion.div
+      initial={{ y: 100 }}
+      animate={{ y: 0 }}
+      transition={{ type: "spring", damping: 25, stiffness: 200 }}
+      className="fixed bottom-0 left-0 right-0 z-50 glass border-t border-yellow-500/20"
+    >
+      <div className="max-w-7xl mx-auto px-4 py-4">
+        <div className="flex items-center justify-between">
+          {/* Left Section - Radio Info */}
+          <div className="flex items-center space-x-4">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={togglePlay}
+              className="w-12 h-12 gradient-primary rounded-xl flex items-center justify-center shadow-glow"
+            >
+              {playing ? <PauseIcon className="w-6 h-6 text-black" /> : <PlayIcon className="w-6 h-6 text-black" />}
+            </motion.button>
 
-        {/* Audio */}
-        <audio ref={audioRef} src={streamUrl} preload="none" />
+            <div>
+              <h3 className="text-lg font-bold text-white">SportPulse Radio</h3>
+              <div className="flex items-center space-x-2">
+                <RadioIcon className="w-4 h-4 text-yellow-400" />
+                <motion.span
+                  animate={{ opacity: [1, 0.5, 1] }}
+                  transition={{ duration: 1, repeat: Infinity }}
+                  className={clsx(
+                    'text-sm font-bold',
+                    radioStatus === 'live' ? 'text-green-400' : 'text-orange-400'
+                  )}
+                >
+                  {radioStatus === 'live' ? 'EN VIVO' : 'AUTO DJ'}
+                </motion.span>
+              </div>
+            </div>
+          </div>
 
-        {/* Controles */}
-        <div className="flex items-center gap-4 relative z-10">
-          <button
-            onClick={togglePlay}
-            className="p-3 bg-yellow-400 text-black rounded-full shadow-md hover:scale-105 transition"
-          >
-            {playing ? <PauseIcon className="w-5 h-5" /> : <PlayIcon className="w-5 h-5" />}
-          </button>
-
-          <div>
-            <p className="text-white font-semibold text-sm">ORO STEREO</p>
-            <div className="flex items-center gap-2">
-              <RadioIcon className="w-3 h-3 text-white" />
-              <span
-                className={clsx(
-                  'text-xs font-bold',
-                  radioStatus === 'live' ? 'text-green-400' : 'text-orange-400'
-                )}
+          {/* Center Section - Visualizer */}
+          <AnimatePresence>
+            {playing && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.8 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.8 }}
+                className="flex items-center space-x-1"
               >
-                {radioStatus === 'live' ? 'EN VIVO' : 'AUTO DJ'}
-              </span>
+                {[0.3, 0.5, 0.4, 0.6, 0.35, 0.4, 0.3, 0.5].map((duration, i) => (
+                  <motion.div
+                    key={i}
+                    animate={{ scaleY: [0.4, 1, 0.4] }}
+                    transition={{
+                      duration: duration,
+                      repeat: Infinity,
+                      delay: i * 0.1,
+                    }}
+                    className="w-1 h-6 gradient-primary rounded-full"
+                  />
+                ))}
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Right Section - Controls */}
+          <div className="flex items-center space-x-4">
+            <motion.button
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              onClick={toggleMute}
+              className="p-2 rounded-lg bg-gray-800 hover:bg-gray-700 transition-colors"
+            >
+              {muted ? <VolumeX className="w-5 h-5 text-gray-400" /> : <Volume2 className="w-5 h-5 text-gray-400" />}
+            </motion.button>
+
+            <div className="flex items-center space-x-2">
+              <VolumeX className="w-4 h-4 text-gray-400" />
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.1"
+                value={muted ? 0 : volume}
+                onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                className="w-20 h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer slider"
+              />
+              <Volume2 className="w-4 h-4 text-gray-400" />
+            </div>
+
+            <div className="text-xs text-gray-400 font-medium">
+              {Math.round((muted ? 0 : volume) * 100)}%
             </div>
           </div>
         </div>
-
-        {/* Ecualizador animado */}
-        {playing && (
-          <div className="absolute right-4 top-1/2 transform -translate-y-1/2 flex gap-[3px] z-10">
-            {[0.3, 0.5, 0.4, 0.6, 0.35].map((duration, i) => (
-              <div
-                key={i}
-                className="w-[4px] h-5 bg-yellow-400 rounded-sm animate-eq"
-                style={{
-                  animationDuration: `${duration}s`,
-                  animationDelay: `${i * 0.1}s`,
-                }}
-              />
-            ))}
-          </div>
-        )}
       </div>
 
-      {/* Animación CSS para las barras */}
+      {/* Audio */}
+      <audio ref={audioRef} src={streamUrl} preload="none" />
+
+      {/* Custom Slider Styles */}
       <style jsx>{`
-        @keyframes eqBounce {
-          0%,
-          100% {
-            transform: scaleY(0.4);
-          }
-          50% {
-            transform: scaleY(1);
-          }
+        .slider::-webkit-slider-thumb {
+          appearance: none;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #fbbf24;
+          cursor: pointer;
+          box-shadow: 0 0 0 2px #1f2937;
         }
 
-        .animate-eq {
-          animation-name: eqBounce;
-          animation-timing-function: ease-in-out;
-          animation-iteration-count: infinite;
-          transform-origin: bottom;
+        .slider::-moz-range-thumb {
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          background: #fbbf24;
+          cursor: pointer;
+          border: none;
+          box-shadow: 0 0 0 2px #1f2937;
         }
       `}</style>
-    </div>
+    </motion.div>
   )
 }
 

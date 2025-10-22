@@ -1,13 +1,5 @@
-import NewsFeed from '@/components/news/NewsFeed'
-import MainLayout from '@/components/MainLayout'
-
+import RevolutionaryNewsFeed from '@/components/news/RevolutionaryNewsFeed'
 
 export default async function HomePage() {
-
-
-  return (
-
-      <NewsFeed />
-   
-  )
+  return <RevolutionaryNewsFeed />
 }

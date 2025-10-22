@@ -1,13 +1,16 @@
-// app/admin/layout.tsx
+// /app/admin/layout.tsx
 import { ReactNode } from "react";
 
 export default function AdminLayout({ children }: { children: ReactNode }) {
   return (
-    <div className="min-h-screen bg-gray-100 text-gray-900">
-      <header className="bg-white shadow p-4 sticky top-0 z-10">
-        <h1 className="text-xl font-bold">Admin Panel</h1>
-      </header>
-      <main className="p-6">{children}</main>
-    </div>
+    <html>
+      <body>
+        <main className="min-h-screen bg-black text-gray-100 flex items-center justify-center">
+          <div className="w-full max-w-4xl mx-auto p-8 rounded-3xl shadow-2xl bg-[#181818] border border-yellow-400/30">
+            {children}
+          </div>
+        </main>
+      </body>
+    </html>
   );
 }

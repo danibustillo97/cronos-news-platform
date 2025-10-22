@@ -1,7 +1,7 @@
 // lib/api.ts
 
 export const getDrafts = async () => {
-  const res = await fetch('https://backendcronosnews-production.up.railway.app/api/news/drafts');
+  const res = await fetch('http://localhost:8000/api/news/drafts');
   if (!res.ok) {
     console.error('Error al obtener noticias:', res.statusText);
     return [];
@@ -12,7 +12,7 @@ export const getDrafts = async () => {
 };
 
 export const publishNews = async (id: string) => {
-  const res = await fetch(`https://backendcronosnews-production.up.railway.app/api/news/${id}/publish`, {
+  const res = await fetch(`http://localhost:8000/api/news/${id}/publish`, {
     method: 'PUT',
   });
 

@@ -1,4 +1,4 @@
-"use client";
+'use client';
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 
@@ -15,7 +15,7 @@ interface MatchResult {
   country_code?: string;
 }
 
-interface LiveScoresWidgetProps {
+interface OptimizedLiveScoresWidgetProps {
   horizontal?: boolean;
 }
 
@@ -44,10 +44,10 @@ const teamLogos: Record<string, string> = {
 };
 
 const getTeamLogo = (teamName: string): string => {
-  return teamLogos[teamName] || `https://via.placeholder.com/40x40/374151/ffffff?text=${teamName.charAt(0)}`;
+  return teamLogos[teamName] || `https://via.placeholder.com/32x32/374151/ffffff?text=${teamName.charAt(0)}`;
 };
 
-export default function LiveScoresWidget({ horizontal = false }: LiveScoresWidgetProps) {
+export default function OptimizedLiveScoresWidget({ horizontal = false }: OptimizedLiveScoresWidgetProps) {
   const [matches, setMatches] = useState<MatchResult[]>([]);
 
   useEffect(() => {
@@ -104,8 +104,8 @@ export default function LiveScoresWidget({ horizontal = false }: LiveScoresWidge
     <motion.div
       key={match.id}
       whileHover={{ scale: 1.01 }}
-      className={`bg-gray-800/80 border border-gray-700 rounded-lg p-2 transition-all duration-300 ${
-        horizontal ? "min-w-[180px] w-[180px] shrink-0" : ""
+      className={`bg-gray-800/50 border border-gray-700 rounded-lg p-3 transition-all duration-300 ${
+        horizontal ? "min-w-[160px] w-[160px] shrink-0" : ""
       } ${isLive(match) ? 'border-yellow-500/50 shadow-glow' : ''}`}
     >
       {/* Header */}
@@ -113,15 +113,13 @@ export default function LiveScoresWidget({ horizontal = false }: LiveScoresWidge
         <div className="flex items-center space-x-1">
           <span className="text-sm">{getLeagueIcon(match.league)}</span>
           <span className="text-xs font-bold text-yellow-400 uppercase truncate">
-            {match.league.replace(/\.\d+$/, "").substring(0, 8)}
+            {match.league.replace(/\.\d+$/, "").substring(0, 6)}
           </span>
         </div>
-        <div className="text-xs text-gray-400">
-          {formatTime(match.date)}
-        </div>
+        <div className="text-xs text-gray-400">{formatTime(match.date)}</div>
       </div>
 
-      {/* Teams and Score - Compact */}
+      {/* Teams and Score - Ultra Compact */}
       <div className="space-y-1">
         {/* Home Team */}
         <div className="flex items-center justify-between">
@@ -136,7 +134,7 @@ export default function LiveScoresWidget({ horizontal = false }: LiveScoresWidge
               }}
             />
             <span className="text-xs font-semibold text-white truncate">
-              {match.home_team.length > 10 ? match.home_team.substring(0, 10) + '...' : match.home_team}
+              {match.home_team.length > 8 ? match.home_team.substring(0, 8) + '...' : match.home_team}
             </span>
           </div>
           <div className="text-sm font-bold text-white">
@@ -157,7 +155,7 @@ export default function LiveScoresWidget({ horizontal = false }: LiveScoresWidge
               }}
             />
             <span className="text-xs font-semibold text-white truncate">
-              {match.away_team.length > 10 ? match.away_team.substring(0, 10) + '...' : match.away_team}
+              {match.away_team.length > 8 ? match.away_team.substring(0, 8) + '...' : match.away_team}
             </span>
           </div>
           <div className="text-sm font-bold text-white">
@@ -194,18 +192,18 @@ export default function LiveScoresWidget({ horizontal = false }: LiveScoresWidge
 
   const liveMatches = matches
     .filter(isLive)
-    .slice(0, horizontal ? 6 : 4);
+    .slice(0, horizontal ? 4 : 3);
 
   const finishedMatches = matches
     .filter((m) => m.status === "Full Time")
-    .slice(0, horizontal ? 4 : 6);
+    .slice(0, horizontal ? 3 : 4);
 
   return (
-    <div className={`${horizontal ? "flex gap-2 overflow-x-auto scrollbar-hide pb-2" : "space-y-3"}`}>
+    <div className={`${horizontal ? "flex gap-2 overflow-x-auto scrollbar-hide pb-2" : "space-y-2"}`}>
       {liveMatches.length > 0 && (
         <div>
           {!horizontal && (
-            <h2 className="text-sm font-bold text-white mb-3 flex items-center space-x-2">
+            <h2 className="text-sm font-bold text-white mb-2 flex items-center space-x-2">
               <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
               <span>En Vivo</span>
             </h2>
@@ -218,7 +216,7 @@ export default function LiveScoresWidget({ horizontal = false }: LiveScoresWidge
 
       {!horizontal && finishedMatches.length > 0 && (
         <div>
-          <h2 className="text-sm font-bold text-white mb-3 flex items-center space-x-2">
+          <h2 className="text-sm font-bold text-white mb-2 flex items-center space-x-2">
             <span>📋</span>
             <span>Finalizados</span>
           </h2>
@@ -229,7 +227,7 @@ export default function LiveScoresWidget({ horizontal = false }: LiveScoresWidge
       )}
 
       {matches.length === 0 && (
-        <div className="text-center py-8">
+        <div className="text-center py-4">
           <div className="text-gray-500 text-sm">Cargando marcadores...</div>
         </div>
       )}
