@@ -1,118 +1,127 @@
 "use client";
-import { useEffect, useState } from "react";
-import Link from "next/link";
-
-interface News {
-  id: string;
-  title: string;
-  content: string;
-  image_url: string;
-  published_at: string;
-  category?: string;
-  author?: string;
-  league?: string;
-  country?: string;
-  team?: string;
-  tags?: string[];
-  slug: string;
-}
+import { useState } from "react";
+import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminDashboard from "@/components/admin/AdminDashboard";
+import AdminNewsManager from "@/components/admin/AdminNewsManager";
+import SmartWorkspace from "@/components/admin/SmartWorkspace";
+import AdminSeoTags from "@/components/admin/AdminSeoTags";
+import { Bell, Search, Cpu, Wifi } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 
 export default function AdminPage() {
-  const [newsList, setNewsList] = useState<News[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [activeView, setActiveView] = useState("dashboard");
 
-  useEffect(() => {
-    fetch("http://localhost:8000/api/news/drafts")
-      .then((res) => res.json())
-      .then(data => {
-        setNewsList(Array.isArray(data.news) ? data.news : []);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  const renderContent = () => {
+    switch (activeView) {
+      case "dashboard":
+        return <AdminDashboard />;
+      case "news":
+        return <SmartWorkspace />;
+      case "tags_seo":
+        return <AdminSeoTags />;
+      default:
+        return (
+          <div className="flex flex-col items-center justify-center h-[60vh] text-neutral-500">
+            <Cpu size={64} className="mb-4 text-neutral-800 animate-pulse" />
+            <p className="text-xl font-mono">Módulo en desarrollo...</p>
+          </div>
+        );
+    }
+  };
 
-  // Función para guardar la noticia seleccionada en localStorage antes de navegar
-  const handleEdit = (news: News) => {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("draft_news_edit", JSON.stringify(news));
+  const getPageTitle = () => {
+    switch (activeView) {
+      case "dashboard": return "Command Center";
+      case "news": return "News Grid Control";
+      case "tags_seo": return "SEO Intelligence";
+      case "analytics": return "Real-time Analytics";
+      case "settings": return "System Config";
+      default: return "Nexus Admin";
     }
   };
 
   return (
-    <div className="max-w-7xl mx-auto px-2 sm:px-4 py-10">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-extrabold text-yellow-400 tracking-tight">Noticias en Borrador</h1>
-        <Link href="/admin/editor/new">
-          <button className="bg-green-500 hover:bg-green-600 text-white font-bold px-6 py-2 rounded-lg shadow-md transition">
-            + Nueva Noticia
-          </button>
-        </Link>
-      </div>
+    <div className="bg-[#050505] h-screen font-sans text-white flex overflow-hidden">
+      {/* Sidebar */}
+      <AdminSidebar activeView={activeView} setActiveView={setActiveView} />
 
-      {loading ? (
-        <div className="text-center text-gray-400 py-12">Cargando noticias...</div>
-      ) : newsList.length === 0 ? (
-        <div className="text-center text-gray-400 py-12">No hay noticias en borrador.</div>
-      ) : (
-        <div className="overflow-x-auto rounded-2xl bg-neutral-950/90 shadow-xl border border-neutral-800">
-          <table className="min-w-full text-left border-collapse">
-            <thead className="sticky top-0 z-10 bg-neutral-950 border-b border-yellow-400">
-              <tr>
-                <th className="py-3 px-4 text-yellow-400 font-semibold">Título</th>
-                <th className="py-3 px-4">Categoría</th>
-                <th className="py-3 px-4">Autor</th>
-                <th className="py-3 px-4">Liga</th>
-                <th className="py-3 px-4">País</th>
-                <th className="py-3 px-4">Equipo</th>
-                <th className="py-3 px-4">Tags</th>
-                <th className="py-3 px-4">Fecha</th>
-                <th className="py-3 px-4">Acciones</th>
-              </tr>
-            </thead>
-            <tbody>
-              {newsList.map((n) => (
-                <tr
-                  key={n.id}
-                  className="border-b border-neutral-800 hover:bg-neutral-900/80 transition group"
-                >
-                  <td className="py-3 px-4 font-bold text-white flex items-center gap-2">
-                    {n.image_url &&
-                      <img src={n.image_url} alt="" className="w-9 h-9 rounded object-cover border border-neutral-800" />
-                    }
-                    <span>{n.title}</span>
-                  </td>
-                  <td className="py-3 px-4 text-neutral-200">{n.category || "-"}</td>
-                  <td className="py-3 px-4 text-neutral-300">{n.author || "-"}</td>
-                  <td className="py-3 px-4 text-neutral-300">{n.league || "-"}</td>
-                  <td className="py-3 px-4 text-neutral-300">{n.country || "-"}</td>
-                  <td className="py-3 px-4 text-neutral-300">{n.team || "-"}</td>
-                  <td className="py-3 px-4 text-neutral-200">
-                    {n.tags?.length ? (
-                      <div className="flex flex-wrap gap-1">
-                        {n.tags.map(tag => (
-                          <span key={tag} className="bg-yellow-400/20 text-yellow-300 px-2 py-0.5 rounded text-xs font-semibold">{tag}</span>
-                        ))}
-                      </div>
-                    ) : "-"}
-                  </td>
-                  <td className="py-3 px-4 text-neutral-400">
-                    {n.published_at ? new Date(n.published_at).toLocaleDateString() : "-"}
-                  </td>
-                  <td className="py-3 px-4">
-                    <Link href={`/admin/editor/${n.id}`} legacyBehavior>
-                      <a onClick={() => handleEdit(n)}>
-                        <button className="bg-yellow-400 hover:bg-yellow-500 text-black font-bold px-4 py-1 rounded-lg shadow transition">
-                          Editar
-                        </button>
-                      </a>
-                    </Link>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+      {/* Main Content */}
+      <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen relative">
+        
+        {/* Background Ambient Glow */}
+        <div className="fixed top-0 left-0 w-full h-full overflow-hidden pointer-events-none z-0">
+            <div className="absolute top-[-10%] right-[-5%] w-[500px] h-[500px] bg-red-900/10 rounded-full blur-[120px]"></div>
+            <div className="absolute bottom-[-10%] left-[20%] w-[600px] h-[600px] bg-blue-900/5 rounded-full blur-[150px]"></div>
         </div>
-      )}
+
+        {/* Top Header */}
+        <header className="h-20 bg-black/50 backdrop-blur-xl border-b border-white/5 sticky top-0 z-30 px-8 flex items-center justify-between">
+          <div className="flex items-center gap-6">
+             <h1 className="text-2xl font-black tracking-tight text-white flex items-center gap-3">
+               {getPageTitle()}
+               <span className="px-2 py-0.5 rounded-full bg-red-500/10 text-red-500 text-[10px] font-mono border border-red-500/20 uppercase tracking-widest">
+                 Live
+               </span>
+             </h1>
+          </div>
+
+          <div className="flex items-center gap-6">
+             {/* Global Search */}
+             <div className="relative hidden lg:block group">
+               <div className="absolute -inset-0.5 bg-gradient-to-r from-red-600 to-blue-600 rounded-full blur opacity-20 group-hover:opacity-50 transition duration-500"></div>
+               <div className="relative flex items-center">
+                 <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400 group-focus-within:text-white transition-colors" size={16} />
+                 <input 
+                   type="text" 
+                   placeholder="Search database..." 
+                   className="bg-black border border-white/10 rounded-full py-2.5 pl-12 pr-6 text-sm w-72 text-white placeholder-neutral-600 focus:outline-none focus:border-white/30 transition-all shadow-xl"
+                 />
+                 <div className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-neutral-600 border border-white/10 px-1.5 py-0.5 rounded bg-neutral-900">CMD+K</div>
+               </div>
+             </div>
+
+             <div className="h-8 w-[1px] bg-white/10 mx-2"></div>
+
+             {/* Status Indicators */}
+             <div className="flex items-center gap-4 text-neutral-400">
+                <div className="flex items-center gap-2 text-xs font-mono">
+                   <Wifi size={14} className="text-green-500" />
+                   <span className="hidden xl:inline">Connected</span>
+                </div>
+                <button className="relative p-2 hover:text-white transition-colors">
+                  <Bell size={20} />
+                  <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-red-500 rounded-full shadow-[0_0_10px_rgba(239,68,68,0.8)] animate-pulse"></span>
+                </button>
+             </div>
+
+             {/* Profile */}
+             <div className="flex items-center gap-3 pl-4">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-neutral-800 to-neutral-700 p-[1px]">
+                   <div className="w-full h-full bg-neutral-900 rounded-xl flex items-center justify-center text-xs font-bold text-white">
+                      AI
+                   </div>
+                </div>
+             </div>
+          </div>
+        </header>
+
+        {/* Dynamic Content Area */}
+        <main className="flex-1 p-8 overflow-y-auto relative z-10 scrollbar-thin scrollbar-thumb-neutral-800 scrollbar-track-transparent">
+           <AnimatePresence mode="wait">
+             <motion.div
+               key={activeView}
+               initial={{ opacity: 0, y: 10 }}
+               animate={{ opacity: 1, y: 0 }}
+               exit={{ opacity: 0, y: -10 }}
+               transition={{ duration: 0.2 }}
+               className="h-full"
+             >
+               {renderContent()}
+             </motion.div>
+           </AnimatePresence>
+        </main>
+
+      </div>
     </div>
   );
 }

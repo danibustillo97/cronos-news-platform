@@ -1,5 +1,5 @@
-import RevolutionaryNewsFeed from '@/components/news/RevolutionaryNewsFeed'
+import ModernNewsPortal from '@/components/news/ModernNewsPortal'
 
-export default async function HomePage() {
-  return <RevolutionaryNewsFeed />
+export default function HomePage() {
+  return <ModernNewsPortal />
 }

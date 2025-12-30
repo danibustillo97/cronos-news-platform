@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState } from "react";
+import { stripHtml, truncateText } from "@/lib/textUtils";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Heart, 
@@ -23,7 +24,9 @@ import {
 interface News {
   id: string;
   title: string;
+  subtitle?: string;
   content: string;
+  excerpt?: string;
   image_url: string;
   images?: string[];
   published_at: string;
@@ -206,13 +209,19 @@ function PremiumNewsCard({ news, layout = 'grid' }: { news: News, layout?: 'grid
           </span>
         </div>
         
-        <h3 className="text-base font-bold text-white group-hover:text-yellow-400 transition-colors line-clamp-2">
-          {news.title}
-        </h3>
-        
-        <p className="text-gray-300 text-sm line-clamp-2">
-          {news.content.substring(0, 100)}...
-        </p>
+        <div>
+            <h3 className="text-xl font-bold text-white mb-2 group-hover:text-yellow-400 transition-colors line-clamp-2 leading-tight">
+            {news.title}
+            </h3>
+            {news.subtitle && (
+                <h4 className="text-sm font-medium text-gray-400 mb-2 line-clamp-2">
+                    {news.subtitle}
+                </h4>
+            )}
+            <p className="text-gray-300 text-sm line-clamp-3 leading-relaxed">
+            {news.excerpt || truncateText(stripHtml(news.content), 120)}
+            </p>
+        </div>
         
         <div className="flex items-center justify-between pt-3 border-t border-gray-700">
           <div className="flex items-center space-x-3 text-sm text-gray-400">
@@ -259,6 +268,8 @@ function PremiumNewsCard({ news, layout = 'grid' }: { news: News, layout?: 'grid
   );
 }
 
+import { supabase } from '@/lib/supabaseClient';
+
 export default function PremiumNewsFeed() {
   const [news, setNews] = useState<News[]>([]);
   const [loading, setLoading] = useState(true);
@@ -276,18 +287,20 @@ export default function PremiumNewsFeed() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/news/published", {
-          cache: "no-store"
-        });
-        const data = await res.json();
-        if (data?.success) {
-          const sorted: News[] = data.news.sort(
-            (a: News, b: News) => +new Date(b.published_at) - +new Date(a.published_at)
-          );
-          setNews(enhanceNewsData(sorted));
+        const { data, error } = await supabase
+            .from('news')
+            .select('*')
+            .eq('status', 'published')
+            .order('published_at', { ascending: false });
+
+        if (error) throw error;
+        
+        if (data) {
+          // Cast data to News[] and handle any missing fields gracefully if needed
+          setNews(enhanceNewsData(data as any[]));
         }
       } catch (e) {
-        console.error(e);
+        console.error("Failed to fetch news:", e);
       } finally {
         setLoading(false);
       }

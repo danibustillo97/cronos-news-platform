@@ -93,7 +93,7 @@ export default function OptimizedLiveScoresWidget({ horizontal = false }: Optimi
 
   const getLeagueIcon = (league: string) => {
     if (league.includes("LaLiga")) return "🇪🇸";
-    if (league.includes("Premier")) return "🏴󠁧󠁢󠁥󠁮󠁧󠁿";
+    if (league.includes("Premier")) return "🏴";
     if (league.includes("Bundesliga")) return "🇩🇪";
     if (league.includes("Serie A")) return "🇮🇹";
     if (league.includes("Ligue 1")) return "🇫🇷";
@@ -104,19 +104,19 @@ export default function OptimizedLiveScoresWidget({ horizontal = false }: Optimi
     <motion.div
       key={match.id}
       whileHover={{ scale: 1.01 }}
-      className={`bg-gray-800/50 border border-gray-700 rounded-lg p-3 transition-all duration-300 ${
+      className={`bg-white border border-neutral-200 rounded-lg p-3 shadow-sm transition-all duration-300 ${
         horizontal ? "min-w-[160px] w-[160px] shrink-0" : ""
-      } ${isLive(match) ? 'border-yellow-500/50 shadow-glow' : ''}`}
+      } ${isLive(match) ? 'border-red-200 ring-1 ring-red-100' : 'hover:border-neutral-300'}`}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-2">
         <div className="flex items-center space-x-1">
           <span className="text-sm">{getLeagueIcon(match.league)}</span>
-          <span className="text-xs font-bold text-yellow-400 uppercase truncate">
+          <span className="text-xs font-bold text-neutral-700 uppercase truncate">
             {match.league.replace(/\.\d+$/, "").substring(0, 6)}
           </span>
         </div>
-        <div className="text-xs text-gray-400">{formatTime(match.date)}</div>
+        <div className="text-xs text-neutral-500">{formatTime(match.date)}</div>
       </div>
 
       {/* Teams and Score - Ultra Compact */}
@@ -133,11 +133,11 @@ export default function OptimizedLiveScoresWidget({ horizontal = false }: Optimi
                 target.src = `https://via.placeholder.com/16x16/374151/ffffff?text=${match.home_team.charAt(0)}`;
               }}
             />
-            <span className="text-xs font-semibold text-white truncate">
+            <span className="text-xs font-semibold text-neutral-900 truncate">
               {match.home_team.length > 8 ? match.home_team.substring(0, 8) + '...' : match.home_team}
             </span>
           </div>
-          <div className="text-sm font-bold text-white">
+          <div className="text-sm font-bold text-neutral-900">
             {match.home_score}
           </div>
         </div>
@@ -154,24 +154,24 @@ export default function OptimizedLiveScoresWidget({ horizontal = false }: Optimi
                 target.src = `https://via.placeholder.com/16x16/374151/ffffff?text=${match.away_team.charAt(0)}`;
               }}
             />
-            <span className="text-xs font-semibold text-white truncate">
+            <span className="text-xs font-semibold text-neutral-900 truncate">
               {match.away_team.length > 8 ? match.away_team.substring(0, 8) + '...' : match.away_team}
             </span>
           </div>
-          <div className="text-sm font-bold text-white">
+          <div className="text-sm font-bold text-neutral-900">
             {match.away_score}
           </div>
         </div>
       </div>
 
       {/* Status */}
-      <div className="flex items-center justify-between mt-2 pt-1 border-t border-gray-700">
+      <div className="flex items-center justify-between mt-2 pt-1 border-t border-neutral-100">
         <div className="flex items-center space-x-1">
-          <span className="text-xs font-medium text-gray-300">
+          <span className="text-xs font-medium text-neutral-500">
             {statusTranslations[match.status] || match.status}
           </span>
           {match.time && (
-            <span className="text-xs text-gray-400">
+            <span className="text-xs text-neutral-400">
               {match.time}
             </span>
           )}
@@ -180,9 +180,9 @@ export default function OptimizedLiveScoresWidget({ horizontal = false }: Optimi
           <motion.div
             animate={{ opacity: [1, 0.5, 1] }}
             transition={{ duration: 1, repeat: Infinity }}
-            className="flex items-center gap-1 text-red-500 font-bold text-xs"
+            className="flex items-center gap-1 text-red-600 font-bold text-xs"
           >
-            <div className="w-1.5 h-1.5 bg-red-500 rounded-full" />
+            <div className="w-1.5 h-1.5 bg-red-600 rounded-full" />
             <span>LIVE</span>
           </motion.div>
         )}
@@ -203,8 +203,8 @@ export default function OptimizedLiveScoresWidget({ horizontal = false }: Optimi
       {liveMatches.length > 0 && (
         <div>
           {!horizontal && (
-            <h2 className="text-sm font-bold text-white mb-2 flex items-center space-x-2">
-              <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+            <h2 className="text-sm font-bold text-neutral-900 mb-2 flex items-center space-x-2">
+              <span className="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
               <span>En Vivo</span>
             </h2>
           )}
@@ -216,7 +216,7 @@ export default function OptimizedLiveScoresWidget({ horizontal = false }: Optimi
 
       {!horizontal && finishedMatches.length > 0 && (
         <div>
-          <h2 className="text-sm font-bold text-white mb-2 flex items-center space-x-2">
+          <h2 className="text-sm font-bold text-neutral-900 mb-2 flex items-center space-x-2">
             <span>📋</span>
             <span>Finalizados</span>
           </h2>
@@ -228,7 +228,7 @@ export default function OptimizedLiveScoresWidget({ horizontal = false }: Optimi
 
       {matches.length === 0 && (
         <div className="text-center py-4">
-          <div className="text-gray-500 text-sm">Cargando marcadores...</div>
+          <div className="text-neutral-400 text-sm">Cargando marcadores...</div>
         </div>
       )}
     </div>
