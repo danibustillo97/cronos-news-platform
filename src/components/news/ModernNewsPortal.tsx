@@ -35,6 +35,35 @@ export default function ModernNewsPortal() {
     fetchNews(activeCategory)
   }, [activeCategory])
 
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = (event: PopStateEvent) => {
+      // If we go back to root (no /noticia/ in URL), close modal
+      if (!window.location.pathname.includes('/noticia/')) {
+        setSelectedNews(null)
+      }
+      // Note: Opening modal on forward navigation is harder because we need to find the news item
+      // which might not be in the current `news` list. 
+      // For now, we prioritize closing properly.
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
+
+  const handleOpenNews = (newsItem: News) => {
+    setSelectedNews(newsItem)
+    // Update URL to /noticia/slug without reloading page
+    // Using pushState allows the back button to close the modal (via popstate listener)
+    window.history.pushState({ newsId: newsItem.id }, '', `/noticia/${newsItem.slug}`)
+  }
+
+  const handleCloseNews = () => {
+    setSelectedNews(null)
+    // Revert URL to home
+    window.history.pushState(null, '', '/')
+  }
+
   useEffect(() => {
     // Real-time subscription for new news
     const channel = supabase
@@ -89,15 +118,16 @@ export default function ModernNewsPortal() {
       const items = (data || []).map((d: any) => ({
         id: d.id,
         title: d.title,
-        subtitle: d.subtitle,
+        subtitle: d.subtitle || d.summary || '',
         content: d.content,
-        excerpt: d.excerpt,
+        excerpt: d.excerpt || d.summary || '',
         image_url: d.image_url || 'https://via.placeholder.com/800x600',
         published_at: d.published_at,
         category: d.category || 'General',
         author: d.author,
         slug: d.slug
       })) as News[]
+      console.log('Fetched news:', items)
       setNews(items)
     } catch (error) {
       console.error('Error fetching news:', error)
@@ -139,7 +169,11 @@ export default function ModernNewsPortal() {
       <ModernNavbar activeCategory={activeCategory} onCategorySelect={setActiveCategory} />
       
       {/* Modal de Noticias */}
-      <NewsModal news={selectedNews} onClose={() => setSelectedNews(null)} />
+      <NewsModal 
+        news={selectedNews} 
+        onClose={handleCloseNews} 
+        onNewsClick={handleOpenNews}
+      />
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 pt-24">
         
@@ -147,7 +181,7 @@ export default function ModernNewsPortal() {
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
           {/* Main Story (Left - Large) */}
-          <div className="lg:col-span-8 group cursor-pointer" onClick={() => mainStory && setSelectedNews(mainStory)}>
+          <div className="lg:col-span-8 group cursor-pointer" onClick={() => mainStory && handleOpenNews(mainStory)}>
             {mainStory && (
               <div className="relative h-[400px] md:h-[500px] rounded-xl overflow-hidden shadow-sm hover:shadow-md transition-shadow">
                 <img 
@@ -177,7 +211,7 @@ export default function ModernNewsPortal() {
               <div 
                 key={story.id} 
                 className="relative flex-1 rounded-xl overflow-hidden group cursor-pointer shadow-sm bg-white border border-neutral-100 flex flex-row h-[160px]"
-                onClick={() => setSelectedNews(story)}
+                onClick={() => handleOpenNews(story)}
               >
                  <div className="w-2/5 relative overflow-hidden">
                     <img 
@@ -230,7 +264,7 @@ export default function ModernNewsPortal() {
                   <React.Fragment key={story.id}>
                     <NewsCard 
                         news={story} 
-                        onClick={() => setSelectedNews(story)} 
+                        onClick={() => handleOpenNews(story)} 
                     />
                     
                     {/* Newsletter Interruption */}
