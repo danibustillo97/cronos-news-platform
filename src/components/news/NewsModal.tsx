@@ -78,7 +78,7 @@ export default function NewsModal({ news, onClose, onNewsClick }: NewsModalProps
               {/* Scrollable Content */}
               <div className="overflow-y-auto custom-scroll flex-1">
                 {/* Hero Image */}
-                <div className="relative aspect-video w-full max-h-[35vh] md:max-h-[40vh]">
+                <div className="relative aspect-square md:aspect-video w-full max-h-[50vh] md:max-h-[40vh]">
                   <img
                     src={currentNews.image_url || 'https://via.placeholder.com/1200x800'}
                     alt={currentNews.title}
@@ -86,16 +86,16 @@ export default function NewsModal({ news, onClose, onNewsClick }: NewsModalProps
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/95 via-black/40 to-transparent" />
                   
-                  <div className="absolute bottom-0 left-0 p-6 md:p-10 w-full max-w-6xl mx-auto">
-                    <div className="flex items-center gap-3 mb-3">
+                  <div className="absolute bottom-0 left-0 p-4 md:p-10 w-full max-w-6xl mx-auto">
+                    <div className="flex items-center gap-3 mb-2 md:mb-3">
                         <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-0.5 rounded-sm uppercase tracking-wider shadow-lg">
                         {currentNews.category || 'Noticia'}
                         </span>
-                        <span className="text-neutral-300 text-xs flex items-center gap-1">
+                        <span className="text-neutral-300 text-[10px] md:text-xs flex items-center gap-1">
                              <Clock size={12} /> {formatDate(currentNews.published_at)}
                         </span>
                     </div>
-                    <h1 className="text-2xl md:text-3xl lg:text-4xl font-black text-white leading-tight mb-2 drop-shadow-lg">
+                    <h1 className="text-xl md:text-3xl lg:text-4xl font-black text-white leading-tight mb-2 drop-shadow-lg line-clamp-3 md:line-clamp-none">
                       {currentNews.title}
                     </h1>
                   </div>
