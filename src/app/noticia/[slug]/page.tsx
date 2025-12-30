@@ -19,6 +19,8 @@ import {
   ThumbsUp
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { useParams } from 'next/navigation';
+import { supabase } from '@/lib/supabaseClient';
 
 interface NewsItem {
   id: string;
@@ -179,52 +181,48 @@ export default function PremiumNewsDetail() {
   const [newComment, setNewComment] = useState("");
   const [likes, setLikes] = useState(0);
   const [comments, setComments] = useState<Comment[]>([]);
+  const params = useParams();
+  const slug = params.slug as string;
 
-  // Simular datos para demo (reemplazar con parámetros reales)
   useEffect(() => {
-    // Simular carga de datos
-    const mockNews: NewsItem = {
-      id: "1",
-      title: "Revolución en la Inteligencia Artificial: Nuevos Avances Transforman la Industria Tecnológica Global",
-      summary: "Los últimos desarrollos en IA están redefiniendo el panorama tecnológico mundial",
-      content: "La inteligencia artificial está experimentando una revolución sin precedentes que está transformando industrias enteras. Los avances recientes en algoritmos de aprendizaje automático han superado todas las expectativas. Las empresas tecnológicas líderes están invirtiendo miles de millones de dólares en esta carrera. Los expertos predicen que estos cambios tendrán un impacto profundo en la economía global. La automatización inteligente está mejorando la eficiencia en sectores como la manufactura, la salud y las finanzas. Sin embargo, también surgen preocupaciones sobre el futuro del empleo y la necesidad de regulación. Los gobiernos de todo el mundo están desarrollando marcos normativos para gestionar esta transición. La colaboración internacional será clave para aprovechar los beneficios mientras se minimizan los riesgos.",
-      image_url: "https://images.unsplash.com/photo-1485827404703-89b55fcc595e?w=800&h=600&fit=crop",
-      author: "Ana García",
-      published_at: new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
-      slug: "revolucion-ia-avances-tecnologia",
-      category: "tecnología",
-      tags: ["inteligencia artificial", "tecnología", "innovación", "futuro"],
-      country: "Global",
-      seo_score: 95,
-      relevance_score: 98
+    if (!slug) return;
+
+    const fetchNews = async () => {
+      setLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('news')
+          .select('*')
+          .eq('slug', slug)
+          .single();
+
+        if (error) throw error;
+        
+        // Map DB fields to component interface
+        const mappedData = {
+            ...data,
+            summary: data.summary || data.excerpt || data.subtitle || '',
+            tags: data.tags || [],
+            category: data.category || 'General',
+            image_url: data.image_url || 'https://via.placeholder.com/800x600',
+            author: data.author || 'Cronos News',
+            content: data.content || ''
+        };
+        
+        setNewsData(mappedData);
+        
+        // Simular métricas si no existen
+        setLikes(data.likes || Math.floor(Math.random() * 500));
+      } catch (error) {
+        console.error('Error fetching news:', error);
+        setNewsData(null);
+      } finally {
+        setLoading(false);
+      }
     };
 
-    const mockComments: Comment[] = [
-      {
-        id: '1',
-        author: 'Carlos Rodríguez',
-        content: 'Excelente análisis sobre el futuro de la IA. Muy informativo y bien estructurado.',
-        timestamp: new Date(Date.now() - 30 * 60 * 1000).toISOString(),
-        likes: 12,
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=40&h=40&fit=crop&crop=face'
-      },
-      {
-        id: '2',
-        author: 'María González',
-        content: 'Me preocupa el impacto en el empleo. ¿Qué medidas se están tomando para la transición?',
-        timestamp: new Date(Date.now() - 45 * 60 * 1000).toISOString(),
-        likes: 8,
-        avatar: 'https://images.unsplash.com/photo-1494790108755-2616b30e5385?w=40&h=40&fit=crop&crop=face'
-      }
-    ];
-
-    setTimeout(() => {
-      setNewsData(mockNews);
-      setLikes(Math.floor(Math.random() * 500) + 100);
-      setComments(mockComments);
-      setLoading(false);
-    }, 1000);
-  }, []);
+    fetchNews();
+  }, [slug]);
 
   const handleLike = () => {
     setLiked(!liked);

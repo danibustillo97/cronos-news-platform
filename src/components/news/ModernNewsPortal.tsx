@@ -1,7 +1,6 @@
 'use client'
 
 import React, { useEffect, useState } from 'react'
-import { createClient } from '@supabase/supabase-js'
 import { motion } from 'framer-motion'
 import { Clock, Share2, MessageCircle, ChevronRight, TrendingUp, Calendar, User, Zap, Mail } from 'lucide-react'
 import OptimizedLiveScoresWidget from '@/components/widgets/OptimizedLiveScoresWidget'
@@ -11,11 +10,7 @@ import ModernNavbar from '@/components/ui/ModernNavbar'
 import NewsModal from '@/components/news/NewsModal'
 import NewsCard from '@/components/news/NewsCard'
 import type { NewsView } from '@/types/news'
-
-// Configuración de Supabase (Reutilizando la que funcionaba)
-const supabaseUrl = 'https://mxvdnfaeqjifnxqmxbri.supabase.co'
-const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dmRuZmFlcWppZm54cW14YnJpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTIyNjg0NzAsImV4cCI6MjA2Nzg0NDQ3MH0.KLD8IAWiAIhkKXJ9lZR7Yc6GaPpxOa3zdaItozCw4Hc'
-const supabase = createClient(supabaseUrl, supabaseKey)
+import { supabase } from '@/lib/supabaseClient'
 
 type News = NewsView
 

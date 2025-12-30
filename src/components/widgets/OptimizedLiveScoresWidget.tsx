@@ -1,6 +1,7 @@
 'use client';
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { supabase } from "@/lib/supabaseClient";
 
 interface MatchResult {
   id: string;
@@ -53,10 +54,16 @@ export default function OptimizedLiveScoresWidget({ horizontal = false }: Optimi
   useEffect(() => {
     async function fetchMatches() {
       try {
-        const res = await fetch("http://localhost:8000/api/match-results");
-        const data = await res.json();
-        if (data.success) {
-          const sorted = data.results.slice().sort(
+        const { data, error } = await supabase
+          .from('match_results')
+          .select('*')
+          .order('date', { ascending: false })
+          .limit(20);
+
+        if (error) throw error;
+
+        if (data) {
+          const sorted = data.slice().sort(
             (a: MatchResult, b: MatchResult) =>
               new Date(b.date).getTime() - new Date(a.date).getTime()
           );
