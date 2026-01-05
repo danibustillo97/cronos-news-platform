@@ -95,15 +95,54 @@ export default function SocialMediaGenerator() {
         ctx.fillRect(0, 690, 1080, 10);
       }
 
-      // Draw Logo (Nexus News)
-      ctx.font = 'bold 30px Arial';
-      ctx.fillStyle = '#FFFFFF';
-      ctx.textAlign = 'left';
-      ctx.fillText('NEXUS NEWS', 50, 60);
+      // Draw Logo (Nexus News - Replicating Navbar Style)
+      const logoX = 50;
+      const logoY = 50;
+      const logoSize = 70; // Box size
+
+      // Draw Red Box with Shadow
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+      ctx.shadowBlur = 10;
+      ctx.fillStyle = '#DC2626'; // Red-600
       
-      // Category Tag
+      // Rounded Rect Helper
+      const r = 12;
+      ctx.beginPath();
+      ctx.moveTo(logoX + r, logoY);
+      ctx.arcTo(logoX + logoSize, logoY, logoX + logoSize, logoY + logoSize, r);
+      ctx.arcTo(logoX + logoSize, logoY + logoSize, logoX, logoY + logoSize, r);
+      ctx.arcTo(logoX, logoY + logoSize, logoX, logoY, r);
+      ctx.arcTo(logoX, logoY, logoX + logoSize, logoY, r);
+      ctx.closePath();
+      ctx.fill();
+      
+      // Reset Shadow
+      ctx.shadowBlur = 0;
+
+      // Draw "N" inside box
+      ctx.font = '900 42px Arial'; // Black font
+      ctx.fillStyle = '#FFFFFF';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('N', logoX + logoSize/2, logoY + logoSize/2 + 2);
+
+      // Draw Text "NEXUS"
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      ctx.font = '900 48px Arial'; // Tracking tighter
+      ctx.fillStyle = '#FFFFFF';
+      // Adjust tracking manually if needed, but standard bold is usually fine
+      ctx.fillText('NEXUS', logoX + logoSize + 20, logoY + logoSize/2);
+
+      // Draw Text "NEWS" (Red)
+      const nexusWidth = ctx.measureText('NEXUS').width;
+      ctx.fillStyle = '#DC2626';
+      ctx.fillText('NEWS', logoX + logoSize + 20 + nexusWidth, logoY + logoSize/2);
+
+      // Category Tag (Adjusted position)
       ctx.font = 'bold 24px Arial';
       ctx.fillStyle = '#DC2626';
+      ctx.textAlign = 'left';
       ctx.fillText(selectedNews.category?.toUpperCase() || 'NOTICIAS', 50, layoutMode === 'overlay' ? 750 : 750);
 
       // Draw Title
