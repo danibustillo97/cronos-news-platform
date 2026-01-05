@@ -35,16 +35,13 @@ export default function ModernNewsPortal() {
     fetchNews(activeCategory)
   }, [activeCategory])
 
-  // Handle browser back/forward buttons
   useEffect(() => {
     const handlePopState = (event: PopStateEvent) => {
-      // If we go back to root (no /noticia/ in URL), close modal
+      
       if (!window.location.pathname.includes('/noticia/')) {
         setSelectedNews(null)
       }
-      // Note: Opening modal on forward navigation is harder because we need to find the news item
-      // which might not be in the current `news` list. 
-      // For now, we prioritize closing properly.
+
     }
 
     window.addEventListener('popstate', handlePopState)
@@ -53,8 +50,7 @@ export default function ModernNewsPortal() {
 
   const handleOpenNews = (newsItem: News) => {
     setSelectedNews(newsItem)
-    // Update URL to /noticia/slug without reloading page
-    // Using pushState allows the back button to close the modal (via popstate listener)
+
     window.history.pushState({ newsId: newsItem.id }, '', `/noticia/${newsItem.slug}`)
   }
 
@@ -65,13 +61,13 @@ export default function ModernNewsPortal() {
   }
 
   useEffect(() => {
-    // Real-time subscription for new news
+
     const channel = supabase
       .channel('public:news')
       .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'news' }, (payload) => {
         const newNewsItem = payload.new as any
         
-        // Only process if published and matches current category filter
+
         if (newNewsItem.status === 'published') {
            const formattedNews: News = {
               id: newNewsItem.id,

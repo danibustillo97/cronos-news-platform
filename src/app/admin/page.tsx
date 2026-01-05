@@ -95,12 +95,19 @@ export default function AdminPage() {
              </div>
 
              {/* Profile */}
-             <div className="flex items-center gap-3 pl-4">
+             <div className="flex items-center gap-3 pl-4 border-l border-white/10 ml-4">
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-neutral-800 to-neutral-700 p-[1px]">
                    <div className="w-full h-full bg-neutral-900 rounded-xl flex items-center justify-center text-xs font-bold text-white">
                       AI
                    </div>
                 </div>
+                <button 
+                  onClick={handleLogout}
+                  className="p-2 text-neutral-400 hover:text-red-500 transition-colors"
+                  title="Cerrar Sesión"
+                >
+                  <LogOut size={18} />
+                </button>
              </div>
           </div>
         </header>
