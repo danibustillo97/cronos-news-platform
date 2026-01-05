@@ -1,44 +1,51 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Play, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import TikTokEmbed from '@/components/social/TikTokEmbed';
+import { supabase } from '@/lib/supabaseClient';
 
-// Mock data - In production this would come from Supabase 'news' table where type='video'
-const MOCK_STORIES = [
-  {
-    id: '1',
-    title: 'Resumen de la Jornada',
-    thumbnail: 'https://images.unsplash.com/photo-1579952363873-27f3bade9f55?w=500&q=80',
-    tiktokId: '7455844784462613766', // Example ID
-    author: 'Nexus Sports'
-  },
-  {
-    id: '2',
-    title: 'Golazo de Messi',
-    thumbnail: 'https://images.unsplash.com/photo-1614632537423-1e6c2e7e0aab?w=500&q=80',
-    tiktokId: '7455844784462613766',
-    author: 'Nexus Sports'
-  },
-  {
-    id: '3',
-    title: 'Fichajes Bomba',
-    thumbnail: 'https://images.unsplash.com/photo-1522778119026-d647f0565c6a?w=500&q=80',
-    tiktokId: '7455844784462613766',
-    author: 'Nexus Sports'
-  },
-  {
-    id: '4',
-    title: 'NBA Highlights',
-    thumbnail: 'https://images.unsplash.com/photo-1546519638-68e109498ee2?w=500&q=80',
-    tiktokId: '7455844784462613766',
-    author: 'Nexus Sports'
-  }
-];
+interface Story {
+  id: string;
+  title: string;
+  thumbnail_url: string;
+  tiktok_id: string;
+  author: string;
+}
 
 export default function VideoStories() {
+  const [stories, setStories] = useState<Story[]>([]);
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
 
-  const activeStory = MOCK_STORIES.find(s => s.id === selectedStory);
+  useEffect(() => {
+    const fetchStories = async () => {
+      const { data } = await supabase
+        .from('stories')
+        .select('*')
+        .order('created_at', { ascending: false })
+        .limit(10);
+      
+      if (data) {
+        setStories(data);
+      }
+    };
+    fetchStories();
+
+    // Subscribe to new stories
+    const channel = supabase
+      .channel('public:stories')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'stories' }, (payload) => {
+        setStories((current) => [payload.new as Story, ...current]);
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const activeStory = stories.find(s => s.id === selectedStory);
+
+  if (stories.length === 0) return null;
 
   return (
     <div className="w-full mb-8">
@@ -51,7 +58,7 @@ export default function VideoStories() {
       </div>
 
       <div className="flex gap-4 overflow-x-auto pb-4 scrollbar-hide">
-        {MOCK_STORIES.map((story) => (
+        {stories.map((story) => (
           <motion.div
             key={story.id}
             whileHover={{ scale: 1.05 }}
@@ -60,7 +67,7 @@ export default function VideoStories() {
             className="flex-shrink-0 relative w-32 h-48 md:w-40 md:h-64 rounded-xl overflow-hidden cursor-pointer group shadow-md"
           >
             <img
-              src={story.thumbnail}
+              src={story.thumbnail_url}
               alt={story.title}
               className="w-full h-full object-cover"
             />
@@ -101,7 +108,7 @@ export default function VideoStories() {
               </button>
               
               <div className="aspect-[9/16] bg-neutral-900 flex items-center justify-center">
-                 <TikTokEmbed videoId={activeStory.tiktokId} className="w-full h-full" />
+                 <TikTokEmbed videoId={activeStory.tiktok_id} className="w-full h-full" />
               </div>
               
               <div className="p-4 bg-neutral-900">

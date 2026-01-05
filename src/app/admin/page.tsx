@@ -7,6 +7,8 @@ import AdminDashboard from "@/components/admin/AdminDashboard";
 import AdminNewsManager from "@/components/admin/AdminNewsManager";
 import SmartWorkspace from "@/components/admin/SmartWorkspace";
 import AdminSeoTags from "@/components/admin/AdminSeoTags";
+import AdminStoriesManager from "@/components/admin/AdminStoriesManager";
+import SocialMediaGenerator from "@/components/admin/SocialMediaGenerator";
 import { Bell, Search, Cpu, Wifi, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -48,6 +50,10 @@ export default function AdminPage() {
         return <AdminDashboard />;
       case "news":
         return <SmartWorkspace />;
+      case "stories":
+        return <AdminStoriesManager />;
+      case "social_gen":
+        return <SocialMediaGenerator />;
       case "tags_seo":
         return <AdminSeoTags />;
       default:
@@ -64,6 +70,8 @@ export default function AdminPage() {
     switch (activeView) {
       case "dashboard": return "Command Center";
       case "news": return "News Grid Control";
+      case "stories": return "TikTok Stories Manager";
+      case "social_gen": return "Social Media Studio";
       case "tags_seo": return "SEO Intelligence";
       case "analytics": return "Real-time Analytics";
       case "settings": return "System Config";

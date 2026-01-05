@@ -6,7 +6,9 @@ import {
   BarChart2, 
   Settings, 
   Globe, 
-  Zap
+  Zap,
+  Smartphone,
+  Share2
 } from "lucide-react";
 import Link from "next/link";
 import { motion } from "framer-motion";
@@ -20,6 +22,8 @@ export default function AdminSidebar({ activeView, setActiveView }: AdminSidebar
   const menuItems = [
     { id: "dashboard", label: "Command Center", icon: LayoutDashboard },
     { id: "news", label: "News Grid", icon: FileText },
+    { id: "stories", label: "TikTok Stories", icon: Smartphone },
+    { id: "social_gen", label: "Social Studio", icon: Share2 },
     { id: "tags_seo", label: "SEO Intelligence", icon: Tags },
     { id: "analytics", label: "Live Analytics", icon: BarChart2 },
     { id: "settings", label: "System Config", icon: Settings },

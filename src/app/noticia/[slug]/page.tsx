@@ -214,6 +214,23 @@ export default function PremiumNewsDetail() {
         
         // Simular métricas si no existen
         setLikes(data.likes || Math.floor(Math.random() * 500));
+
+        // Increment Views
+        try {
+          // Try RPC first (Atomic)
+          const { error: rpcError } = await supabase.rpc('increment_news_view', { row_id: data.id });
+          
+          // Fallback if RPC not exists (Not atomic, but works if policy allows)
+          if (rpcError) {
+             console.log("RPC increment failed, trying direct update (only works if policy allows)");
+             await supabase
+               .from('news')
+               .update({ views: (data.views || 0) + 1 })
+               .eq('id', data.id);
+          }
+        } catch (e) {
+          console.error("View increment error:", e);
+        }
       } catch (error) {
         console.error('Error fetching news:', error);
         setNewsData(null);
