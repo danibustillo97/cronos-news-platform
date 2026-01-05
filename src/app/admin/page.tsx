@@ -13,6 +13,7 @@ import { motion, AnimatePresence } from "framer-motion";
 export default function AdminPage() {
   const [activeView, setActiveView] = useState("dashboard");
   const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -21,6 +22,7 @@ export default function AdminPage() {
       if (!session) {
         router.push("/admin/login");
       } else {
+        setUser(session.user);
         setLoading(false);
       }
     };
@@ -125,9 +127,13 @@ export default function AdminPage() {
 
              {/* Profile */}
              <div className="flex items-center gap-3 pl-4 border-l border-white/10 ml-4">
+                <div className="flex flex-col items-end hidden md:flex">
+                   <span className="text-xs font-bold text-white">{user?.email?.split('@')[0] || 'Admin'}</span>
+                   <span className="text-[10px] text-neutral-500">{user?.email || 'System Administrator'}</span>
+                </div>
                 <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-neutral-800 to-neutral-700 p-[1px]">
-                   <div className="w-full h-full bg-neutral-900 rounded-xl flex items-center justify-center text-xs font-bold text-white">
-                      AI
+                   <div className="w-full h-full bg-neutral-900 rounded-xl flex items-center justify-center text-xs font-bold text-white uppercase">
+                      {user?.email?.[0] || 'A'}
                    </div>
                 </div>
                 <button 
