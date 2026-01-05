@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { supabase } from '@/lib/supabaseClient';
-import { Download, Search, Image as ImageIcon, Type, Layout, RefreshCw } from 'lucide-react';
+import { Download, Search, Image as ImageIcon, Type, Layout, RefreshCw, Share2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface NewsItem {
