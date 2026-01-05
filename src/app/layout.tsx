@@ -6,8 +6,53 @@ import AppLayoutClient from './AppLayoutClient' // Importas el componente client
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'FutPulse - Noticias, Marcadores en Vivo y Más',
-  description: 'Todo sobre fútbol en un solo lugar',
+  metadataBase: new URL('https://www.nexusnews.info'),
+  title: {
+    default: 'Nexus News | Noticias Deportivas al Instante',
+    template: '%s | Nexus News'
+  },
+  description: 'El mejor portal de noticias deportivas con análisis IA en tiempo real. Cobertura de fútbol, NBA, F1 y más.',
+  keywords: ['deportes', 'noticias', 'fútbol', 'NBA', 'F1', 'resultados en vivo'],
+  authors: [{ name: 'Nexus News Team' }],
+  creator: 'Nexus News',
+  publisher: 'Nexus News',
+  openGraph: {
+    type: 'website',
+    locale: 'es_ES',
+    url: 'https://www.nexusnews.info',
+    title: 'Nexus News | Noticias Deportivas al Instante',
+    description: 'El mejor portal de noticias deportivas con análisis IA en tiempo real.',
+    siteName: 'Nexus News',
+    images: [
+      {
+        url: '/og-image.jpg', // Asegúrate de tener esta imagen en public/
+        width: 1200,
+        height: 630,
+        alt: 'Nexus News - Noticias Deportivas',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Nexus News | Noticias Deportivas',
+    description: 'Noticias deportivas al instante con IA.',
+    creator: '@nexusnews',
+    images: ['/og-image.jpg'],
+  },
+  verification: {
+    google: 'tu-codigo-de-verificacion-google', // Placeholder
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

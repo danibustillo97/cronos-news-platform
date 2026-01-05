@@ -21,6 +21,7 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useParams } from 'next/navigation';
 import { supabase } from '@/lib/supabaseClient';
+import AdSpace from '@/components/ads/AdSpace';
 
 interface NewsItem {
   id: string;
@@ -247,36 +248,48 @@ export default function PremiumNewsDetail() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <motion.div
-            animate={{ rotate: 360 }}
-            transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-            className="w-16 h-16 border-4 border-yellow-500 border-t-transparent rounded-full mx-auto mb-4"
-          />
-          <p className="text-white font-bold">Cargando noticia...</p>
-        </div>
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-yellow-500"></div>
       </div>
     );
   }
 
-  if (!newsData) {
-    return (
-      <div className="min-h-screen bg-black flex items-center justify-center">
-        <div className="text-center">
-          <h1 className="text-3xl font-bold text-white mb-4">Noticia no encontrada</h1>
-          <p className="text-gray-400">La noticia que buscas no existe.</p>
-        </div>
-      </div>
-    );
-  }
+  if (!newsData) return null;
 
   const contentParagraphs = processContent(newsData.content);
   const currentUrl = `${window.location.origin}/noticia/${newsData.slug}`;
 
+  // JSON-LD Structured Data
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'NewsArticle',
+    headline: newsData.title,
+    image: [newsData.image_url],
+    datePublished: newsData.published_at,
+    dateModified: newsData.published_at,
+    author: [{
+      '@type': 'Person',
+      name: newsData.author || 'Nexus News Team',
+    }],
+    publisher: {
+      '@type': 'Organization',
+      name: 'Nexus News',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://www.nexusnews.info/logo.png' // Asegúrate de tener un logo
+      }
+    },
+    description: newsData.summary
+  };
+
   return (
-    <div className="min-h-screen bg-black">
-      {/* Header Navigation */}
+    <div className="min-h-screen bg-[#0a0a0a] text-white selection:bg-yellow-500/30">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      
+      {/* Header Scroll Progress */}
       <div className="sticky top-0 z-40 bg-black/95 backdrop-blur-xl border-b border-yellow-500/30">
         <div className="max-w-4xl mx-auto px-4 py-4">
           <div className="flex items-center gap-4">
@@ -439,6 +452,8 @@ export default function PremiumNewsDetail() {
                 ))}
               </motion.div>
             )}
+
+            <AdSpace slotId="8962635274" label="Publicidad" className="my-12" />
 
             {/* Estadísticas del artículo */}
             <motion.div className="flex items-center justify-between mt-8 pt-6 border-t border-gray-800">

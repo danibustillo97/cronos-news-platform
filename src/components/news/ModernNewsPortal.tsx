@@ -9,6 +9,8 @@ import Link from 'next/link'
 import ModernNavbar from '@/components/ui/ModernNavbar'
 import NewsModal from '@/components/news/NewsModal'
 import NewsCard from '@/components/news/NewsCard'
+import AdSpace from '@/components/ads/AdSpace'
+import VideoStories from '@/components/news/VideoStories'
 import type { NewsView } from '@/types/news'
 import { supabase } from '@/lib/supabaseClient'
 
@@ -173,6 +175,9 @@ export default function ModernNewsPortal() {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-8 pt-24">
         
+        {/* STORIES SECTION */}
+        <VideoStories />
+
         {/* HERO SECTION - Grid Layout tipo Zona Cero */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           
@@ -235,9 +240,7 @@ export default function ModernNewsPortal() {
         </section>
 
         {/* BANNERS / ADS SEPARATOR */}
-        <div className="w-full h-24 bg-neutral-200/50 rounded-lg flex items-center justify-center text-neutral-400 text-xs font-bold tracking-widest border border-neutral-200 border-dashed">
-          ESPACIO PUBLICITARIO
-        </div>
+        <AdSpace slotId="8962635274" className="w-full" />
 
         {/* CONTENT GRID */}
         <section className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -289,8 +292,8 @@ export default function ModernNewsPortal() {
 
                     {/* Ad Space */}
                     {showAd && (
-                      <div className="md:col-span-2 h-32 rounded-xl border border-neutral-200 bg-neutral-100 flex items-center justify-center text-neutral-400 font-bold tracking-widest text-xs">
-                        ESPACIO PUBLICITARIO
+                      <div className="md:col-span-2">
+                        <AdSpace slotId="8962635274" />
                       </div>
                     )}
                   </React.Fragment>
