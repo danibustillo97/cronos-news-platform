@@ -1,15 +1,44 @@
 "use client";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminDashboard from "@/components/admin/AdminDashboard";
 import AdminNewsManager from "@/components/admin/AdminNewsManager";
 import SmartWorkspace from "@/components/admin/SmartWorkspace";
 import AdminSeoTags from "@/components/admin/AdminSeoTags";
-import { Bell, Search, Cpu, Wifi } from "lucide-react";
+import { Bell, Search, Cpu, Wifi, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 export default function AdminPage() {
   const [activeView, setActiveView] = useState("dashboard");
+  const [loading, setLoading] = useState(true);
+  const router = useRouter();
+
+  useEffect(() => {
+    const checkSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        router.push("/admin/login");
+      } else {
+        setLoading(false);
+      }
+    };
+    checkSession();
+  }, [router]);
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push("/admin/login");
+  };
+
+  if (loading) {
+    return (
+      <div className="h-screen bg-[#050505] flex items-center justify-center text-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-red-600"></div>
+      </div>
+    );
+  }
 
   const renderContent = () => {
     switch (activeView) {
