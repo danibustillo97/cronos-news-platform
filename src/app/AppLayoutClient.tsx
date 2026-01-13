@@ -13,7 +13,6 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
     <EditorWorkspaceProvider>
       <Toaster position="top-center" richColors theme="dark" closeButton />
       {isAdmin && <GlobalWorkspaceOverlay />}
-      {/* Remove restrictive wrapper divs and let children control layout */}
       {children}
     </EditorWorkspaceProvider>
   )
