@@ -93,3 +93,37 @@ export function formatArticleContent(content: string): string {
         return `<p>${s}</p>`;
     }).join('');
 }
+
+function buildShingles(text: string, size: number): Set<string> {
+    const words = text.split(' ').filter(Boolean);
+    const shingles = new Set<string>();
+    if (words.length < size) return shingles;
+    for (let i = 0; i <= words.length - size; i++) {
+        shingles.add(words.slice(i, i + size).join(' '));
+    }
+    return shingles;
+}
+
+export function normalizeTextForSimilarity(text: string): string {
+    return stripHtml(text)
+        .toLowerCase()
+        .replace(/https?:\/\/\S+/g, '')
+        .replace(/[^\p{L}\p{N}\s]+/gu, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+}
+
+export function jaccardSimilarity(a: string, b: string, shingleSize = 3): number {
+    const sa = buildShingles(normalizeTextForSimilarity(a), shingleSize);
+    const sb = buildShingles(normalizeTextForSimilarity(b), shingleSize);
+    if (sa.size === 0 || sb.size === 0) return 0;
+
+    let intersection = 0;
+    for (const x of sa) {
+        if (sb.has(x)) intersection++;
+    }
+
+    const union = sa.size + sb.size - intersection;
+    if (union === 0) return 0;
+    return intersection / union;
+}

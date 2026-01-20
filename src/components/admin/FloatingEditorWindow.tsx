@@ -5,8 +5,9 @@ import { NewsDraft, useEditorWorkspace } from '@/context/EditorWorkspaceContext'
 import TiptapEditor from '@/components/news/TiptapEditor';
 import { supabase } from '@/lib/supabaseClient';
 import { GLOBAL_CATEGORIES, getSubcategories } from '@/lib/globalCategories';
-import { generateSmartTags } from '@/lib/smartTags';
-import { Sparkles } from 'lucide-react';
+import { extractEntities, generateSmartTags } from '@/lib/smartTags';
+import { jaccardSimilarity } from '@/lib/textUtils';
+import { Sparkles, Link2 } from 'lucide-react';
 import { toast } from 'sonner';
 
 // Custom Select Component
@@ -101,6 +102,10 @@ export default function FloatingEditorWindow({ draft }: { draft: NewsDraft }) {
   const [excerpt, setExcerpt] = useState(draft.description || "");
   const [tagInput, setTagInput] = useState("");
   const [activeTab, setActiveTab] = useState<'settings' | 'seo'>('settings');
+
+  const [importUrl, setImportUrl] = useState("");
+  const [isImporting, setIsImporting] = useState(false);
+  const [importedSource, setImportedSource] = useState<{ url: string; title?: string; contentText: string } | null>(null);
 
   // Sync state with draft props (important for when content is fetched asynchronously)
   useEffect(() => {
@@ -281,6 +286,78 @@ export default function FloatingEditorWindow({ draft }: { draft: NewsDraft }) {
           setTags([...new Set([...tags, ...newTags])]);
       }
   };
+
+  const buildOriginalDraftTemplate = (sourceUrl: string, entities: string[]) => {
+      const entitiesHtml = entities.length
+        ? `<ul>${entities.map(e => `<li>${e}</li>`).join('')}</ul>`
+        : '<p></p>';
+
+      return [
+          '<h2>Resumen (escrito por ti)</h2>',
+          '<p></p>',
+          '<h2>Datos clave</h2>',
+          entitiesHtml,
+          '<h2>Contexto</h2>',
+          '<p></p>',
+          `<blockquote><p>Fuente consultada: ${sourceUrl}</p><p>No publiques texto copiado. Usa esta fuente solo para referencia y escribe con tus propias palabras.</p></blockquote>`
+      ].join('');
+  };
+
+  const handleImportFromUrl = async () => {
+      const url = importUrl.trim();
+      if (!url) return;
+
+      setIsImporting(true);
+      const toastId = toast.loading('Importing article...');
+
+      try {
+          const res = await fetch('/api/import-article', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ url }),
+          });
+
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) {
+              throw new Error(data?.error || 'Failed to import article');
+          }
+
+          const sourceUrl = (data?.sourceUrl as string) || url;
+          const sourceTitle = typeof data?.title === 'string' ? data.title : '';
+          const sourceExcerpt = typeof data?.excerpt === 'string' ? data.excerpt : '';
+          const sourceImageUrl = typeof data?.imageUrl === 'string' ? data.imageUrl : '';
+          const sourceText = typeof data?.contentText === 'string' ? data.contentText : '';
+
+          setImportedSource({ url: sourceUrl, title: sourceTitle || undefined, contentText: sourceText });
+
+          if (!title && sourceTitle) setTitle(sourceTitle);
+          if (!excerpt && sourceExcerpt) setExcerpt(sourceExcerpt);
+          if (!coverImage && sourceImageUrl) setCoverImage(sourceImageUrl);
+
+          const entities = extractEntities(sourceText).slice(0, 8);
+          if (tags.length === 0 && entities.length > 0) {
+              setTags(entities);
+          }
+
+          if (!content || content.trim() === '' || content.trim() === '<p></p>') {
+              setContent(buildOriginalDraftTemplate(sourceUrl, entities));
+          }
+
+          toast.success('Source imported', {
+              id: toastId,
+              description: 'A safe draft template was created. Write original content in your own words.'
+          });
+      } catch (e) {
+          toast.error('Import failed', {
+              id: toastId,
+              description: (e as any)?.message || 'Unknown error'
+          });
+      } finally {
+          setIsImporting(false);
+      }
+  };
+
+  const similarityToSource = importedSource ? jaccardSimilarity(content, importedSource.contentText) : null;
 
   // SEO Score Calculation
   const calculateSeoScore = () => {
@@ -479,6 +556,36 @@ export default function FloatingEditorWindow({ draft }: { draft: NewsDraft }) {
                     
                     {activeTab === 'settings' ? (
                         <>
+                            <div className="space-y-3">
+                                <label className="flex items-center gap-2 text-xs font-bold text-neutral-400 uppercase tracking-wider">
+                                    <Link2 size={14} /> Importar desde URL
+                                </label>
+                                <div className="flex gap-2">
+                                    <input
+                                        type="text"
+                                        value={importUrl}
+                                        onChange={(e) => setImportUrl(e.target.value)}
+                                        placeholder="https://..."
+                                        className="flex-1 bg-[#111] border border-white/10 rounded-xl px-4 py-3 text-xs font-mono text-neutral-200 focus:ring-2 focus:ring-blue-500 focus:outline-none transition-all"
+                                        onKeyDown={(e) => {
+                                            if (e.key === 'Enter') handleImportFromUrl();
+                                        }}
+                                    />
+                                    <button
+                                        onClick={handleImportFromUrl}
+                                        disabled={isImporting}
+                                        className="bg-purple-600 hover:bg-purple-500 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 rounded-xl text-xs font-bold transition-colors flex items-center gap-2"
+                                    >
+                                        {isImporting ? <RefreshCw size={14} className="animate-spin" /> : 'Extraer'}
+                                    </button>
+                                </div>
+                                {importedSource && (
+                                    <div className="text-[11px] text-neutral-500 leading-relaxed break-all">
+                                        Fuente: {importedSource.url}
+                                    </div>
+                                )}
+                            </div>
+
                             {/* Category Section */}
                             <div className="space-y-3">
                                 <CustomSelect 
@@ -611,6 +718,26 @@ export default function FloatingEditorWindow({ draft }: { draft: NewsDraft }) {
                                     <CheckItem label="Subcategory Selected" met={!!subcategory} />
                                 </div>
                             </div>
+
+                            {importedSource && similarityToSource !== null && (
+                                <div className="bg-[#111] border border-white/10 rounded-2xl p-5 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-neutral-400">Originalidad (vs fuente importada)</span>
+                                        <span className={`text-xs font-mono ${similarityToSource < 0.2 ? 'text-green-400' : similarityToSource < 0.35 ? 'text-yellow-400' : 'text-red-400'}`}>
+                                            {Math.round(similarityToSource * 100)}%
+                                        </span>
+                                    </div>
+                                    <div className="w-full h-2 bg-white/5 rounded-full overflow-hidden">
+                                        <div
+                                            className={`${similarityToSource < 0.2 ? 'bg-green-500' : similarityToSource < 0.35 ? 'bg-yellow-500' : 'bg-red-500'} h-full`}
+                                            style={{ width: `${Math.min(100, Math.round(similarityToSource * 100))}%` }}
+                                        />
+                                    </div>
+                                    <div className="text-[11px] text-neutral-500 leading-relaxed break-all">
+                                        Fuente: {importedSource.url}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Tips */}
                             <div className="bg-blue-900/10 border border-blue-500/20 p-4 rounded-xl">

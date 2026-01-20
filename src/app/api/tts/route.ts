@@ -1,12 +1,31 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { Communicate, listVoices } from 'edge-tts-universal';
 
+const normalizeSignedParam = (
+  raw: string | null,
+  fallback: string,
+  unit: '%' | 'Hz'
+) => {
+  if (!raw) return fallback;
+
+  let v = raw.trim().replace(/\s+/g, '');
+
+  const signed = unit === '%' ? /^[+-]\d+%$/ : /^[+-]\d+Hz$/;
+  const unsigned = unit === '%' ? /^\d+%$/ : /^\d+Hz$/;
+
+  if (unsigned.test(v)) v = `+${v}`;
+
+  if (!signed.test(v)) return fallback;
+
+  return v;
+};
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const text = searchParams.get('text');
   const voice = searchParams.get('voice') || 'es-MX-DaliaNeural';
-  const rate = searchParams.get('rate') || '-10%'; // Slight pause/slow down by default
-  const pitch = searchParams.get('pitch') || '+0Hz';
+  const rate = normalizeSignedParam(searchParams.get('rate'), '-10%', '%');
+  const pitch = normalizeSignedParam(searchParams.get('pitch'), '+0Hz', 'Hz');
 
   if (!text) {
     return NextResponse.json({ error: 'Text is required' }, { status: 400 });
