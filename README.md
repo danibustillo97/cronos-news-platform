@@ -2,7 +2,7 @@
 
 **Cronos News Platform** es una aplicación web desarrollada con **Next.js** y **TypeScript**, enfocada en la generación automatizada y visualización de noticias deportivas. Combina tecnologías modernas de frontend con automatización backend para mantener actualizado un portal informativo sin intervención manual constante.
 
-> 🚀 **Demo en vivo**: [https://noticias-cronos-366i.vercel.app](https://noticias-cronos-366i.vercel.app)
+> 🚀 **Demo en vivo**: [https://nexusnews.info](https://nexusnews.info)
 
 ---
 
