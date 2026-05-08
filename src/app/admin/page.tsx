@@ -95,8 +95,8 @@ export default function AdminPage() {
         setActiveView={(view) => setActiveView(view as View)}
       />
 
-      <div className="flex-1 ml-20 md:ml-64 flex flex-col h-screen">
-        <header className="h-20 border-b border-white/10 px-8 flex items-center justify-between bg-black/60 backdrop-blur">
+      <div className={`flex-1 ml-20 md:ml-64 flex flex-col h-screen overflow-hidden`}>
+        <header className={`border-b border-white/10 px-8 flex items-center justify-between bg-black/60 backdrop-blur flex-shrink-0 ${activeView === 'social' ? 'hidden' : 'h-20'}`}>
           <div className="flex items-center gap-6">
             <h1 className="text-2xl font-black tracking-tight">
               {pageTitle}
@@ -140,7 +140,7 @@ export default function AdminPage() {
           </div>
         </header>
 
-        <main className="flex-1 p-8 overflow-y-auto">
+        <main className={`min-h-0 flex-1 ${activeView === 'social' ? 'overflow-hidden' : 'p-8 overflow-y-auto'}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
@@ -148,6 +148,8 @@ export default function AdminPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
               transition={{ duration: 0.2 }}
+              className={activeView === 'social' ? 'h-full flex flex-col' : undefined}
+              style={activeView === 'social' ? { height: '100%' } : undefined}
             >
               {renderContent()}
             </motion.div>

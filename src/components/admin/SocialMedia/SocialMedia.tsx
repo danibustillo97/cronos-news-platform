@@ -17,9 +17,8 @@ export default function SocialMedia() {
              * Nada fuera de viewport. Sin scroll de página.
              */}
             <div
-                className="w-full bg-[#070708] overflow-hidden"
+                className="w-full h-full bg-[#070708] overflow-hidden"
                 style={{
-                    height: '100dvh',
                     display: 'grid',
                     gridTemplateRows: 'auto 1fr auto',
                 }}

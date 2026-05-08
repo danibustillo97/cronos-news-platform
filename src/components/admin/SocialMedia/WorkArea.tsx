@@ -27,15 +27,15 @@ function CanvasViewer() {
     const ac = aspectClass(format, aspectRatio);
 
     return (
-        <div className="flex-1 min-h-0 flex items-center justify-center bg-[#070708] relative overflow-hidden">
+        <div className="flex-1 min-h-0 flex items-center justify-center bg-[#060607] relative overflow-hidden">
             {/* dot-grid */}
             <div className="absolute inset-0 opacity-[0.025]"
                 style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }}
             />
 
             {/* canvas wrapper — respects aspect ratio, never overflows */}
-            <div className={`relative ${ac} max-h-full rounded-xl overflow-hidden ring-1 ring-white/[0.05] shadow-2xl`}
-                style={{ maxWidth: 'calc(100% - 48px)' }}
+            <div className={`relative ${ac} max-h-full rounded-2xl overflow-hidden ring-1 ring-white/[0.07] shadow-[0_0_60px_rgba(0,0,0,0.9)]`}
+                style={{ maxWidth: 'calc(100% - 64px)', maxHeight: 'calc(100% - 64px)' }}
             >
                 <canvas ref={canvasRef} className="block w-full h-full object-contain" />
 
@@ -97,7 +97,7 @@ function Clip({
     onRemove: (e: React.MouseEvent) => void; onDelta: (d: number) => void;
 }) {
     const isSpecial = seg.text === 'INTRO_SEQUENCE' || seg.text === 'OUTRO_SEQUENCE';
-    const w = Math.max(seg.duration / 1000 * pxPerSec, 60);
+    const w = Math.max(seg.duration / 1000 * pxPerSec, 72);
     const hasAudio = Boolean(seg.audioBuffer);
 
     if (isSpecial) return (
@@ -209,8 +209,8 @@ function Timeline() {
         editingSegmentIndex, setEditingSegmentIndex,
         isUploading, handleSupabaseUpload,
         generateVideoScript, generateNeuralAudio, isGeneratingAudio,
-        format, videoScript: segs,
-        speak, stop, isSpeaking, customTitle,
+        format,
+        speak, stop, isSpeaking,
     } = useStudioContext();
 
     const [zoom, setZoom] = useState(PX_PER_SEC);
@@ -242,7 +242,7 @@ function Timeline() {
     const ticks = Array.from({ length: Math.ceil(totalSec / tickStep) + 1 }, (_, i) => i * tickStep).filter(s => s <= totalSec + tickStep);
 
     return (
-        <div className="flex-shrink-0 flex flex-col bg-[#09090b] border-t border-[#111114]" style={{ height: 168 }}>
+        <div className="flex-shrink-0 flex flex-col bg-[#09090b] border-t border-[#111114]" style={{ height: 196 }}>
 
             {/* toolbar */}
             <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#0e0e11] flex-shrink-0">
@@ -282,11 +282,11 @@ function Timeline() {
             </div>
 
             {/* scrollable track */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden" style={{ minHeight: 0 }}>
+            <div className="flex-1 overflow-x-auto overflow-y-hidden bg-[#070709]" style={{ minHeight: 0 }}>
                 <div style={{ width: Math.max(totalSec * zoom + 120, 600), height: '100%' }}>
 
                     {/* ruler */}
-                    <div className="relative bg-[#07070a] border-b border-[#0e0e11]" style={{ height: 18 }}>
+                    <div className="relative bg-[#060608] border-b border-[#111115]" style={{ height: 20 }}>
                         {ticks.map(s => (
                             <div key={s} className="absolute top-0 flex flex-col items-center pointer-events-none"
                                 style={{ left: 48 + s * zoom }}>
@@ -299,14 +299,14 @@ function Timeline() {
                     </div>
 
                     {/* track row */}
-                    <div className="flex items-stretch px-0" style={{ height: 'calc(100% - 18px)' }}>
+                    <div className="flex items-stretch px-0" style={{ height: 'calc(100% - 20px)' }}>
                         {/* track label */}
                         <div className="flex-shrink-0 w-12 flex items-center justify-end pr-2 border-r border-[#0e0e11]">
                             <span className="text-[7px] font-bold text-[#1c1c22] uppercase tracking-widest">V1</span>
                         </div>
 
                         {/* clips */}
-                        <div className="flex items-stretch px-2 py-1.5 gap-0">
+                        <div className="flex items-stretch px-2 py-2 gap-0.5">
                             {videoScript.length === 0 ? (
                                 <button type="button" onClick={generateVideoScript}
                                     className="self-center flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e5173f]/20 bg-[#e5173f]/5 text-[#e5173f] text-[10px] font-semibold hover:bg-[#e5173f]/10 transition-all"
