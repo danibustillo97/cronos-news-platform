@@ -89,13 +89,13 @@ export default function AdminPage() {
   }
 
   return (
-    <div className="bg-[#050505] h-screen text-white flex overflow-hidden">
+    <div className="bg-[#050505] h-screen text-white overflow-hidden">
       <AdminSidebar
         activeView={activeView}
         setActiveView={(view) => setActiveView(view as View)}
       />
 
-      <div className="flex flex-col h-screen overflow-hidden" style={{ marginLeft: 48 }}>
+      <div className="flex flex-col h-screen overflow-hidden" style={{ marginLeft: 48, width: 'calc(100vw - 48px)' }}>
         <header className={`border-b border-white/10 px-8 flex items-center justify-between bg-black/60 backdrop-blur flex-shrink-0 ${activeView === 'social' ? 'hidden' : 'h-20'}`}>
           <div className="flex items-center gap-6">
             <h1 className="text-2xl font-black tracking-tight">
