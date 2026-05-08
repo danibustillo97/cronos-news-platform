@@ -95,7 +95,7 @@ export default function AdminPage() {
         setActiveView={(view) => setActiveView(view as View)}
       />
 
-      <div className={`flex-1 ml-20 md:ml-64 flex flex-col h-screen overflow-hidden`}>
+      <div className="flex flex-col h-screen overflow-hidden" style={{ marginLeft: 48 }}>
         <header className={`border-b border-white/10 px-8 flex items-center justify-between bg-black/60 backdrop-blur flex-shrink-0 ${activeView === 'social' ? 'hidden' : 'h-20'}`}>
           <div className="flex items-center gap-6">
             <h1 className="text-2xl font-black tracking-tight">
