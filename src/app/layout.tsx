@@ -1,7 +1,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
-import AppLayoutClient from './AppLayoutClient' // Importas el componente cliente
+import AppLayoutClient from './AppLayoutClient' 
 
 const inter = Inter({ subsets: ['latin'] })
 

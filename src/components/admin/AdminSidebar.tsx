@@ -1,11 +1,11 @@
 "use client";
-import { 
-  LayoutDashboard, 
-  FileText, 
-  Tags, 
-  BarChart2, 
-  Settings, 
-  Globe, 
+import {
+  LayoutDashboard,
+  FileText,
+  Tags,
+  BarChart2,
+  Settings,
+  Globe,
   Zap,
   Smartphone,
   Share2
@@ -22,8 +22,7 @@ export default function AdminSidebar({ activeView, setActiveView }: AdminSidebar
   const menuItems = [
     { id: "dashboard", label: "Command Center", icon: LayoutDashboard },
     { id: "news", label: "News Grid", icon: FileText },
-    { id: "stories", label: "TikTok Stories", icon: Smartphone },
-    { id: "social_gen", label: "Social Studio", icon: Share2 },
+    { id: "social", label: "Content Studio", icon: Share2 },
     { id: "tags_seo", label: "SEO Intelligence", icon: Tags },
     { id: "analytics", label: "Live Analytics", icon: BarChart2 },
     { id: "settings", label: "System Config", icon: Settings },
@@ -50,11 +49,10 @@ export default function AdminSidebar({ activeView, setActiveView }: AdminSidebar
           <button
             key={item.id}
             onClick={() => setActiveView(item.id)}
-            className={`relative w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300 group overflow-hidden ${
-              activeView === item.id
+            className={`relative w-full flex items-center gap-3 px-3 py-3 rounded-xl text-sm font-medium transition-all duration-300 group overflow-hidden ${activeView === item.id
                 ? "text-white"
                 : "text-neutral-500 hover:text-white"
-            }`}
+              }`}
           >
             {activeView === item.id && (
               <motion.div
@@ -66,13 +64,13 @@ export default function AdminSidebar({ activeView, setActiveView }: AdminSidebar
             )}
             <item.icon size={22} className={`relative z-10 transition-colors ${activeView === item.id ? "text-red-500" : "group-hover:text-red-400"}`} />
             <span className="relative z-10 hidden md:block">{item.label}</span>
-            
+
             {/* Active Dot */}
             {activeView === item.id && (
-               <motion.div 
-                 layoutId="activeDot"
-                 className="absolute right-3 w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] hidden md:block"
-               />
+              <motion.div
+                layoutId="activeDot"
+                className="absolute right-3 w-1.5 h-1.5 rounded-full bg-red-500 shadow-[0_0_10px_rgba(239,68,68,0.8)] hidden md:block"
+              />
             )}
           </button>
         ))}
