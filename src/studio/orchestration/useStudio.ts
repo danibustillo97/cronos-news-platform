@@ -34,6 +34,7 @@ export interface StudioApi {
   news: NewsItem[];
   selectedNews: NewsItem | null;
   handleNewsSelect: (item: NewsItem) => void;
+  setSelectedNews: (item: NewsItem | null) => void;
   // Content
   customTitle: string;
   setCustomTitle: (value: string) => void;
@@ -488,7 +489,8 @@ export const useStudio = () => {
         throw new Error('Failed to fetch account');
       }
       const data = await response.json();
-      setTiktokAccount(data.connected ? data.account : null);
+      console.log('[useStudio] TikTok account response:', data);
+      setTiktokAccount(data.connected ? { ...data.account, connected: true } : null);
     } catch (error) {
       console.error('Failed to refresh TikTok account:', error);
       setTiktokAccount(null);
@@ -577,8 +579,23 @@ export const useStudio = () => {
     
     if (!popup) {
       window.location.href = authUrl;
+      return;
     }
-  }, []);
+    
+    // Poll to detect when popup closes
+    const checkClosed = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosed);
+        console.log('[TikTok] Popup closed, refreshing account...');
+        refreshTikTokAccount();
+      }
+    }, 500);
+    
+    // Stop checking after 5 minutes
+    setTimeout(() => {
+      clearInterval(checkClosed);
+    }, 5 * 60 * 1000);
+  }, [refreshTikTokAccount]);
 
   const disconnectTikTok = useCallback(async () => {
     const response = await fetch('/api/tiktok/account', { method: 'DELETE' });
@@ -618,6 +635,18 @@ export const useStudio = () => {
     refreshTikTokAccount();
   }, [refreshTikTokAccount]);
 
+  // Listen for TikTok connection from popup
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'TIKTOK_CONNECTED') {
+        console.log('[useStudio] TikTok connected message received, refreshing account...');
+        refreshTikTokAccount();
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [refreshTikTokAccount]);
+
   return {
     activeTab,
     setActiveTab,
@@ -626,6 +655,7 @@ export const useStudio = () => {
     news,
     selectedNews,
     handleNewsSelect,
+    setSelectedNews,
     customTitle,
     setCustomTitle,
     layoutMode,

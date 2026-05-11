@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 
-// Simple in-memory store for code verifiers (in production, use Redis or database)
-const codeVerifierStore = new Map<string, { verifier: string; expires: number }>();
-
-// Clean up expired entries every 5 minutes
-setInterval(() => {
-  const now = Date.now();
-  for (const [key, value] of codeVerifierStore.entries()) {
-    if (value.expires < now) {
-      codeVerifierStore.delete(key);
-    }
-  }
-}, 5 * 60 * 1000);
+// Cookie name for storing code verifier
+const CODE_VERIFIER_COOKIE = 'tiktok_code_verifier';
 
 /**
  * Generate PKCE code verifier and challenge
@@ -85,19 +75,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Generate PKCE parameters
-    const { codeVerifier, codeChallenge } = generatePKCE();
-    
-    // Generate random state for CSRF protection
-    const state = crypto.randomBytes(16).toString('base64url');
-    
-    // Store code verifier (expires in 10 minutes)
-    codeVerifierStore.set(state, { 
-      verifier: codeVerifier, 
-      expires: Date.now() + 10 * 60 * 1000 
-    });
-    
-    // Validate client key format (TikTok keys are typically alphanumeric, starting with letters)
+    // Validate client key format first
     const clientKeyValid = /^[a-zA-Z0-9_-]+$/.test(clientKey);
     if (!clientKeyValid) {
       console.error('[TikTok Auth] Invalid client_key format:', clientKey.substring(0, 10) + '...');
@@ -111,12 +89,17 @@ export async function GET(request: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Generate PKCE parameters
+    const { codeVerifier, codeChallenge } = generatePKCE();
     
-    // TikTok OAuth URL with PKCE
-    // Note: TikTok requires exact format
+    // Create state that includes code_verifier (encoded) - TikTok returns this unchanged
+    // Format: randomId.codeVerifierEncoded
+    const randomId = crypto.randomBytes(8).toString('base64url');
+    const state = `${randomId}.${Buffer.from(codeVerifier).toString('base64url')}`;
+    
+    // Build TikTok OAuth URL with PKCE
     const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/');
-    
-    // Use set() instead of append() to avoid duplicates
     authUrl.searchParams.set('client_key', clientKey);
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('scope', 'video.upload,user.info.basic');
@@ -132,19 +115,13 @@ export async function GET(request: NextRequest) {
     console.log('[TikTok Auth] Client key:', clientKey.substring(0, 10) + '... (length: ' + clientKey.length + ')');
     console.log('[TikTok Auth] Redirect URI:', redirectUri);
     console.log('[TikTok Auth] Code challenge:', codeChallenge.substring(0, 20) + '...');
-
-    // Return the auth URL (frontend will redirect)
-    return NextResponse.json({ 
+    
+    // Create JSON response with auth URL
+    // Note: state now contains encoded code_verifier for reliable retrieval
+    return NextResponse.json({
       authUrl: finalUrl,
-      state,
-      demoMode: false,
-      debug: {
-        clientKeyLength: clientKey.length,
-        clientKeyValid,
-        redirectUri: redirectUri,
-        hasCodeChallenge: !!codeChallenge,
-        fullUrl: finalUrl, // So frontend can verify
-      }
+      state: randomId, // Only return the random part to frontend (for logging/debug)
+      codeChallenge: codeChallenge.substring(0, 20) + '...',
     });
     
   } catch (error) {
@@ -157,14 +134,18 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Get code verifier for a state (used by callback)
+ * Extract code verifier from state parameter
+ * State format: randomId.codeVerifierEncoded
  */
-export function getCodeVerifier(state: string): string | null {
-  const stored = codeVerifierStore.get(state);
-  if (!stored || stored.expires < Date.now()) {
+export function extractCodeVerifier(state: string): string | null {
+  try {
+    const parts = state.split('.');
+    if (parts.length === 2) {
+      const encodedVerifier = parts[1];
+      return Buffer.from(encodedVerifier, 'base64url').toString('utf-8');
+    }
+    return null;
+  } catch {
     return null;
   }
-  // Delete after use (one-time use)
-  codeVerifierStore.delete(state);
-  return stored.verifier;
 }

@@ -9,6 +9,8 @@ import {
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import { DS } from './TopBar';
+import { TikTokPublisher } from './TikTokPublisher';
+import { TikTokTemplates } from './TikTokTemplates';
 
 /* ═══ atoms ═══ */
 const Label = ({ children }: { children: React.ReactNode }) => (
@@ -401,6 +403,9 @@ function TikTokPanel() {
 
     return (
         <div className="p-3 space-y-4 overflow-y-auto h-full">
+            {/* Templates - Create from scratch */}
+            <TikTokTemplates />
+            
             {/* Connection Status */}
             <div className="p-3 rounded-2xl" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
                 <div className="flex items-center gap-3 mb-3">

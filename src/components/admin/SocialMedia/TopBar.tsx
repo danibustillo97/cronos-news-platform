@@ -1,11 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
     Download, Video, RefreshCw, Share2, Copy,
-    Smartphone, Music, Type, Check,
+    Smartphone, Music, Type, Check, ImagePlus,
     LayoutTemplate, SplitSquareHorizontal, Newspaper, Minus,
-    Wand2, Hash, Scissors, CaseSensitive,
+    Wand2, Hash, Scissors, CaseSensitive, Sparkles,
+    Play, Pause, Redo, Undo, Zap, AlignLeft, Palette
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import type { FormatType, LayoutMode } from '@/studio/shared/types';
@@ -82,6 +83,74 @@ const Btn = ({ active, onClick, title, children, variant = 'default', disabled }
     );
 };
 
+/* ═══════════════ QUICK TOOLBAR ═══════════════ */
+function QuickToolbar() {
+    const { isRecording, handleRecordVideo, customTitle, setCustomTitle } = useStudioContext();
+    const [showEmoji, setShowEmoji] = useState(false);
+    
+    const addEmoji = (emoji: string) => {
+        setCustomTitle((customTitle || '') + emoji);
+        setShowEmoji(false);
+    };
+    
+    const viralEmojis = ['🔥', '⚡', '😱', '👀', '🤯', '💥', '🎯', '🚀', '💯', '✨'];
+    
+    return (
+        <div className="flex items-center gap-1">
+            <Btn title="Agregar Imagen" onClick={() => {}}>
+                <ImagePlus size={14} /> Imagen
+            </Btn>
+            <Btn title="Agregar Texto" onClick={() => {}}>
+                <Type size={14} /> Texto
+            </Btn>
+            
+            {/* Emoji Picker */}
+            <div className="relative">
+                <Btn title="Emojis Virales" onClick={() => setShowEmoji(!showEmoji)} variant="danger">
+                    <Sparkles size={14} />
+                </Btn>
+                {showEmoji && (
+                    <div 
+                        className="absolute top-full mt-2 left-0 p-2 rounded-xl z-50 grid grid-cols-5 gap-1"
+                        style={{ background: DS.surface, border: `1px solid ${DS.border}` }}
+                    >
+                        {viralEmojis.map(e => (
+                            <button
+                                key={e}
+                                onClick={() => addEmoji(e)}
+                                className="w-8 h-8 rounded-lg hover:bg-white/10 text-lg"
+                            >
+                                {e}
+                            </button>
+                        ))}
+                    </div>
+                )}
+            </div>
+            
+            <Sep />
+            
+            <Btn title="Deshacer">
+                <Undo size={14} />
+            </Btn>
+            <Btn title="Rehacer">
+                <Redo size={14} />
+            </Btn>
+            
+            <Sep />
+            
+            <Btn 
+                title={isRecording ? 'Grabando...' : 'Grabar Video'} 
+                variant="danger"
+                onClick={handleRecordVideo}
+                disabled={isRecording}
+            >
+                {isRecording ? <Pause size={14} /> : <Video size={14} />}
+                {isRecording ? 'REC...' : 'Grabar'}
+            </Btn>
+        </div>
+    );
+}
+
 /* ═══════════════ TIKTOK BADGE ═══════════════ */
 function TikTokBadge() {
     return (
@@ -91,7 +160,8 @@ function TikTokBadge() {
                 background: 'linear-gradient(135deg, #ff0050 0%, #00f2ea 100%)',
             }}
         >
-            <span className="font-black text-white text-xs">TIKTOK DEV</span>
+            <Smartphone size={14} style={{ color: '#fff' }} />
+            <span className="font-black text-white text-xs">TIKTOK</span>
             <span className="text-[10px] text-white/80 font-medium">9:16</span>
         </div>
     );
@@ -145,6 +215,11 @@ export function TopBar() {
         >
             {/* ── TikTok Badge ── */}
             <TikTokBadge />
+
+            <Sep />
+
+            {/* ── Quick Toolbar ── */}
+            <QuickToolbar />
 
             <Sep />
 

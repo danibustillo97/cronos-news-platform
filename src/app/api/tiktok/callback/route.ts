@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
-import { getCodeVerifier } from '../auth/route';
+import { extractCodeVerifier } from '../auth/route';
 
 /**
  * TikTok OAuth Callback
@@ -40,8 +40,8 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get code verifier from state (PKCE)
-    const codeVerifier = state ? getCodeVerifier(state) : null;
+    // Extract code verifier from state (PKCE)
+    const codeVerifier = state ? extractCodeVerifier(state) : null;
     
     if (!codeVerifier) {
       return NextResponse.json(
@@ -104,15 +104,63 @@ export async function GET(request: NextRequest) {
       });
 
     if (dbError) {
-      console.error('Database error:', dbError);
+      console.error('Database error details:', dbError);
       return NextResponse.json(
-        { error: 'Failed to store TikTok credentials' },
+        { 
+          error: 'Failed to store TikTok credentials',
+          details: dbError.message,
+          code: dbError.code
+        },
         { status: 500 }
       );
     }
 
-    // Redirect back to studio with success
-    return NextResponse.redirect(new URL('/admin?view=social&tiktok=connected', request.url));
+    // Return HTML that closes popup and notifies parent window
+    const html = `
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TikTok Connected</title>
+  <style>
+    body { 
+      font-family: system-ui, sans-serif; 
+      display: flex; 
+      align-items: center; 
+      justify-content: center; 
+      height: 100vh; 
+      margin: 0;
+      background: #000;
+      color: #fff;
+    }
+    .container { text-align: center; }
+    .success { color: #22c55e; font-size: 48px; margin-bottom: 16px; }
+    h2 { margin: 0 0 8px 0; }
+    p { color: #888; margin: 0; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="success">✓</div>
+    <h2>¡TikTok conectado!</h2>
+    <p>Puedes cerrar esta ventana</p>
+  </div>
+  <script>
+    // Try to close this popup window
+    if (window.opener) {
+      // Notify parent window to reload
+      window.opener.postMessage({ type: 'TIKTOK_CONNECTED' }, '*');
+    }
+    // Close after 2 seconds
+    setTimeout(() => {
+      window.close();
+    }, 2000);
+  </script>
+</body>
+</html>`;
+    
+    return new NextResponse(html, {
+      headers: { 'Content-Type': 'text/html' },
+    });
     
   } catch (error) {
     console.error('TikTok callback error:', error);

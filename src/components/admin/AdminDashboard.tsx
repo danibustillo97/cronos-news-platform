@@ -86,7 +86,7 @@ export default function AdminDashboard() {
 
         {/* Sources / AI Insight */}
         <div className="bg-gradient-to-b from-neutral-900 to-black p-8 rounded-3xl border border-white/10 relative overflow-hidden flex flex-col">
-          <div className="absolute inset-0 bg-[url('https://grainy-gradients.vercel.app/noise.svg')] opacity-20"></div>
+          <div className="absolute inset-0 bg-neutral-900 opacity-20"></div>
           
           <div className="relative z-10 mb-auto">
              <div className="flex items-center gap-2 mb-6">

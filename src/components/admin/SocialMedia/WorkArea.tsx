@@ -8,6 +8,9 @@ import {
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import type { ScriptSegment } from '@/studio/shared/types';
+import { TikTokPublisher } from './TikTokPublisher';
+import { ViralTools } from './ViralTools';
+import { ContentBlocks } from './ContentBlocks';
 
 /* ── canvas sizing ── */
 const aspectClass = (format: string, ar: string) => {
@@ -339,9 +342,36 @@ function Timeline() {
 /* ─── WORK AREA ─── */
 export function WorkArea() {
     return (
-        <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-            <CanvasViewer />
-            <Timeline />
+        <div className="flex-1 flex min-h-0 overflow-hidden">
+            {/* Left sidebar - Content Blocks */}
+            <div className="w-64 flex-shrink-0 border-r border-[#1e1e24] bg-[#0a0a0c] overflow-y-auto">
+                <ContentBlocks />
+            </div>
+
+            {/* Main content - Canvas and Timeline */}
+            <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <CanvasViewer />
+                <Timeline />
+            </div>
+            
+            {/* Right sidebar - Viral Tools & Publisher */}
+            <div className="w-72 flex-shrink-0 border-l border-[#1e1e24] bg-[#0a0a0c] overflow-y-auto">
+                <div className="p-3 space-y-4">
+                    <div>
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-[#50505c] mb-3 px-1">
+                            Optimización Viral
+                        </h3>
+                        <ViralTools />
+                    </div>
+                    
+                    <div className="border-t border-[#1e1e24] pt-4">
+                        <h3 className="text-xs font-bold uppercase tracking-wider text-[#50505c] mb-3 px-1">
+                            Publicar
+                        </h3>
+                        <TikTokPublisher />
+                    </div>
+                </div>
+            </div>
         </div>
     );
 }

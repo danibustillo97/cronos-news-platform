@@ -6,6 +6,8 @@ import { supabase } from '@/lib/supabaseClient';
  */
 export async function GET(request: NextRequest) {
   try {
+    console.log('[TikTok Account] Fetching account...');
+    
     const { data: account, error } = await supabase
       .from('tiktok_accounts')
       .select('*')
@@ -13,12 +15,23 @@ export async function GET(request: NextRequest) {
       .limit(1)
       .single();
 
-    if (error || !account) {
+    if (error) {
+      console.log('[TikTok Account] Error:', error);
+      return NextResponse.json(
+        { connected: false, account: null, error: error.message },
+        { status: 200 }
+      );
+    }
+
+    if (!account) {
+      console.log('[TikTok Account] No account found');
       return NextResponse.json(
         { connected: false, account: null },
         { status: 200 }
       );
     }
+    
+    console.log('[TikTok Account] Found account:', account.open_id);
 
     // Check token expiration (tokens are valid for 24 hours)
     const createdAt = new Date(account.created_at);

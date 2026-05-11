@@ -23,6 +23,16 @@ export default function AdminPage() {
   const router = useRouter();
 
   useEffect(() => {
+    // Check URL params immediately
+    const url = new URL(window.location.href);
+    const viewParam = url.searchParams.get('view');
+    
+    if (viewParam === 'social') {
+      setActiveView('social');
+    }
+  }, []);
+
+  useEffect(() => {
     const bootstrap = async () => {
       const { data } = await supabase.auth.getSession();
       if (!data.session) {

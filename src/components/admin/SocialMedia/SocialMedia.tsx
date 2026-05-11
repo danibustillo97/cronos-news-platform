@@ -12,16 +12,9 @@ export default function SocialMedia() {
 
     return (
         <StudioContext.Provider value={studio}>
-    
-            <div
-                className="w-full h-full bg-[#070708] overflow-hidden"
-                style={{
-                    display: 'grid',
-                    gridTemplateRows: 'auto 1fr auto',
-                }}
-            >
+            <div className="w-full h-full overflow-hidden" style={{ background: '#070708' }}>
                 <TopBar />
-                <div className="flex overflow-hidden min-h-0">
+                <div className="flex overflow-hidden" style={{ height: 'calc(100% - 48px)' }}>
                     <Sidebar />
                     <WorkArea />
                 </div>
