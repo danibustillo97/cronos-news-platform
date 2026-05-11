@@ -1,8 +1,38 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
+
+// Simple in-memory store for code verifiers (in production, use Redis or database)
+const codeVerifierStore = new Map<string, { verifier: string; expires: number }>();
+
+// Clean up expired entries every 5 minutes
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, value] of codeVerifierStore.entries()) {
+    if (value.expires < now) {
+      codeVerifierStore.delete(key);
+    }
+  }
+}, 5 * 60 * 1000);
+
+/**
+ * Generate PKCE code verifier and challenge
+ */
+function generatePKCE() {
+  // Generate random code verifier (43-128 chars)
+  const codeVerifier = crypto.randomBytes(32).toString('base64url');
+  
+  // Generate code challenge (SHA256 of verifier, base64url encoded)
+  const codeChallenge = crypto
+    .createHash('sha256')
+    .update(codeVerifier)
+    .digest('base64url');
+  
+  return { codeVerifier, codeChallenge };
+}
 
 /**
  * TikTok OAuth Initiation
- * Redirects user to TikTok authorization page
+ * Redirects user to TikTok authorization page with PKCE
  */
 export async function GET(request: NextRequest) {
   try {
@@ -12,7 +42,6 @@ export async function GET(request: NextRequest) {
     
     // Check if credentials are configured
     if (!clientKey || !redirectUri) {
-      // Return demo mode info if enabled
       if (isDemoMode) {
         return NextResponse.json({
           demoMode: true,
@@ -39,16 +68,27 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Generate random state for CSRF protection
-    const state = Buffer.from(Math.random().toString()).toString('base64');
+    // Generate PKCE parameters
+    const { codeVerifier, codeChallenge } = generatePKCE();
     
-    // TikTok OAuth URL
+    // Generate random state for CSRF protection
+    const state = crypto.randomBytes(16).toString('base64url');
+    
+    // Store code verifier (expires in 10 minutes)
+    codeVerifierStore.set(state, { 
+      verifier: codeVerifier, 
+      expires: Date.now() + 10 * 60 * 1000 
+    });
+    
+    // TikTok OAuth URL with PKCE
     const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/');
     authUrl.searchParams.append('client_key', clientKey);
     authUrl.searchParams.append('redirect_uri', redirectUri);
     authUrl.searchParams.append('scope', 'video.upload,user.info.basic');
     authUrl.searchParams.append('response_type', 'code');
     authUrl.searchParams.append('state', state);
+    authUrl.searchParams.append('code_challenge', codeChallenge);
+    authUrl.searchParams.append('code_challenge_method', 'S256');
 
     // Return the auth URL (frontend will redirect)
     return NextResponse.json({ 
@@ -64,4 +104,17 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+/**
+ * Get code verifier for a state (used by callback)
+ */
+export function getCodeVerifier(state: string): string | null {
+  const stored = codeVerifierStore.get(state);
+  if (!stored || stored.expires < Date.now()) {
+    return null;
+  }
+  // Delete after use (one-time use)
+  codeVerifierStore.delete(state);
+  return stored.verifier;
 }

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabaseClient';
+import { getCodeVerifier } from '../auth/route';
 
 /**
  * TikTok OAuth Callback
@@ -37,7 +38,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Exchange code for access token
+    // Get code verifier from state (PKCE)
+    const codeVerifier = state ? getCodeVerifier(state) : null;
+    
+    if (!codeVerifier) {
+      return NextResponse.json(
+        { error: 'Invalid or expired session. Please try connecting again.' },
+        { status: 400 }
+      );
+    }
+
+    // Exchange code for access token with PKCE
     const tokenResponse = await fetch('https://open.tiktokapis.com/v2/oauth/token/', {
       method: 'POST',
       headers: {
@@ -49,6 +60,7 @@ export async function GET(request: NextRequest) {
         code: code,
         grant_type: 'authorization_code',
         redirect_uri: redirectUri,
+        code_verifier: codeVerifier,
       }),
     });
 
