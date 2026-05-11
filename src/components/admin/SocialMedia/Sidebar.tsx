@@ -324,6 +324,22 @@ function TikTokPanel() {
     const [publishResult, setPublishResult] = useState<{success: boolean; message: string; url?: string} | null>(null);
     const [debugInfo, setDebugInfo] = useState<any>(null);
     const [isCheckingConfig, setIsCheckingConfig] = useState(false);
+    const [testAuthInfo, setTestAuthInfo] = useState<any>(null);
+    const [isTestingAuth, setIsTestingAuth] = useState(false);
+
+    const testAuth = async () => {
+        setIsTestingAuth(true);
+        try {
+            const response = await fetch('/api/tiktok/test-auth');
+            const data = await response.json();
+            setTestAuthInfo(data);
+            console.log('[TikTok Test]', data);
+        } catch (error) {
+            console.error('Test failed:', error);
+            setTestAuthInfo({ error: 'Failed to test auth' });
+        }
+        setIsTestingAuth(false);
+    };
 
     const handlePublish = async () => {
         if (!tiktokAccount?.connected || !lastRecordedBlob) return;
@@ -379,6 +395,8 @@ function TikTokPanel() {
         const info = await debugTikTokConfig();
         setDebugInfo(info);
         setIsCheckingConfig(false);
+        // Also run test auth
+        await testAuth();
     };
 
     return (
@@ -433,17 +451,73 @@ function TikTokPanel() {
                             <code style={{ color: DS.txt }}>TIKTOK_CLIENT_SECRET=xxx</code>
                         </div>
                         
-                        {debugInfo && (
-                            <div className="p-2.5 rounded-xl text-[9px] leading-relaxed" 
+                        {testAuthInfo && (
+                            <div className="p-2.5 rounded-xl text-[9px] leading-relaxed space-y-2" 
                                 style={{ background: '#1a1a1e', border: `1px solid ${DS.border}` }}
                             >
-                                <strong style={{ color: debugInfo.configured ? '#22c55e' : '#ef4444' }}>
-                                    {debugInfo.configured ? '✓ Configuración válida' : '✗ Configuración inválida'}
-                                </strong><br />
-                                {debugInfo.checks && (
-                                    <div className="mt-1 space-y-0.5">
-                                        <div>Client Key: {debugInfo.checks.clientKey.masked || 'NO CONFIGURADO'}</div>
-                                        <div>Redirect URI: {debugInfo.checks.redirectUri.value || 'NO CONFIGURADO'}</div>
+                                <div className="flex items-center gap-2">
+                                    <strong style={{ 
+                                        color: testAuthInfo.likelyValidKey && testAuthInfo.processed?.redirectUri?.isHttps 
+                                            ? '#22c55e' : '#ef4444' 
+                                    }}>
+                                        {testAuthInfo.likelyValidKey && testAuthInfo.processed?.redirectUri?.isHttps 
+                                            ? '✓ Parece válido' : '✗ Problemas detectados'}
+                                    </strong>
+                                    <span style={{ color: DS.sub }}>({testAuthInfo.timestamp})</span>
+                                </div>
+                                
+                                {testAuthInfo.issues?.length > 0 && (
+                                    <div style={{ color: '#ef4444' }}>
+                                        <strong>Problemas:</strong>
+                                        <ul className="mt-1 ml-3 space-y-0.5">
+                                            {testAuthInfo.issues.map((issue: string, i: number) => (
+                                                <li key={i}>• {issue}</li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                                
+                                {testAuthInfo.processed?.clientKey && (
+                                    <div style={{ color: DS.sub }}>
+                                        <strong>Client Key:</strong><br />
+                                        Valor: {testAuthInfo.processed.clientKey.value}<br />
+                                        Longitud: {testAuthInfo.processed.clientKey.length} chars<br />
+                                        Formato válido: {testAuthInfo.processed.clientKey.isValidFormat ? '✓' : '✗'}<br />
+                                        Empieza con letra: {testAuthInfo.processed.clientKey.startsWithLetter ? '✓' : '✗'}
+                                    </div>
+                                )}
+                                
+                                {testAuthInfo.processed?.redirectUri && (
+                                    <div style={{ color: DS.sub }}>
+                                        <strong>Redirect URI:</strong><br />
+                                        Valor: {testAuthInfo.processed.redirectUri.value}<br />
+                                        HTTPS: {testAuthInfo.processed.redirectUri.isHttps ? '✓' : '✗'}<br />
+                                        Incluye /callback: {testAuthInfo.processed.redirectUri.includesCallback ? '✓' : '✗'}
+                                    </div>
+                                )}
+                                
+                                {testAuthInfo.builtUrl && (
+                                    <div style={{ color: DS.sub }}>
+                                        <strong>URL Generada:</strong><br />
+                                        <code style={{ 
+                                            display: 'block', 
+                                            wordBreak: 'break-all',
+                                            color: '#888',
+                                            fontSize: '8px'
+                                        }}>
+                                            {testAuthInfo.builtUrl}
+                                        </code>
+                                    </div>
+                                )}
+                                
+                                {testAuthInfo.nextSteps && (
+                                    <div style={{ color: '#f59e0b' }}>
+                                        <strong>Siguientes pasos:</strong>
+                                        <ol className="mt-1 ml-3 space-y-0.5">
+                                            {testAuthInfo.nextSteps.slice(0, 4).map((step: string, i: number) => (
+                                                <li key={i}>{step}</li>
+                                            ))}
+                                        </ol>
                                     </div>
                                 )}
                             </div>
