@@ -5,7 +5,7 @@ import {
     Search, Music, DollarSign, Newspaper,
     RefreshCw, Volume2, Mic, Zap, X,
     Image as ImageIcon, ChevronRight, Clock,
-    ExternalLink,
+    ExternalLink, Smartphone, Link2, Unlink, Upload, CheckCircle2, AlertCircle,
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import { DS } from './TopBar';
@@ -305,14 +305,218 @@ function SponsorPanel() {
     );
 }
 
+/* ═══ TIKTOK PANEL ═══ */
+function TikTokPanel() {
+    const { 
+        tiktokAccount, 
+        connectTikTok, 
+        disconnectTikTok, 
+        refreshTikTokAccount,
+        selectedNews,
+        customTitle,
+        videoScript,
+        lastRecordedBlob,
+        publishToTikTok,
+        clearLastRecording,
+    } = useStudioContext();
+    const [isPublishing, setIsPublishing] = useState(false);
+    const [publishResult, setPublishResult] = useState<{success: boolean; message: string; url?: string} | null>(null);
+
+    const handlePublish = async () => {
+        if (!tiktokAccount?.connected || !lastRecordedBlob) return;
+        
+        setIsPublishing(true);
+        setPublishResult(null);
+        
+        try {
+            const title = customTitle || selectedNews?.title || 'Video de Cronos News';
+            const result = await publishToTikTok(lastRecordedBlob, title);
+            
+            if (result.success) {
+                setPublishResult({
+                    success: true,
+                    message: '¡Video publicado exitosamente!',
+                    url: result.share_url || undefined,
+                });
+                clearLastRecording();
+            } else {
+                setPublishResult({
+                    success: false,
+                    message: result.error || 'Error al publicar',
+                });
+            }
+        } catch (error) {
+            setPublishResult({
+                success: false,
+                message: 'Error inesperado al publicar',
+            });
+        } finally {
+            setIsPublishing(false);
+        }
+    };
+
+    return (
+        <div className="p-3 space-y-4 overflow-y-auto h-full">
+            {/* Connection Status */}
+            <div className="p-3 rounded-2xl" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
+                <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ 
+                            background: tiktokAccount?.connected 
+                                ? 'linear-gradient(135deg, #ff0050 0%, #00f2ea 100%)' 
+                                : DS.surfaceMid 
+                        }}
+                    >
+                        <Smartphone size={18} className={tiktokAccount?.connected ? 'text-white' : ''} 
+                            style={{ color: tiktokAccount?.connected ? '#fff' : DS.muted }} />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-[12px] font-bold" style={{ color: DS.txt }}>
+                            {tiktokAccount?.connected ? 'TikTok Conectado' : 'TikTok Developer'}
+                        </p>
+                        <p className="text-[10px] truncate" style={{ color: DS.sub }}>
+                            {tiktokAccount?.connected 
+                                ? `@${tiktokAccount.display_name || 'usuario'}`
+                                : 'Conecta tu cuenta para publicar'
+                            }
+                        </p>
+                    </div>
+                    {tiktokAccount?.connected && (
+                        <div className="w-2 h-2 rounded-full flex-shrink-0"
+                            style={{ background: tiktokAccount.is_expired ? '#ef4444' : '#22c55e' }} />
+                    )}
+                </div>
+
+                {!tiktokAccount?.connected ? (
+                    <button
+                        onClick={connectTikTok}
+                        className="w-full py-2.5 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 transition-all"
+                        style={{ 
+                            background: 'linear-gradient(135deg, #ff0050 0%, #ff3377 100%)',
+                            color: '#fff'
+                        }}
+                    >
+                        <Link2 size={14} />Conectar TikTok
+                    </button>
+                ) : (
+                    <div className="flex gap-2">
+                        <button
+                            onClick={disconnectTikTok}
+                            className="flex-1 py-2 rounded-xl text-[11px] font-semibold transition-all"
+                            style={{ 
+                                background: `${DS.accent}15`,
+                                color: DS.accent,
+                                border: `1px solid ${DS.accent}25`
+                            }}
+                        >
+                            <Unlink size={12} className="inline mr-1" />Desconectar
+                        </button>
+                        <button
+                            onClick={refreshTikTokAccount}
+                            className="w-10 rounded-xl flex items-center justify-center transition-all"
+                            style={{ background: DS.surfaceMid, border: `1px solid ${DS.border}` }}
+                        >
+                            <RefreshCw size={12} style={{ color: DS.sub }} />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Publish Section */}
+            {tiktokAccount?.connected && (
+                <div className="p-3 rounded-2xl space-y-3" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
+                    <Label>Publicar Video</Label>
+                    
+                    {/* Video Status */}
+                    <div className="flex items-center gap-2 p-2 rounded-xl"
+                        style={{ background: lastRecordedBlob ? 'rgba(34,197,94,0.1)' : DS.surfaceMid }}
+                    >
+                        <div className={`w-2 h-2 rounded-full flex-shrink-0 ${lastRecordedBlob ? 'bg-emerald-500' : 'bg-amber-500'}`} />
+                        <span className="text-[10px] flex-1" style={{ color: lastRecordedBlob ? '#22c55e' : DS.sub }}>
+                            {lastRecordedBlob 
+                                ? 'Video listo para publicar' 
+                                : 'Graba un video con "Exportar MP4"'
+                            }
+                        </span>
+                    </div>
+                    
+                    <div className="space-y-2">
+                        <div className="flex items-center justify-between text-[10px]" style={{ color: DS.sub }}>
+                            <span>Noticia:</span>
+                            <span className="truncate max-w-[140px]" style={{ color: DS.txt }}>
+                                {selectedNews?.title || 'Ninguna seleccionada'}
+                            </span>
+                        </div>
+                        <div className="flex items-center justify-between text-[10px]" style={{ color: DS.sub }}>
+                            <span>Segmentos:</span>
+                            <span style={{ color: DS.txt }}>{videoScript.length} escenas</span>
+                        </div>
+                    </div>
+
+                    <button
+                        onClick={handlePublish}
+                        disabled={isPublishing || !lastRecordedBlob || !selectedNews}
+                        className="w-full py-2.5 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                        style={{ 
+                            background: lastRecordedBlob && selectedNews
+                                ? 'linear-gradient(135deg, #ff0050 0%, #00f2ea 100%)'
+                                : DS.surfaceMid,
+                            color: lastRecordedBlob && selectedNews ? '#fff' : DS.muted,
+                        }}
+                    >
+                        {isPublishing ? (
+                            <><RefreshCw size={14} className="animate-spin" />Publicando...</>
+                        ) : (
+                            <><Upload size={14} />Publicar en TikTok</>
+                        )}
+                    </button>
+
+                    {publishResult && (
+                        <div className={`p-2.5 rounded-xl flex items-start gap-2 ${publishResult.success ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-red-500/10 border border-red-500/20'}`}>
+                            {publishResult.success 
+                                ? <CheckCircle2 size={14} className="text-emerald-400 flex-shrink-0 mt-0.5" />
+                                : <AlertCircle size={14} className="text-red-400 flex-shrink-0 mt-0.5" />
+                            }
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-medium" style={{ color: publishResult.success ? '#10b981' : '#ef4444' }}>
+                                    {publishResult.success ? '¡Publicado!' : 'Error'}
+                                </p>
+                                <p className="text-[9px]" style={{ color: DS.sub }}>{publishResult.message}</p>
+                                {publishResult.url && (
+                                    <a href={publishResult.url} target="_blank" rel="noopener noreferrer"
+                                        className="text-[9px] underline mt-1 inline-block" style={{ color: '#10b981' }}>
+                                        Ver en TikTok →
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Info */}
+            <div className="p-3 rounded-xl" style={{ background: DS.surfaceMid }}>
+                <p className="text-[10px] leading-relaxed" style={{ color: DS.sub }}>
+                    <strong style={{ color: DS.txt }}>TikTok Developer API</strong><br />
+                    • Formatos: 9:16 vertical<br />
+                    • Duración máx: 10 minutos<br />
+                    • Resolución: 1080x1920<br />
+                    • Publicación directa desde el studio
+                </p>
+            </div>
+        </div>
+    );
+}
+
 /* ═══ SIDEBAR ROOT ═══ */
-type Tab = 'content' | 'audio' | 'sponsor';
+type Tab = 'content' | 'audio' | 'sponsor' | 'tiktok';
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'content', label: 'Noticias', icon: <Newspaper size={11} /> },
     { id: 'audio',   label: 'Audio',    icon: <Music size={11} /> },
     { id: 'sponsor', label: 'Sponsor',  icon: <DollarSign size={11} /> },
+    { id: 'tiktok',  label: 'TikTok',   icon: <Smartphone size={11} /> },
 ];
-const PANELS: Record<Tab, React.FC> = { content: ContentPanel, audio: AudioPanel, sponsor: SponsorPanel };
+const PANELS: Record<Tab, React.FC> = { content: ContentPanel, audio: AudioPanel, sponsor: SponsorPanel, tiktok: TikTokPanel };
 
 export function Sidebar() {
     const [tab, setTab] = useState<Tab>('content');

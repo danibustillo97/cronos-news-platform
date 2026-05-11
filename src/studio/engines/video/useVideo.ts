@@ -6,6 +6,8 @@ export const useVideo = (canvasRef: RefObject<HTMLCanvasElement | null>) => {
   const recorderEngineRef = useRef(createVideoRecorderEngine());
   const [isRecording, setIsRecording] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState(0);
+  const [lastRecordedBlob, setLastRecordedBlob] = useState<Blob | null>(null);
+  const [lastRecordedUrl, setLastRecordedUrl] = useState<string | null>(null);
 
   const isSupported = useMemo(() => {
     return typeof window !== 'undefined' && typeof MediaRecorder !== 'undefined';
@@ -31,14 +33,18 @@ export const useVideo = (canvasRef: RefObject<HTMLCanvasElement | null>) => {
         percent => setRecordingProgress(percent)
       );
 
+      // Save blob for later publishing
+      setLastRecordedBlob(blob);
       const url = URL.createObjectURL(blob);
+      setLastRecordedUrl(url);
+
+      // Auto download
       const anchor = document.createElement('a');
       anchor.href = url;
-      anchor.download = 'social-studio-recording.webm';
+      anchor.download = 'cronos-tiktok-video.webm';
       document.body.appendChild(anchor);
       anchor.click();
       anchor.remove();
-      URL.revokeObjectURL(url);
     } catch (error) {
       console.error('[Studio Video] Recording failed', error);
     } finally {
@@ -48,9 +54,20 @@ export const useVideo = (canvasRef: RefObject<HTMLCanvasElement | null>) => {
     }
   }, [canvasRef, isRecording, isSupported]);
 
+  const clearLastRecording = useCallback(() => {
+    if (lastRecordedUrl) {
+      URL.revokeObjectURL(lastRecordedUrl);
+    }
+    setLastRecordedBlob(null);
+    setLastRecordedUrl(null);
+  }, [lastRecordedUrl]);
+
   return {
     isRecording,
     recordingProgress,
     handleRecordVideo,
+    lastRecordedBlob,
+    lastRecordedUrl,
+    clearLastRecording,
   };
 };

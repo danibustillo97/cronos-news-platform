@@ -70,6 +70,11 @@ export interface StudioApi {
   activeNetwork: string;
   setActiveNetwork: (id: string) => void;
   toggleNetworkConnection: (id: string) => void;
+  // TikTok
+  tiktokAccount: { connected: boolean; display_name?: string; avatar_url?: string | null; is_expired?: boolean } | null;
+  connectTikTok: () => Promise<void>;
+  disconnectTikTok: () => Promise<void>;
+  publishToTikTok: (videoBlob: Blob, title: string) => Promise<{ success: boolean; share_url?: string | null; error?: string }>;
   // Caption / share
   smartCaption: string;
   generateSmartCaption: () => void;
@@ -83,6 +88,9 @@ export interface StudioApi {
   isRecording: boolean;
   recordingProgress: number;
   handleRecordVideo: () => void;
+  lastRecordedBlob: Blob | null;
+  lastRecordedUrl: string | null;
+  clearLastRecording: () => void;
   // Audio engine
   voices: Voice[];
   selectedVoice: string;
@@ -103,6 +111,8 @@ export interface StudioApi {
   handleAudioUpload: (event: ChangeEvent<HTMLInputElement>) => void;
   micEnabled: boolean;
   handleMicToggle: (value: boolean) => void;
+  // TikTok account state
+  refreshTikTokAccount: () => Promise<void>;
 }
 
 const getCaptionPrefix = (networkId: string) => {
@@ -159,6 +169,7 @@ export const useStudio = () => {
   const [bgAudioName, setBgAudioName] = useState('');
   const [bgAudioVolume, setBgAudioVolume] = useState(0.4);
   const [micEnabled, setMicEnabled] = useState(false);
+  const [tiktokAccount, setTiktokAccount] = useState<StudioApi['tiktokAccount']>(null);
 
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const animationRef = useRef<number | null>(null);
@@ -457,9 +468,78 @@ export const useStudio = () => {
     setBgAudioName(file.name);
   }, []);
 
+  // TikTok functions
+  const refreshTikTokAccount = useCallback(async () => {
+    try {
+      const response = await fetch('/api/tiktok/account');
+      if (!response.ok) throw new Error('Failed to fetch account');
+      const data = await response.json();
+      setTiktokAccount(data.connected ? data.account : null);
+    } catch (error) {
+      console.error('Failed to refresh TikTok account:', error);
+      setTiktokAccount(null);
+    }
+  }, []);
+
+  const connectTikTok = useCallback(async () => {
+    const response = await fetch('/api/tiktok/auth');
+    if (!response.ok) throw new Error('Failed to initiate auth');
+    const { authUrl } = await response.json();
+    
+    // Open in popup
+    const width = 600;
+    const height = 700;
+    const left = window.screenX + (window.outerWidth - width) / 2;
+    const top = window.screenY + (window.outerHeight - height) / 2;
+    
+    const popup = window.open(
+      authUrl,
+      'tiktok-auth',
+      `width=${width},height=${height},left=${left},top=${top},popup=true`
+    );
+    
+    if (!popup) {
+      window.location.href = authUrl;
+    }
+  }, []);
+
+  const disconnectTikTok = useCallback(async () => {
+    const response = await fetch('/api/tiktok/account', { method: 'DELETE' });
+    if (!response.ok) throw new Error('Failed to disconnect');
+    setTiktokAccount(null);
+  }, []);
+
+  const publishToTikTok = useCallback(async (videoBlob: Blob, title: string) => {
+    const formData = new FormData();
+    formData.append('video', videoBlob, 'video.mp4');
+    formData.append('title', title);
+    formData.append('privacy_level', 'PUBLIC');
+    formData.append('disable_duet', 'false');
+    formData.append('disable_stitch', 'false');
+    formData.append('disable_comment', 'false');
+
+    const response = await fetch('/api/tiktok/upload', {
+      method: 'POST',
+      body: formData,
+    });
+
+    const result = await response.json();
+    
+    if (!response.ok) {
+      return { success: false, error: result.error || 'Upload failed' };
+    }
+
+    return { success: true, share_url: result.share_url };
+  }, []);
+
   useEffect(() => {
     generateSmartCaption();
   }, [generateSmartCaption]);
+
+  // Load TikTok account on mount
+  useEffect(() => {
+    refreshTikTokAccount();
+  }, [refreshTikTokAccount]);
 
   return {
     activeTab,
@@ -520,6 +600,9 @@ export const useStudio = () => {
     isRecording: video.isRecording,
     recordingProgress: video.recordingProgress,
     handleRecordVideo: video.handleRecordVideo,
+    lastRecordedBlob: video.lastRecordedBlob,
+    lastRecordedUrl: video.lastRecordedUrl,
+    clearLastRecording: video.clearLastRecording,
     bgAudioName,
     bgAudioVolume,
     setBgAudioVolume,
@@ -529,5 +612,10 @@ export const useStudio = () => {
     handleMicToggle,
     generateNeuralAudio,
     setActiveNetwork,
+    tiktokAccount,
+    connectTikTok,
+    disconnectTikTok,
+    publishToTikTok,
+    refreshTikTokAccount,
   } satisfies StudioApi;
 };
