@@ -27,11 +27,13 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const clientKey = process.env.TIKTOK_CLIENT_KEY;
-    const clientSecret = process.env.TIKTOK_CLIENT_SECRET;
-    const redirectUri = process.env.TIKTOK_REDIRECT_URI;
+    // Trim values to remove accidental spaces or quotes
+    const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim().replace(/^["']|["']$/g, '');
+    const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim().replace(/^["']|["']$/g, '');
+    const redirectUri = process.env.TIKTOK_REDIRECT_URI?.trim().replace(/^["']|["']$/g, '');
 
     if (!clientKey || !clientSecret || !redirectUri) {
+      console.error('[TikTok Callback] Missing credentials:', { clientKey: !!clientKey, clientSecret: !!clientSecret, redirectUri: !!redirectUri });
       return NextResponse.json(
         { error: 'TikTok credentials not configured' },
         { status: 500 }

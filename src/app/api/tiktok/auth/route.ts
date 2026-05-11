@@ -36,17 +36,35 @@ function generatePKCE() {
  */
 export async function GET(request: NextRequest) {
   try {
-    const clientKey = process.env.TIKTOK_CLIENT_KEY;
-    const redirectUri = process.env.TIKTOK_REDIRECT_URI;
+    // Trim values to remove accidental spaces or quotes
+    const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim().replace(/^["']|["']$/g, '');
+    const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim().replace(/^["']|["']$/g, '');
+    const redirectUri = process.env.TIKTOK_REDIRECT_URI?.trim().replace(/^["']|["']$/g, '');
     const isDemoMode = process.env.TIKTOK_DEMO_MODE === 'true';
     
+    console.log('[TikTok Auth] Checking credentials:', {
+      hasClientKey: !!clientKey,
+      clientKeyLength: clientKey?.length,
+      hasRedirectUri: !!redirectUri,
+      hasClientSecret: !!clientSecret,
+    });
+    
     // Check if credentials are configured
-    if (!clientKey || !redirectUri) {
+    if (!clientKey || !redirectUri || !clientSecret) {
+      const missing = {
+        clientKey: !clientKey,
+        clientSecret: !clientSecret,
+        redirectUri: !redirectUri,
+      };
+      
+      console.log('[TikTok Auth] Missing credentials:', missing);
+      
       if (isDemoMode) {
         return NextResponse.json({
           demoMode: true,
           authUrl: null,
           message: 'TikTok credentials not configured. Using demo mode.',
+          missing,
           setupInstructions: {
             step1: 'Create app at https://developers.tiktok.com/',
             step2: 'Add to .env.local: TIKTOK_CLIENT_KEY=xxx TIKTOK_CLIENT_SECRET=xxx',
@@ -58,11 +76,10 @@ export async function GET(request: NextRequest) {
       return NextResponse.json(
         { 
           error: 'TikTok credentials not configured',
-          missing: {
-            clientKey: !clientKey,
-            redirectUri: !redirectUri,
-          },
-          setupInstructions: 'Add TIKTOK_CLIENT_KEY and TIKTOK_REDIRECT_URI to your .env.local file'
+          missing,
+          setupInstructions: 'Add TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET and TIKTOK_REDIRECT_URI to your .env.local file',
+          fileLocation: '.env.local debe estar en la raíz del proyecto (al lado de package.json)',
+          format: 'TIKTOK_CLIENT_KEY=awxxxxxxxxxxxxxxxxxx (sin comillas, sin espacios)',
         },
         { status: 503 }
       );
@@ -80,11 +97,26 @@ export async function GET(request: NextRequest) {
       expires: Date.now() + 10 * 60 * 1000 
     });
     
+    // Validate client key format (TikTok keys are typically alphanumeric, starting with letters)
+    const clientKeyValid = /^[a-zA-Z0-9_-]+$/.test(clientKey);
+    if (!clientKeyValid) {
+      console.error('[TikTok Auth] Invalid client_key format:', clientKey.substring(0, 10) + '...');
+      return NextResponse.json(
+        { 
+          error: 'Invalid client_key format',
+          message: 'Client key contains invalid characters. It should only contain letters, numbers, hyphens and underscores.',
+          clientKeyPreview: clientKey.substring(0, 10) + '...',
+          clientKeyLength: clientKey.length,
+        },
+        { status: 400 }
+      );
+    }
+    
     // TikTok OAuth URL with PKCE
-    // Note: TikTok requires exact format, build manually to ensure no encoding issues
+    // Note: TikTok requires exact format
     const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/');
     
-    // Use direct string assignment to avoid double encoding
+    // Use set() instead of append() to avoid duplicates
     authUrl.searchParams.set('client_key', clientKey);
     authUrl.searchParams.set('redirect_uri', redirectUri);
     authUrl.searchParams.set('scope', 'video.upload,user.info.basic');
@@ -93,21 +125,25 @@ export async function GET(request: NextRequest) {
     authUrl.searchParams.set('code_challenge', codeChallenge);
     authUrl.searchParams.set('code_challenge_method', 'S256');
     
+    const finalUrl = authUrl.toString();
+    
     // Debug logging
-    console.log('[TikTok Auth] Generated URL:', authUrl.toString());
-    console.log('[TikTok Auth] Client key length:', clientKey.length);
+    console.log('[TikTok Auth] Generated URL:', finalUrl);
+    console.log('[TikTok Auth] Client key:', clientKey.substring(0, 10) + '... (length: ' + clientKey.length + ')');
     console.log('[TikTok Auth] Redirect URI:', redirectUri);
     console.log('[TikTok Auth] Code challenge:', codeChallenge.substring(0, 20) + '...');
 
     // Return the auth URL (frontend will redirect)
     return NextResponse.json({ 
-      authUrl: authUrl.toString(),
+      authUrl: finalUrl,
       state,
       demoMode: false,
       debug: {
         clientKeyLength: clientKey.length,
+        clientKeyValid,
         redirectUri: redirectUri,
         hasCodeChallenge: !!codeChallenge,
+        fullUrl: finalUrl, // So frontend can verify
       }
     });
     
