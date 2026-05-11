@@ -3,218 +3,254 @@
 import React from 'react';
 import {
     Download, Video, RefreshCw, Share2, Copy,
-    MonitorPlay, Square, Smartphone,
+    Smartphone, Music, Type, Check,
     LayoutTemplate, SplitSquareHorizontal, Newspaper, Minus,
-    Facebook, Twitter, Instagram, Youtube, Linkedin,
-    Wand2, Hash, Scissors, Type,
-    Check, Volume2,
+    Wand2, Hash, Scissors, CaseSensitive,
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import type { FormatType, LayoutMode } from '@/studio/shared/types';
 
-/* ── tiny atoms ── */
-const Sep = () => <div className="w-px h-4 bg-[#1c1c20] flex-shrink-0 mx-1" />;
+/* ═══════════════ DESIGN TOKENS ═══════════════ */
+export const DS = {
+    bg:          '#09090b',
+    surface:     '#111114',
+    surfaceMid:  '#16161a',
+    border:      '#1e1e24',
+    borderSub:   '#141418',
+    accent:      '#e5173f',
+    accentDim:   'rgba(229,23,63,0.12)',
+    txt:         '#e8e8f0',
+    sub:         '#50505c',
+    muted:       '#28282e',
+} as const;
 
-const Chip = ({
-    active, onClick, title, children, danger,
-}: {
-    active?: boolean; onClick?: () => void; title?: string;
-    children: React.ReactNode; danger?: boolean;
-}) => (
-    <button
-        type="button"
-        title={title}
-        onClick={onClick}
-        className={[
-            'flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold',
-            'transition-all duration-100 select-none whitespace-nowrap flex-shrink-0',
-            active && danger  ? 'bg-red-600 text-white' :
-            active            ? 'bg-[#e5173f] text-white' :
-            danger            ? 'text-red-500 hover:bg-red-950 border border-red-900/30' :
-                                'text-[#4a4a54] hover:text-[#b0b0b8] border border-[#1a1a1e] hover:border-[#2e2e34]',
-        ].filter(Boolean).join(' ')}
-    >
-        {children}
-    </button>
+/* ═══════════════ TIKTOK ONLY CONFIG ═══════════════ */
+export const TIKTOK_CONFIG = {
+    icon: <span className="font-black text-[10px] leading-none">TK</span>,
+    color: '#ff0050',
+    bg: '#000000',
+    label: 'TikTok Dev',
+    format: '9:16',
+    maxChars: 2200,
+    maxDuration: 180, // seconds
+} as const;
+
+/* ═══════════════ ATOMS ═══════════════ */
+const Sep = () => (
+    <div className="w-px self-stretch my-1.5 flex-shrink-0" style={{ background: DS.borderSub }} />
 );
 
-/* ── network map ── */
-const NET: Record<string, { icon: React.ReactNode; activeClass: string }> = {
-    facebook:  { icon: <Facebook size={11} />,  activeClass: 'bg-[#1877f2] text-white' },
-    twitter:   { icon: <Twitter size={11} />,   activeClass: 'bg-[#1d9bf0] text-white' },
-    instagram: { icon: <Instagram size={11} />, activeClass: 'bg-gradient-to-tr from-[#f58529] via-[#dd2a7b] to-[#8134af] text-white' },
-    youtube:   { icon: <Youtube size={11} />,   activeClass: 'bg-[#ff0000] text-white' },
-    linkedin:  { icon: <Linkedin size={11} />,  activeClass: 'bg-[#0a66c2] text-white' },
-    tiktok:    { icon: <span className="font-black text-[9px]">TK</span>, activeClass: 'bg-black border border-[#333] text-white' },
+interface BtnProps {
+    active?: boolean;
+    onClick?: () => void;
+    title?: string;
+    children: React.ReactNode;
+    variant?: 'default' | 'primary' | 'danger' | 'ghost';
+    disabled?: boolean;
+}
+const Btn = ({ active, onClick, title, children, variant = 'default', disabled }: BtnProps) => {
+    const base = 'flex items-center gap-1.5 rounded-lg text-[11px] font-semibold transition-all duration-100 select-none flex-shrink-0 px-2.5 py-1.5';
+    
+    const styles = {
+        primary: 'bg-white text-black hover:bg-gray-100 disabled:opacity-40',
+        danger: active 
+            ? 'bg-[#ff0050] text-white' 
+            : 'bg-[#ff0050]/10 text-[#ff0050] border border-[#ff0050]/30 hover:bg-[#ff0050]/20',
+        ghost: 'text-[#50505c] hover:text-[#e8e8f0]',
+        default: active 
+            ? 'text-white border' 
+            : `text-[${DS.sub}] border border-[${DS.border}] hover:text-[#a0a0ac] hover:border-[#2a2a32]`,
+    };
+
+    const activeStyle = active && variant === 'default' ? {
+        background: 'rgba(255,0,80,0.15)',
+        borderColor: 'rgba(255,0,80,0.4)',
+        color: '#ff0050',
+    } : {};
+
+    return (
+        <button 
+            type="button" 
+            title={title} 
+            onClick={onClick} 
+            disabled={disabled}
+            className={`${base} ${styles[variant]}`}
+            style={activeStyle}
+        >
+            {children}
+        </button>
+    );
 };
 
-const FORMATS: { id: FormatType; icon: React.ReactNode; label: string }[] = [
-    { id: 'square', icon: <Square size={10} />,      label: '1:1' },
-    { id: 'story',  icon: <Smartphone size={10} />,  label: '9:16' },
-    { id: 'video',  icon: <MonitorPlay size={10} />, label: 'Video' },
+/* ═══════════════ TIKTOK BADGE ═══════════════ */
+function TikTokBadge() {
+    return (
+        <div 
+            className="flex items-center gap-2 px-3 py-1.5 rounded-xl flex-shrink-0"
+            style={{ 
+                background: 'linear-gradient(135deg, #ff0050 0%, #00f2ea 100%)',
+            }}
+        >
+            <span className="font-black text-white text-xs">TIKTOK DEV</span>
+            <span className="text-[10px] text-white/80 font-medium">9:16</span>
+        </div>
+    );
+}
+
+/* ═══════════════ LAYOUT PRESETS ═══════════════ */
+const LAYOUTS: { id: Exclude<LayoutMode, 'auto'>; icon: React.ReactNode; label: string; desc: string }[] = [
+    { id: 'overlay',  icon: <LayoutTemplate size={10} />, label: 'Overlay', desc: 'Texto sobre imagen' },
+    { id: 'split',    icon: <SplitSquareHorizontal size={10} />, label: 'Split', desc: 'Imagen + texto lado a lado' },
+    { id: 'breaking', icon: <Newspaper size={10} />, label: 'Urgente', desc: 'Banner breaking news' },
+    { id: 'minimal',  icon: <Minus size={10} />, label: 'Clean', desc: 'Diseño limpio minimalista' },
 ];
 
-const LAYOUTS: { id: Exclude<LayoutMode, 'auto'>; icon: React.ReactNode; label: string }[] = [
-    { id: 'overlay',  icon: <LayoutTemplate size={10} />,        label: 'Overlay' },
-    { id: 'split',    icon: <SplitSquareHorizontal size={10} />, label: 'Split' },
-    { id: 'breaking', icon: <Newspaper size={10} />,             label: 'Break' },
-    { id: 'minimal',  icon: <Minus size={10} />,                 label: 'Clean' },
-];
-
+/* ═══════════════ TOPBAR ═══════════════ */
 export function TopBar() {
     const {
-        format, setFormat, layoutMode, setLayoutMode,
-        aspectRatio, setAspectRatio, fontSize, setFontSize,
+        layoutMode, setLayoutMode,
+        fontSize, setFontSize,
         showWatermark, setShowWatermark,
-        socialNetworks, activeNetwork, setActiveNetwork, toggleNetworkConnection,
         isRecording, recordingProgress, isTainted,
         downloadImage, handleSmartShare, handleRecordVideo,
         copyCaption, smartCaption, generateSmartCaption,
         customTitle, setCustomTitle, selectedNews,
     } = useStudioContext();
 
-    const isVideo = format === 'video';
-
-    /* ── free AI quick-actions ── */
     const doHashtags = () => {
         if (!selectedNews) return;
         const src = selectedNews.category + ' ' + selectedNews.title;
-        const tags = [...new Set((src.match(/\b[A-Za-záéíóúñÁÉÍÓÚÑ]{5,}\b/g) ?? []))]
-            .slice(0, 5).map((w: string) => '#' + w).join(' ');
-        setCustomTitle(customTitle.trimEnd() + '\n' + tags);
+        const tags = [...new Set((src.match(/\b[A-Za-záéíóúñÁÉÍÓÚÑ]{4,}\b/g) ?? []))]
+            .slice(0, 5).map((w: string) => '#' + w.toLowerCase().replace(/[áéíóúñ]/g, c => 
+                ({á:'a',é:'e',í:'i',ó:'o',ú:'u',ñ:'n'})[c] || c)).join(' ');
+        setCustomTitle(customTitle.trimEnd() + '\n\n' + tags);
     };
+
     const doShorten = () => {
         const ws = customTitle.trim().split(/\s+/);
-        setCustomTitle(ws.slice(0, 9).join(' ') + (ws.length > 9 ? '…' : ''));
+        setCustomTitle(ws.slice(0, 12).join(' ') + (ws.length > 12 ? '…' : ''));
     };
+
     const doTitleCase = () =>
-        setCustomTitle(customTitle.replace(/\b\w/g, c => c.toUpperCase()));
+        setCustomTitle(customTitle.replace(/\b\w/g, (c: string) => c.toUpperCase()));
 
     return (
-        <header className="flex items-center gap-1.5 px-3 h-10 bg-[#0a0a0c] border-b border-[#141418] flex-shrink-0 overflow-hidden">
-
-            {/* brand mark — just the dot, no text */}
-            <div className="w-2 h-2 rounded-full bg-[#e5173f] flex-shrink-0 mr-1" />
-
-            {/* networks */}
-            {socialNetworks.map(net => {
-                const cfg = NET[net.id];
-                const isActive = activeNetwork === net.id;
-                return (
-                    <button
-                        key={net.id}
-                        type="button"
-                        title={net.name}
-                        onClick={() => { setActiveNetwork(net.id); if (!net.connected) toggleNetworkConnection(net.id); }}
-                        className={[
-                            'relative w-6 h-6 rounded-lg flex items-center justify-center transition-all duration-100 flex-shrink-0',
-                            isActive ? (cfg?.activeClass ?? 'bg-[#e5173f] text-white') : 'text-[#28282e] hover:text-[#6a6a72] hover:bg-[#131316]',
-                        ].join(' ')}
-                    >
-                        {cfg?.icon}
-                        {net.connected && (
-                            <span className="absolute -bottom-0.5 -right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400 ring-[1.5px] ring-[#0a0a0c]" />
-                        )}
-                    </button>
-                );
-            })}
+        <header
+            className="flex items-center gap-2 px-3 flex-shrink-0 border-b"
+            style={{
+                height: 48,
+                background: DS.bg,
+                borderColor: DS.borderSub,
+            }}
+        >
+            {/* ── TikTok Badge ── */}
+            <TikTokBadge />
 
             <Sep />
 
-            {/* format */}
-            {FORMATS.map(f => (
-                <Chip key={f.id} active={format === f.id} onClick={() => setFormat(f.id)} title={f.label}>
-                    {f.icon}{f.label}
-                </Chip>
-            ))}
-
-            <Sep />
-
-            {/* layout */}
-            {LAYOUTS.map(l => (
-                <Chip key={l.id} active={layoutMode === l.id} onClick={() => setLayoutMode(l.id)} title={l.label}>
-                    {l.icon}{l.label}
-                </Chip>
-            ))}
-
-            {/* aspect ratio — video only */}
-            {isVideo && (
-                <>
-                    <Sep />
-                    {(['9:16', '16:9'] as const).map(ar => (
-                        <Chip key={ar} active={aspectRatio === ar} onClick={() => setAspectRatio(ar)}>{ar}</Chip>
-                    ))}
-                </>
-            )}
-
-            <Sep />
-
-            {/* font size */}
-            <input
-                type="range" min={24} max={96} step={2} value={fontSize}
-                onChange={e => setFontSize(Number(e.target.value))}
-                title={`Fuente: ${fontSize}px`}
-                className="w-16 h-0.5 appearance-none rounded cursor-pointer flex-shrink-0"
-                style={{ accentColor: '#e5173f' }}
-            />
-            <span className="text-[10px] font-mono text-[#3a3a42] w-5 flex-shrink-0">{fontSize}</span>
-
-            {/* watermark */}
-            <button
-                type="button"
-                onClick={() => setShowWatermark(!showWatermark)}
-                title="Marca de agua"
-                className={[
-                    'flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold flex-shrink-0 transition-all',
-                    showWatermark ? 'text-[#e5173f] border border-[#e5173f]/30 bg-[#e5173f]/8' : 'text-[#2a2a30] border border-[#1a1a1e]',
-                ].join(' ')}
+            {/* ── Layout Selector ── */}
+            <div className="flex items-center gap-0.5 p-0.5 rounded-xl flex-shrink-0"
+                style={{ background: DS.surface, border: `1px solid ${DS.border}` }}
             >
-                <Check size={8} />WM
+                {LAYOUTS.map(l => (
+                    <button 
+                        key={l.id} 
+                        type="button" 
+                        title={`${l.label}: ${l.desc}`}
+                        onClick={() => setLayoutMode(l.id)}
+                        className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all duration-100 flex-shrink-0"
+                        style={layoutMode === l.id
+                            ? { background: '#ff0050', color: '#fff' }
+                            : { color: DS.sub }}
+                    >
+                        {l.icon}{l.label}
+                    </button>
+                ))}
+            </div>
+
+            <Sep />
+
+            {/* ── Font Size ── */}
+            <div className="flex items-center gap-1.5 flex-shrink-0 px-2 py-1 rounded-xl"
+                style={{ background: DS.surface, border: `1px solid ${DS.border}` }}
+            >
+                <Type size={12} style={{ color: DS.sub }} />
+                <input 
+                    type="range" 
+                    min={28} 
+                    max={80} 
+                    step={2} 
+                    value={fontSize}
+                    onChange={e => setFontSize(Number(e.target.value))}
+                    title={`Fuente: ${fontSize}px`}
+                    className="w-14 h-0.5 appearance-none rounded cursor-pointer flex-shrink-0"
+                    style={{ accentColor: '#ff0050' }}
+                />
+                <span className="text-[10px] font-mono w-5 flex-shrink-0" style={{ color: DS.sub }}>
+                    {fontSize}
+                </span>
+            </div>
+
+            {/* ── Watermark ── */}
+            <button 
+                type="button" 
+                onClick={() => setShowWatermark(!showWatermark)} 
+                title="Marca de agua @cronos"
+                className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-[10px] font-bold flex-shrink-0 transition-all"
+                style={showWatermark
+                    ? { background: 'rgba(255,0,80,0.15)', color: '#ff0050', border: `1px solid rgba(255,0,80,0.3)` }
+                    : { color: DS.muted, border: `1px solid ${DS.border}`, background: DS.surface }}
+            >
+                <Check size={9} />@cronos
             </button>
 
             <Sep />
 
-            {/* IA quick tools */}
-            <Chip onClick={generateSmartCaption} title="Generar caption inteligente"><Wand2 size={10} />Caption</Chip>
-            <Chip onClick={doHashtags} title="Auto hashtags"><Hash size={10} />Tags</Chip>
-            <Chip onClick={doShorten} title="Acortar a 9 palabras"><Scissors size={10} />Cortar</Chip>
-            <Chip onClick={doTitleCase} title="Title Case"><Type size={10} />Case</Chip>
+            {/* ── AI Tools ── */}
+            <div className="flex items-center gap-0.5 flex-shrink-0">
+                <Btn onClick={generateSmartCaption} title="Generar caption viral con IA">
+                    <Wand2 size={10} />AI Caption
+                </Btn>
+                <Btn onClick={doHashtags} title="Auto-hashtags virales">
+                    <Hash size={10} />Tags
+                </Btn>
+                <Btn onClick={doShorten} title="Acortar para TikTok">
+                    <Scissors size={10} />Cortar
+                </Btn>
+                <Btn onClick={doTitleCase} title="Formato título">
+                    <CaseSensitive size={10} />Title
+                </Btn>
+            </div>
 
-            {/* spacer */}
+            {/* ── Spacer ── */}
             <div className="flex-1 min-w-0" />
 
-            {/* right actions */}
+            {/* ── Right Actions ── */}
             {smartCaption && (
-                <Chip onClick={copyCaption} title="Copiar caption"><Copy size={10} />Caption</Chip>
+                <Btn onClick={copyCaption} variant="ghost" title="Copiar caption">
+                    <Copy size={10} />
+                </Btn>
             )}
-            <Chip onClick={handleSmartShare} title="Compartir"><Share2 size={10} />Compartir</Chip>
+            
+            <Btn onClick={handleSmartShare} variant="ghost" title="Compartir">
+                <Share2 size={10} />
+            </Btn>
 
-            {isVideo ? (
-                <button
-                    type="button"
-                    onClick={handleRecordVideo}
-                    disabled={isRecording}
-                    className={[
-                        'flex items-center gap-1 px-3 py-1 rounded-md text-[11px] font-bold flex-shrink-0 transition-all',
-                        isRecording
-                            ? 'bg-red-900/40 text-red-400 border border-red-900/30 cursor-not-allowed'
-                            : 'bg-[#e5173f] text-white hover:bg-red-500',
-                    ].join(' ')}
-                >
-                    {isRecording
-                        ? <><RefreshCw size={10} className="animate-spin" />{Math.round(recordingProgress)}%</>
-                        : <><Video size={10} />Grabar</>}
-                </button>
-            ) : (
-                <button
-                    type="button"
-                    onClick={downloadImage}
-                    disabled={isTainted}
-                    className="flex items-center gap-1 px-3 py-1 rounded-md text-[11px] font-bold bg-white text-black hover:bg-gray-100 disabled:opacity-40 flex-shrink-0 transition-all"
-                >
-                    <Download size={10} />Exportar
-                </button>
-            )}
+            <button 
+                type="button" 
+                onClick={handleRecordVideo} 
+                disabled={isRecording}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all disabled:opacity-60"
+                style={isRecording
+                    ? { background: 'rgba(255,0,80,0.15)', color: '#ff5c8a', border: '1px solid rgba(255,0,80,0.2)', cursor: 'not-allowed' }
+                    : { background: 'linear-gradient(135deg, #ff0050 0%, #ff3377 100%)', color: '#fff' }}
+            >
+                {isRecording ? (
+                    <><RefreshCw size={11} className="animate-spin" />{Math.round(recordingProgress)}%</>
+                ) : (
+                    <><Video size={11} />Exportar MP4</>
+                )}
+            </button>
         </header>
     );
 }

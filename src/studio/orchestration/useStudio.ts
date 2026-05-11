@@ -107,30 +107,15 @@ export interface StudioApi {
 
 const getCaptionPrefix = (networkId: string) => {
   switch (networkId) {
-    case 'instagram':
-      return '🎥 Nuevo post viral';
     case 'tiktok':
-      return '🔥 Trend alert';
-    case 'facebook':
-      return '📰 Flash news';
-    case 'youtube':
-      return '🎬 Short listo';
-    case 'linkedin':
-      return '📈 Insights profesionales';
-    case 'twitter':
-      return '🗣️ Hilo rápido';
+      return '🔥 TikTok Trend';
     default:
-      return '📲 Actualización';
+      return '� TikTok Trend';
   }
 };
 
 const formatSocialNetworks = (): SocialNetworkItem[] => [
-  { id: 'facebook', name: 'Facebook', icon: Facebook, connected: true, color: 'bg-blue-500', subtitle: 'Post + Link' },
-  { id: 'twitter', name: 'Twitter', icon: Twitter, connected: true, color: 'bg-sky-400', subtitle: 'Thread ready' },
-  { id: 'instagram', name: 'Instagram', icon: Instagram, connected: true, color: 'bg-pink-500', subtitle: 'Feed / Reel' },
-  { id: 'youtube', name: 'YouTube', icon: Youtube, connected: false, color: 'bg-red-500', subtitle: 'Shorts / Thumbnail' },
-  { id: 'linkedin', name: 'LinkedIn', icon: Linkedin, connected: false, color: 'bg-sky-700', subtitle: 'Profesional' },
-  { id: 'tiktok', name: 'TikTok', icon: Smartphone, connected: false, color: 'bg-black', subtitle: 'Short-form' },
+  { id: 'tiktok', name: 'TikTok Dev', icon: Smartphone, connected: true, color: 'bg-black', subtitle: '9:16 Short-form' },
 ];
 
 const resolveLayoutForNews = (news: NewsItem): Exclude<LayoutMode, 'auto'> => {
@@ -159,7 +144,7 @@ export const useStudio = () => {
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
   const [customTitle, setCustomTitle] = useState('');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('overlay');
-  const [format, setFormat] = useState<FormatType>('square');
+  const [format, setFormat] = useState<FormatType>('story');
   const [fontSize, setFontSize] = useState(48);
   const [showWatermark, setShowWatermark] = useState(true);
   const [sponsorName, setSponsorName] = useState('');
@@ -169,7 +154,7 @@ export const useStudio = () => {
   const [editingSegmentIndex, setEditingSegmentIndex] = useState<number | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [socialNetworks, setSocialNetworks] = useState<SocialNetworkItem[]>(formatSocialNetworks());
-  const [activeNetwork, setActiveNetwork] = useState('instagram');
+  const [activeNetwork, setActiveNetwork] = useState('tiktok');
   const [smartCaption, setSmartCaption] = useState('');
   const [bgAudioName, setBgAudioName] = useState('');
   const [bgAudioVolume, setBgAudioVolume] = useState(0.4);
