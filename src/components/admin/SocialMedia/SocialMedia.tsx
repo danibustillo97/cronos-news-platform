@@ -12,10 +12,7 @@ export default function SocialMedia() {
 
     return (
         <StudioContext.Provider value={studio}>
-            {/*
-             * LAYOUT: 3 filas fijas = TopBar | Main | Timeline
-             * Nada fuera de viewport. Sin scroll de página.
-             */}
+    
             <div
                 className="w-full h-full bg-[#070708] overflow-hidden"
                 style={{
