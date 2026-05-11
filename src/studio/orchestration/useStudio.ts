@@ -472,7 +472,20 @@ export const useStudio = () => {
   const refreshTikTokAccount = useCallback(async () => {
     try {
       const response = await fetch('/api/tiktok/account');
-      if (!response.ok) throw new Error('Failed to fetch account');
+      if (!response.ok) {
+        // Check if it's a config error
+        if (response.status === 503) {
+          const errorData = await response.json();
+          console.warn('TikTok not configured:', errorData.setupInstructions);
+          setTiktokAccount({ 
+            connected: false, 
+            display_name: 'Configuración pendiente',
+            is_expired: false 
+          });
+          return;
+        }
+        throw new Error('Failed to fetch account');
+      }
       const data = await response.json();
       setTiktokAccount(data.connected ? data.account : null);
     } catch (error) {
@@ -483,8 +496,47 @@ export const useStudio = () => {
 
   const connectTikTok = useCallback(async () => {
     const response = await fetch('/api/tiktok/auth');
-    if (!response.ok) throw new Error('Failed to initiate auth');
-    const { authUrl } = await response.json();
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      
+      // Check if it's a configuration error
+      if (response.status === 503 || errorData.error?.includes('not configured')) {
+        alert(
+          'TikTok Developer no está configurado.\n\n' +
+          'Para conectar TikTok:\n' +
+          '1. Crea una app en https://developers.tiktok.com/\n' +
+          '2. Agrega a .env.local:\n' +
+          '   TIKTOK_CLIENT_KEY=tu_client_key\n' +
+          '   TIKTOK_CLIENT_SECRET=tu_secret\n' +
+          '   TIKTOK_REDIRECT_URI=https://tu-dominio.com/api/tiktok/callback\n\n' +
+          'O activa modo demo: TIKTOK_DEMO_MODE=true'
+        );
+        throw new Error('TikTok credentials not configured');
+      }
+      
+      throw new Error(errorData.error || 'Failed to initiate auth');
+    }
+    
+    const data = await response.json();
+    
+    // Handle demo mode
+    if (data.demoMode) {
+      // Simulate a demo connection
+      setTiktokAccount({
+        connected: true,
+        display_name: 'Demo Account',
+        avatar_url: null,
+        is_expired: false,
+      });
+      alert('Modo Demo activado. Los videos no se publicarán en TikTok real.');
+      return;
+    }
+    
+    const { authUrl } = data;
+    if (!authUrl) {
+      throw new Error('No auth URL received');
+    }
     
     // Open in popup
     const width = 600;

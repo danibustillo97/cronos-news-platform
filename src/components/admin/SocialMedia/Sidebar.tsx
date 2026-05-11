@@ -321,6 +321,7 @@ function TikTokPanel() {
     } = useStudioContext();
     const [isPublishing, setIsPublishing] = useState(false);
     const [publishResult, setPublishResult] = useState<{success: boolean; message: string; url?: string} | null>(null);
+    const [isDemoMode, setIsDemoMode] = useState(false);
 
     const handlePublish = async () => {
         if (!tiktokAccount?.connected || !lastRecordedBlob) return;
@@ -329,6 +330,20 @@ function TikTokPanel() {
         setPublishResult(null);
         
         try {
+            // Check if in demo mode
+            if (tiktokAccount.display_name === 'Demo Account') {
+                // Simulate publish
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                setPublishResult({
+                    success: true,
+                    message: '✓ Modo Demo: Simulación de publicación exitosa',
+                    url: 'https://www.tiktok.com/@demo-account',
+                });
+                clearLastRecording();
+                setIsPublishing(false);
+                return;
+            }
+            
             const title = customTitle || selectedNews?.title || 'Video de Cronos News';
             const result = await publishToTikTok(lastRecordedBlob, title);
             
@@ -355,6 +370,8 @@ function TikTokPanel() {
         }
     };
 
+    const isConfigPending = tiktokAccount?.display_name === 'Configuración pendiente';
+
     return (
         <div className="p-3 space-y-4 overflow-y-auto h-full">
             {/* Connection Status */}
@@ -364,20 +381,29 @@ function TikTokPanel() {
                         style={{ 
                             background: tiktokAccount?.connected 
                                 ? 'linear-gradient(135deg, #ff0050 0%, #00f2ea 100%)' 
-                                : DS.surfaceMid 
+                                : isConfigPending 
+                                    ? '#f59e0b'
+                                    : DS.surfaceMid 
                         }}
                     >
-                        <Smartphone size={18} className={tiktokAccount?.connected ? 'text-white' : ''} 
-                            style={{ color: tiktokAccount?.connected ? '#fff' : DS.muted }} />
+                        <Smartphone size={18} 
+                            style={{ color: tiktokAccount?.connected || isConfigPending ? '#fff' : DS.muted }} />
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-[12px] font-bold" style={{ color: DS.txt }}>
-                            {tiktokAccount?.connected ? 'TikTok Conectado' : 'TikTok Developer'}
+                            {tiktokAccount?.connected 
+                                ? 'TikTok Conectado' 
+                                : isConfigPending 
+                                    ? 'Configuración Pendiente'
+                                    : 'TikTok Developer'
+                            }
                         </p>
                         <p className="text-[10px] truncate" style={{ color: DS.sub }}>
                             {tiktokAccount?.connected 
                                 ? `@${tiktokAccount.display_name || 'usuario'}`
-                                : 'Conecta tu cuenta para publicar'
+                                : isConfigPending
+                                    ? 'Requiere credenciales de TikTok'
+                                    : 'Conecta tu cuenta para publicar'
                             }
                         </p>
                     </div>
@@ -387,7 +413,41 @@ function TikTokPanel() {
                     )}
                 </div>
 
-                {!tiktokAccount?.connected ? (
+                {isConfigPending ? (
+                    <div className="space-y-2">
+                        <div className="p-2.5 rounded-xl text-[10px] leading-relaxed" 
+                            style={{ background: DS.surfaceMid, color: DS.sub, border: `1px solid ${DS.border}` }}
+                        >
+                            <strong style={{ color: '#f59e0b' }}>⚠ Credenciales no configuradas</strong><br />
+                            Agrega a tu .env.local:<br />
+                            <code style={{ color: DS.txt }}>TIKTOK_CLIENT_KEY=xxx</code><br />
+                            <code style={{ color: DS.txt }}>TIKTOK_CLIENT_SECRET=xxx</code>
+                        </div>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={connectTikTok}
+                                className="flex-1 py-2 rounded-xl text-[11px] font-semibold transition-all"
+                                style={{ 
+                                    background: DS.surfaceMid,
+                                    color: DS.sub,
+                                    border: `1px solid ${DS.border}`
+                                }}
+                            >
+                                <Link2 size={12} className="inline mr-1" />Ver instrucciones
+                            </button>
+                            <button
+                                onClick={connectTikTok}
+                                className="flex-1 py-2 rounded-xl text-[11px] font-bold transition-all"
+                                style={{ 
+                                    background: 'linear-gradient(135deg, #ff0050 0%, #ff3377 100%)',
+                                    color: '#fff'
+                                }}
+                            >
+                                <Smartphone size={12} className="inline mr-1" />Modo Demo
+                            </button>
+                        </div>
+                    </div>
+                ) : !tiktokAccount?.connected ? (
                     <button
                         onClick={connectTikTok}
                         className="w-full py-2.5 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 transition-all"
@@ -426,6 +486,21 @@ function TikTokPanel() {
             {tiktokAccount?.connected && (
                 <div className="p-3 rounded-2xl space-y-3" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
                     <Label>Publicar Video</Label>
+                    
+                    {/* Demo Mode Banner */}
+                    {tiktokAccount.display_name === 'Demo Account' && (
+                        <div className="p-2 rounded-xl flex items-start gap-2"
+                            style={{ background: 'rgba(245,158,11,0.15)', border: '1px solid rgba(245,158,11,0.3)' }}
+                        >
+                            <AlertCircle size={14} className="text-amber-500 flex-shrink-0 mt-0.5" />
+                            <div className="flex-1 min-w-0">
+                                <p className="text-[10px] font-bold text-amber-500">Modo Demo Activo</p>
+                                <p className="text-[9px]" style={{ color: DS.sub }}>
+                                    Las publicaciones son simulaciones. No se suben a TikTok real.
+                                </p>
+                            </div>
+                        </div>
+                    )}
                     
                     {/* Video Status */}
                     <div className="flex items-center gap-2 p-2 rounded-xl"
