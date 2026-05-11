@@ -113,6 +113,7 @@ export interface StudioApi {
   handleMicToggle: (value: boolean) => void;
   // TikTok account state
   refreshTikTokAccount: () => Promise<void>;
+  debugTikTokConfig: () => Promise<any>;
 }
 
 const getCaptionPrefix = (networkId: string) => {
@@ -494,7 +495,23 @@ export const useStudio = () => {
     }
   }, []);
 
+  // Debug TikTok config
+  const debugTikTokConfig = useCallback(async () => {
+    try {
+      const response = await fetch('/api/tiktok/debug');
+      const data = await response.json();
+      console.log('[TikTok Debug]', data);
+      return data;
+    } catch (error) {
+      console.error('Failed to debug TikTok config:', error);
+      return null;
+    }
+  }, []);
+
   const connectTikTok = useCallback(async () => {
+    // First run debug check
+    const debugInfo = await debugTikTokConfig();
+    
     const response = await fetch('/api/tiktok/auth');
     
     if (!response.ok) {
@@ -502,15 +519,21 @@ export const useStudio = () => {
       
       // Check if it's a configuration error
       if (response.status === 503 || errorData.error?.includes('not configured')) {
+        const debugMsg = debugInfo ? 
+          `\n\nDiagnóstico:\nClient Key: ${debugInfo.checks.clientKey.masked || 'NO CONFIGURADO'}\nRedirect URI: ${debugInfo.checks.redirectUri.value || 'NO CONFIGURADO'}` 
+          : '';
+        
         alert(
-          'TikTok Developer no está configurado.\n\n' +
+          'TikTok Developer no está configurado.' + debugMsg + '\n\n' +
           'Para conectar TikTok:\n' +
-          '1. Crea una app en https://developers.tiktok.com/\n' +
-          '2. Agrega a .env.local:\n' +
-          '   TIKTOK_CLIENT_KEY=tu_client_key\n' +
-          '   TIKTOK_CLIENT_SECRET=tu_secret\n' +
-          '   TIKTOK_REDIRECT_URI=https://tu-dominio.com/api/tiktok/callback\n\n' +
-          'O activa modo demo: TIKTOK_DEMO_MODE=true'
+          '1. Ve a https://developers.tiktok.com/ y crea una app\n' +
+          '2. En Settings > Basic, copia el Client Key y Secret\n' +
+          '3. Agrega a tu .env.local:\n' +
+          '   TIKTOK_CLIENT_KEY=awx... (tu key real)\n' +
+          '   TIKTOK_CLIENT_SECRET=xxx... (tu secret real)\n' +
+          '   TIKTOK_REDIRECT_URI=https://tudominio.com/api/tiktok/callback\n\n' +
+          '4. En TikTok Developer, añade el Redirect URI en Auth > Redirect domains\n\n' +
+          'O usa modo demo: TIKTOK_DEMO_MODE=true'
         );
         throw new Error('TikTok credentials not configured');
       }
@@ -537,6 +560,8 @@ export const useStudio = () => {
     if (!authUrl) {
       throw new Error('No auth URL received');
     }
+    
+    console.log('[TikTok] Opening auth URL:', authUrl);
     
     // Open in popup
     const width = 600;
@@ -669,5 +694,6 @@ export const useStudio = () => {
     disconnectTikTok,
     publishToTikTok,
     refreshTikTokAccount,
+    debugTikTokConfig,
   } satisfies StudioApi;
 };

@@ -81,20 +81,34 @@ export async function GET(request: NextRequest) {
     });
     
     // TikTok OAuth URL with PKCE
+    // Note: TikTok requires exact format, build manually to ensure no encoding issues
     const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/');
-    authUrl.searchParams.append('client_key', clientKey);
-    authUrl.searchParams.append('redirect_uri', redirectUri);
-    authUrl.searchParams.append('scope', 'video.upload,user.info.basic');
-    authUrl.searchParams.append('response_type', 'code');
-    authUrl.searchParams.append('state', state);
-    authUrl.searchParams.append('code_challenge', codeChallenge);
-    authUrl.searchParams.append('code_challenge_method', 'S256');
+    
+    // Use direct string assignment to avoid double encoding
+    authUrl.searchParams.set('client_key', clientKey);
+    authUrl.searchParams.set('redirect_uri', redirectUri);
+    authUrl.searchParams.set('scope', 'video.upload,user.info.basic');
+    authUrl.searchParams.set('response_type', 'code');
+    authUrl.searchParams.set('state', state);
+    authUrl.searchParams.set('code_challenge', codeChallenge);
+    authUrl.searchParams.set('code_challenge_method', 'S256');
+    
+    // Debug logging
+    console.log('[TikTok Auth] Generated URL:', authUrl.toString());
+    console.log('[TikTok Auth] Client key length:', clientKey.length);
+    console.log('[TikTok Auth] Redirect URI:', redirectUri);
+    console.log('[TikTok Auth] Code challenge:', codeChallenge.substring(0, 20) + '...');
 
     // Return the auth URL (frontend will redirect)
     return NextResponse.json({ 
       authUrl: authUrl.toString(),
       state,
       demoMode: false,
+      debug: {
+        clientKeyLength: clientKey.length,
+        redirectUri: redirectUri,
+        hasCodeChallenge: !!codeChallenge,
+      }
     });
     
   } catch (error) {

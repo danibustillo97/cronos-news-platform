@@ -312,6 +312,7 @@ function TikTokPanel() {
         connectTikTok, 
         disconnectTikTok, 
         refreshTikTokAccount,
+        debugTikTokConfig,
         selectedNews,
         customTitle,
         videoScript,
@@ -321,7 +322,8 @@ function TikTokPanel() {
     } = useStudioContext();
     const [isPublishing, setIsPublishing] = useState(false);
     const [publishResult, setPublishResult] = useState<{success: boolean; message: string; url?: string} | null>(null);
-    const [isDemoMode, setIsDemoMode] = useState(false);
+    const [debugInfo, setDebugInfo] = useState<any>(null);
+    const [isCheckingConfig, setIsCheckingConfig] = useState(false);
 
     const handlePublish = async () => {
         if (!tiktokAccount?.connected || !lastRecordedBlob) return;
@@ -371,6 +373,13 @@ function TikTokPanel() {
     };
 
     const isConfigPending = tiktokAccount?.display_name === 'Configuración pendiente';
+
+    const checkConfig = async () => {
+        setIsCheckingConfig(true);
+        const info = await debugTikTokConfig();
+        setDebugInfo(info);
+        setIsCheckingConfig(false);
+    };
 
     return (
         <div className="p-3 space-y-4 overflow-y-auto h-full">
@@ -423,9 +432,27 @@ function TikTokPanel() {
                             <code style={{ color: DS.txt }}>TIKTOK_CLIENT_KEY=xxx</code><br />
                             <code style={{ color: DS.txt }}>TIKTOK_CLIENT_SECRET=xxx</code>
                         </div>
+                        
+                        {debugInfo && (
+                            <div className="p-2.5 rounded-xl text-[9px] leading-relaxed" 
+                                style={{ background: '#1a1a1e', border: `1px solid ${DS.border}` }}
+                            >
+                                <strong style={{ color: debugInfo.configured ? '#22c55e' : '#ef4444' }}>
+                                    {debugInfo.configured ? '✓ Configuración válida' : '✗ Configuración inválida'}
+                                </strong><br />
+                                {debugInfo.checks && (
+                                    <div className="mt-1 space-y-0.5">
+                                        <div>Client Key: {debugInfo.checks.clientKey.masked || 'NO CONFIGURADO'}</div>
+                                        <div>Redirect URI: {debugInfo.checks.redirectUri.value || 'NO CONFIGURADO'}</div>
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                        
                         <div className="flex gap-2">
                             <button
-                                onClick={connectTikTok}
+                                onClick={checkConfig}
+                                disabled={isCheckingConfig}
                                 className="flex-1 py-2 rounded-xl text-[11px] font-semibold transition-all"
                                 style={{ 
                                     background: DS.surfaceMid,
@@ -433,7 +460,10 @@ function TikTokPanel() {
                                     border: `1px solid ${DS.border}`
                                 }}
                             >
-                                <Link2 size={12} className="inline mr-1" />Ver instrucciones
+                                {isCheckingConfig 
+                                    ? <><RefreshCw size={12} className="inline mr-1 animate-spin" />Verificando...</>
+                                    : <><Link2 size={12} className="inline mr-1" />Verificar Config</>
+                                }
                             </button>
                             <button
                                 onClick={connectTikTok}
