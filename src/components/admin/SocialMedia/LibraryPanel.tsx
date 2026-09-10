@@ -8,6 +8,14 @@ import {
 import { useStudioContext } from './context';
 import { DS } from './TopBar';
 import { TikTokTemplates } from './TikTokTemplates';
+import type { LayoutMode } from '@/studio/shared/types';
+
+const LAYOUT_LABEL: Record<Exclude<LayoutMode, 'auto'>, string> = {
+    overlay: 'Overlay',
+    split: 'Split',
+    breaking: 'Urgente',
+    minimal: 'Clean',
+};
 
 /* ═══ atoms ═══ */
 const Label = ({ children }: { children: React.ReactNode }) => (
@@ -139,42 +147,23 @@ function TemplatesPanel() {
 }
 
 /* ═══ LAYOUTS VIRALES ═══ */
-const VIRAL_LAYOUTS = [
-    {
-        id: 'breaking',
-        name: 'Breaking News',
-        preview: '🔴 NOTICIA DE ÚLTIMA HORA',
-        duration: 15,
-        elements: ['hook', 'image', 'text', 'sound'],
-    },
-    {
-        id: 'comparison',
-        name: 'VS Battle',
-        preview: '⚔️ Equipo A vs Equipo B',
-        duration: 20,
-        elements: ['image', 'image', 'text', 'sound'],
-    },
-    {
-        id: 'stats',
-        name: 'Stats Card',
-        preview: '📊 Estadísticas del jugador',
-        duration: 12,
-        elements: ['image', 'text', 'text', 'text'],
-    },
-    {
-        id: 'reaction',
-        name: 'Reaction',
-        preview: '😱 Mi reacción al gol...',
-        duration: 18,
-        elements: ['video', 'text', 'sticker'],
-    },
+// Cada layout mapea 1 a 1 a un layoutMode real que el canvas ya sabe
+// renderizar — aplicar uno cambia de verdad el diseño, no solo el título.
+const VIRAL_LAYOUTS: { id: string; name: string; layoutMode: Exclude<LayoutMode, 'auto'>; titlePrefix: string; duration: number }[] = [
+    { id: 'breaking', name: 'Breaking News', layoutMode: 'breaking', titlePrefix: '🔴 ÚLTIMA HORA: ', duration: 15 },
+    { id: 'comparison', name: 'VS Battle', layoutMode: 'split', titlePrefix: '⚔️ ', duration: 20 },
+    { id: 'stats', name: 'Stats Card', layoutMode: 'minimal', titlePrefix: '📊 ', duration: 12 },
+    { id: 'reaction', name: 'Reaction', layoutMode: 'overlay', titlePrefix: '😱 ', duration: 18 },
 ];
 
 function LayoutsPanel() {
-    const { setCustomTitle } = useStudioContext();
+    const { selectedNews, setLayoutMode, setCustomTitle } = useStudioContext();
+    const [selected, setSelected] = useState<string | null>(null);
 
     const applyLayout = (layout: typeof VIRAL_LAYOUTS[0]) => {
-        setCustomTitle(layout.preview);
+        setSelected(layout.id);
+        setLayoutMode(layout.layoutMode);
+        setCustomTitle(`${layout.titlePrefix}${selectedNews?.title ?? 'Selecciona una noticia…'}`);
     };
 
     return (
@@ -187,8 +176,11 @@ function LayoutsPanel() {
                 <button
                     key={layout.id}
                     onClick={() => applyLayout(layout)}
-                    className="w-full p-3 rounded-xl text-left transition-all border hover:border-[#e5173f]"
-                    style={{ background: DS.surface, borderColor: DS.border }}
+                    className="w-full p-3 rounded-xl text-left transition-all border"
+                    style={{
+                        background: selected === layout.id ? `${DS.accent}10` : DS.surface,
+                        borderColor: selected === layout.id ? DS.accent : DS.border,
+                    }}
                 >
                     <div className="flex items-center justify-between mb-2">
                         <span className="text-[11px] font-semibold" style={{ color: DS.txt }}>
@@ -196,22 +188,13 @@ function LayoutsPanel() {
                         </span>
                         <span className="text-[9px] flex items-center gap-1" style={{ color: DS.sub }}>
                             <Clock size={10} />
-                            {layout.duration}s
+                            ≈{layout.duration}s
                         </span>
                     </div>
-                    <p className="text-[10px]" style={{ color: DS.sub }}>
-                        {layout.preview}
-                    </p>
-                    <div className="flex items-center gap-1 mt-2">
-                        {layout.elements.map((el, i) => (
-                            <span
-                                key={i}
-                                className="px-1.5 py-0.5 rounded text-[9px]"
-                                style={{ background: DS.surfaceMid, color: DS.sub }}
-                            >
-                                {el}
-                            </span>
-                        ))}
+                    <div className="flex items-center gap-1.5 mt-1">
+                        <span className="px-1.5 py-0.5 rounded text-[9px] font-medium" style={{ background: DS.surfaceMid, color: DS.sub }}>
+                            {LAYOUT_LABEL[layout.layoutMode]}
+                        </span>
                         <ChevronRight size={12} className="ml-auto" style={{ color: DS.sub }} />
                     </div>
                 </button>

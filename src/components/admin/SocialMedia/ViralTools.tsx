@@ -1,27 +1,16 @@
 'use client';
 
 import React, { useState, useCallback } from 'react';
-import { 
-    Zap, Hash, Sparkles, TrendingUp, 
+import {
+    Zap, Hash, Sparkles, TrendingUp,
     Copy, Check, RefreshCw, Lightbulb,
     Volume2, Type, Clock
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import { DS } from './TopBar';
+import { generateHookText } from './viralHooks';
 
-// Hook templates for viral videos
-const HOOK_TEMPLATES = [
-    { type: 'shock', text: "Esto es LOCURA...", emoji: "😱" },
-    { type: 'secret', text: "El secreto que nadie te cuenta...", emoji: "🤫" },
-    { type: 'mistake', text: "El ERROR más grande del {team}...", emoji: "❌" },
-    { type: 'reveal', text: "La VERDAD sobre {player}...", emoji: "👀" },
-    { type: 'urgent', text: "URGENTE: {event} cambia TODO", emoji: "⚡" },
-    { type: 'number', text: "3 cosas que NO sabías de...", emoji: "3️⃣" },
-    { type: 'question', text: "¿Por qué {player} hizo esto?", emoji: "❓" },
-    { type: 'prediction', text: "Esto va a PASAR en {event}...", emoji: "🔮" },
-];
-
-// Trending hashtags for sports
+// Curated hashtag pool — not live trend data, just real suggestions
 const TRENDING_HASHTAGS = [
     '#futbol', '#champions', '#messi', '#ronaldo', '#viral',
     '#sports', '#fyp', '#foryou', '#trending', '#noticias',
@@ -29,30 +18,34 @@ const TRENDING_HASHTAGS = [
     '#nexusnews', '#tiktoksports', '#futboltiktok', '#news'
 ];
 
+const slugifyTag = (value: string) =>
+    '#' + value
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]+/g, '');
+
 export function ViralTools() {
-    const { customTitle, setCustomTitle } = useStudioContext();
+    const { customTitle, setCustomTitle, selectedNews } = useStudioContext();
     const [copied, setCopied] = useState(false);
     const [generatedHook, setGeneratedHook] = useState('');
     const [selectedHashtags, setSelectedHashtags] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
 
+    const categoryTag = selectedNews?.category ? slugifyTag(selectedNews.category) : null;
+    const hashtagPool = categoryTag && !TRENDING_HASHTAGS.includes(categoryTag)
+        ? [categoryTag, ...TRENDING_HASHTAGS]
+        : TRENDING_HASHTAGS;
+
     const generateHook = useCallback(() => {
+        if (!selectedNews) return;
         setIsGenerating(true);
-        
-        // Pick random template
-        const template = HOOK_TEMPLATES[Math.floor(Math.random() * HOOK_TEMPLATES.length)];
-        
-        // Simple replacements
-        let hook = template.text
-            .replace('{team}', 'Barcelona')
-            .replace('{player}', 'Messi')
-            .replace('{event}', 'el Clásico');
-        
+
         setTimeout(() => {
-            setGeneratedHook(`${template.emoji} ${hook}`);
+            setGeneratedHook(generateHookText(selectedNews));
             setIsGenerating(false);
         }, 500);
-    }, []);
+    }, [selectedNews]);
 
     const copyToClipboard = useCallback((text: string) => {
         navigator.clipboard.writeText(text);
@@ -61,8 +54,8 @@ export function ViralTools() {
     }, []);
 
     const toggleHashtag = useCallback((tag: string) => {
-        setSelectedHashtags(prev => 
-            prev.includes(tag) 
+        setSelectedHashtags(prev =>
+            prev.includes(tag)
                 ? prev.filter(t => t !== tag)
                 : [...prev, tag].slice(0, 5)
         );
@@ -70,24 +63,24 @@ export function ViralTools() {
 
     const optimizeText = useCallback(() => {
         if (!customTitle) return;
-        
+
         // Simple optimizations
         let optimized = customTitle;
-        
+
         // Add hook if missing
         if (!optimized.includes('😱') && !optimized.includes('⚡') && !optimized.includes('🔥')) {
             optimized = `🔥 ${optimized}`;
         }
-        
+
         // Add hashtags
-        const hashtags = selectedHashtags.length > 0 
+        const hashtags = selectedHashtags.length > 0
             ? selectedHashtags.join(' ')
-            : '#futbol #fyp #viral';
-        
+            : hashtagPool.slice(0, 3).join(' ');
+
         optimized = `${optimized}\n\n${hashtags}`;
-        
+
         setCustomTitle(optimized);
-    }, [customTitle, selectedHashtags, setCustomTitle]);
+    }, [customTitle, selectedHashtags, hashtagPool, setCustomTitle]);
 
     return (
         <div className="p-4 space-y-4">
@@ -104,13 +97,13 @@ export function ViralTools() {
                     <Sparkles size={14} style={{ color: DS.accent }} />
                     <span className="text-xs font-semibold" style={{ color: DS.txt }}>Generador de Hooks</span>
                 </div>
-                
+
                 <p className="text-[10px]" style={{ color: DS.sub }}>
-                    Genera un hook impactante para los primeros 3 segundos
+                    Genera un hook para los primeros 3 segundos, a partir de la noticia seleccionada
                 </p>
 
                 {generatedHook && (
-                    <div 
+                    <div
                         className="p-2.5 rounded-lg text-sm cursor-pointer transition-all hover:opacity-80"
                         style={{ background: DS.accentDim }}
                         onClick={() => copyToClipboard(generatedHook)}
@@ -128,8 +121,8 @@ export function ViralTools() {
 
                 <button
                     onClick={generateHook}
-                    disabled={isGenerating}
-                    className="w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all"
+                    disabled={isGenerating || !selectedNews}
+                    className="w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                     style={{ background: DS.accentDim, color: DS.accent }}
                 >
                     {isGenerating ? (
@@ -145,15 +138,15 @@ export function ViralTools() {
             <div className="p-3 rounded-xl space-y-3" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
                 <div className="flex items-center gap-2">
                     <Hash size={14} style={{ color: '#00f2ea' }} />
-                    <span className="text-xs font-semibold" style={{ color: DS.txt }}>Hashtags Trending</span>
+                    <span className="text-xs font-semibold" style={{ color: DS.txt }}>Hashtags Sugeridos</span>
                 </div>
-                
+
                 <p className="text-[10px]" style={{ color: DS.sub }}>
                     Selecciona hasta 5 hashtags para maximizar alcance
                 </p>
 
                 <div className="flex flex-wrap gap-1.5">
-                    {TRENDING_HASHTAGS.map((tag) => (
+                    {hashtagPool.map((tag) => (
                         <button
                             key={tag}
                             onClick={() => toggleHashtag(tag)}
@@ -194,7 +187,7 @@ export function ViralTools() {
                     <TrendingUp size={14} style={{ color: '#f59e0b' }} />
                     <span className="text-xs font-semibold" style={{ color: DS.txt }}>Optimizador de Texto</span>
                 </div>
-                
+
                 <p className="text-[10px]" style={{ color: DS.sub }}>
                     Optimiza tu título para máximo engagement
                 </p>

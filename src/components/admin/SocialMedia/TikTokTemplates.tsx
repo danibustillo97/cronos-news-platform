@@ -1,12 +1,21 @@
 'use client';
 
 import React, { useState } from 'react';
-import { 
-    Sparkles, TrendingUp, Zap, MessageCircle, 
-    Play, Clock, Hash, Music, Type, Plus
+import {
+    Sparkles, TrendingUp, Zap, MessageCircle,
+    Play, Clock, Plus, LayoutTemplate,
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import { DS } from './TopBar';
+import { generateHookText } from './viralHooks';
+import type { LayoutMode } from '@/studio/shared/types';
+
+const LAYOUT_LABEL: Record<Exclude<LayoutMode, 'auto'>, string> = {
+    overlay: 'Overlay',
+    split: 'Split',
+    breaking: 'Urgente',
+    minimal: 'Clean',
+};
 
 export interface Template {
     id: string;
@@ -14,154 +23,97 @@ export interface Template {
     description: string;
     icon: React.ReactNode;
     color: string;
+    /** Duración objetivo aproximada — informativa, no se fuerza sobre el guion generado. */
     duration: number;
-    style: {
-        bgColor: string;
-        textColor: string;
-        accentColor: string;
-        fontStyle: 'bold' | 'minimal' | 'fun';
-    };
-    elements: {
-        hasHook: boolean;
-        hasCaptions: boolean;
-        hasProgressBar: boolean;
-        hasWatermark: boolean;
-        hasCTA: boolean;
-    };
+    layoutMode: Exclude<LayoutMode, 'auto'>;
+    fontSize: number;
+    hasHook: boolean;
+    hasWatermark: boolean;
 }
 
 const TEMPLATES: Template[] = [
     {
         id: 'viral-news',
         name: 'Noticia Viral',
-        description: 'Formato 9:16 con hook impactante y caption automático',
+        description: 'Overlay con hook impactante sobre la imagen de la noticia',
         icon: <TrendingUp size={20} />,
         color: '#e5173f',
         duration: 15000,
-        style: {
-            bgColor: '#000000',
-            textColor: '#ffffff',
-            accentColor: '#e5173f',
-            fontStyle: 'bold',
-        },
-        elements: {
-            hasHook: true,
-            hasCaptions: true,
-            hasProgressBar: true,
-            hasWatermark: true,
-            hasCTA: true,
-        },
+        layoutMode: 'overlay',
+        fontSize: 56,
+        hasHook: true,
+        hasWatermark: true,
     },
     {
         id: 'quick-fact',
         name: 'Dato Rápido',
-        description: '15-30 segundos, texto grande, música trending',
+        description: 'Diseño limpio y minimalista, texto grande',
         icon: <Zap size={20} />,
         color: '#00f2ea',
         duration: 20000,
-        style: {
-            bgColor: '#0a0a0c',
-            textColor: '#ffffff',
-            accentColor: '#00f2ea',
-            fontStyle: 'minimal',
-        },
-        elements: {
-            hasHook: true,
-            hasCaptions: true,
-            hasProgressBar: true,
-            hasWatermark: true,
-            hasCTA: false,
-        },
+        layoutMode: 'minimal',
+        fontSize: 44,
+        hasHook: true,
+        hasWatermark: true,
     },
     {
         id: 'story-mode',
         name: 'Story Mode',
-        description: 'Formato vertical con múltiples escenas',
+        description: 'Imagen y texto lado a lado, formato split',
         icon: <Play size={20} />,
         color: '#ff0050',
         duration: 45000,
-        style: {
-            bgColor: '#000000',
-            textColor: '#ffffff',
-            accentColor: '#ff0050',
-            fontStyle: 'fun',
-        },
-        elements: {
-            hasHook: true,
-            hasCaptions: true,
-            hasProgressBar: true,
-            hasWatermark: true,
-            hasCTA: true,
-        },
+        layoutMode: 'split',
+        fontSize: 50,
+        hasHook: true,
+        hasWatermark: true,
     },
     {
         id: 'quote-viral',
         name: 'Quote Viral',
-        description: 'Texto inspirador/motivacional con fondo dinámico',
+        description: 'Texto grande estilo cita, sin hook',
         icon: <MessageCircle size={20} />,
         color: '#f59e0b',
         duration: 10000,
-        style: {
-            bgColor: '#1a1a2e',
-            textColor: '#ffffff',
-            accentColor: '#f59e0b',
-            fontStyle: 'bold',
-        },
-        elements: {
-            hasHook: false,
-            hasCaptions: false,
-            hasProgressBar: false,
-            hasWatermark: true,
-            hasCTA: true,
-        },
+        layoutMode: 'minimal',
+        fontSize: 60,
+        hasHook: false,
+        hasWatermark: true,
     },
     {
         id: 'blank',
         name: 'En Blanco',
-        description: 'Lienzo vacío 9:16 para crear desde cero',
+        description: 'Overlay simple, listo para editar desde cero',
         icon: <Plus size={20} />,
         color: '#50505c',
         duration: 30000,
-        style: {
-            bgColor: '#000000',
-            textColor: '#ffffff',
-            accentColor: '#e5173f',
-            fontStyle: 'minimal',
-        },
-        elements: {
-            hasHook: false,
-            hasCaptions: false,
-            hasProgressBar: false,
-            hasWatermark: true,
-            hasCTA: false,
-        },
+        layoutMode: 'overlay',
+        fontSize: 48,
+        hasHook: false,
+        hasWatermark: true,
     },
 ];
 
 export function TikTokTemplates() {
-    const { selectedNews, setSelectedNews, format, setFormat, aspectRatio, setAspectRatio } = useStudioContext();
+    const {
+        selectedNews, setFormat, setAspectRatio,
+        setLayoutMode, setFontSize, setShowWatermark, setCustomTitle,
+    } = useStudioContext();
     const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
 
     const handleSelectTemplate = (template: Template) => {
         setSelectedTemplate(template.id);
-        
-        // Set format to TikTok 9:16
+
         setFormat('video');
         setAspectRatio('9:16');
-        
-        // Create a "virtual" news item for the template
-        const virtualNews = {
-            id: `template-${template.id}`,
-            title: template.name,
-            summary: template.description,
-            content: '',
-            image_url: '',
-            source: 'TikTok Studio',
-            published_at: new Date().toISOString(),
-            template: template,
-        };
-        
-        setSelectedNews(virtualNews as any);
+        setLayoutMode(template.layoutMode);
+        setFontSize(template.fontSize);
+        setShowWatermark(template.hasWatermark);
+
+        // Aplica la plantilla sobre la noticia real ya seleccionada — nunca
+        // fabrica una noticia falsa con imagen vacía.
+        const base = selectedNews?.title || template.name;
+        setCustomTitle(template.hasHook ? `${generateHookText(selectedNews)}\n\n${base}` : base);
     };
 
     return (
@@ -175,6 +127,12 @@ export function TikTokTemplates() {
                 </span>
             </div>
 
+            {!selectedNews && (
+                <p className="text-[10px]" style={{ color: DS.sub }}>
+                    Elegí una noticia en la pestaña Noticias para que la plantilla tenga imagen real.
+                </p>
+            )}
+
             <div className="grid grid-cols-1 gap-2">
                 {TEMPLATES.map((template) => (
                     <button
@@ -187,7 +145,7 @@ export function TikTokTemplates() {
                         }}
                     >
                         <div className="flex items-start gap-3">
-                            <div 
+                            <div
                                 className="w-10 h-10 rounded-lg flex items-center justify-center flex-shrink-0"
                                 style={{ background: `${template.color}20`, color: template.color }}
                             >
@@ -208,50 +166,34 @@ export function TikTokTemplates() {
                                 <div className="flex items-center gap-3 mt-2">
                                     <span className="text-[10px] flex items-center gap-1" style={{ color: DS.sub }}>
                                         <Clock size={10} />
-                                        {Math.round(template.duration / 1000)}s
+                                        ≈{Math.round(template.duration / 1000)}s
                                     </span>
                                     <span className="text-[10px] flex items-center gap-1" style={{ color: DS.sub }}>
-                                        <Type size={10} />
-                                        {template.style.fontStyle}
+                                        <LayoutTemplate size={10} />
+                                        {LAYOUT_LABEL[template.layoutMode]}
                                     </span>
                                 </div>
                             </div>
                         </div>
 
-                        {/* Preview of features */}
-                        <div className="flex items-center gap-1.5 mt-3 pt-2 border-t" style={{ borderColor: DS.border }}>
-                            {template.elements.hasHook && (
+                        {template.hasHook && (
+                            <div className="flex items-center gap-1.5 mt-3 pt-2 border-t" style={{ borderColor: DS.border }}>
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-medium" style={{ background: DS.accentDim, color: DS.accent }}>
                                     HOOK
                                 </span>
-                            )}
-                            {template.elements.hasCaptions && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-medium" style={{ background: DS.surfaceMid, color: DS.sub }}>
-                                    CAPTIONS
-                                </span>
-                            )}
-                            {template.elements.hasProgressBar && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-medium" style={{ background: DS.surfaceMid, color: DS.sub }}>
-                                    PROGRESS
-                                </span>
-                            )}
-                            {template.elements.hasCTA && (
-                                <span className="px-1.5 py-0.5 rounded text-[9px] font-medium" style={{ background: DS.surfaceMid, color: DS.sub }}>
-                                    CTA
-                                </span>
-                            )}
-                        </div>
+                            </div>
+                        )}
                     </button>
                 ))}
             </div>
 
             {selectedTemplate && (
-                <div 
+                <div
                     className="p-3 rounded-xl text-center"
                     style={{ background: DS.accentDim, border: `1px solid ${DS.accent}30` }}
                 >
                     <p className="text-[10px]" style={{ color: DS.accent }}>
-                        Plantilla seleccionada. Configura tu contenido en el canvas.
+                        Plantilla aplicada — layout, tamaño de fuente y marca de agua actualizados en el canvas.
                     </p>
                 </div>
             )}
