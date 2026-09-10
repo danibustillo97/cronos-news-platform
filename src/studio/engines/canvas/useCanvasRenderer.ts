@@ -47,10 +47,17 @@ export function useCanvasRenderer({
       return cached;
     }
 
+    // Remote images (Supabase storage, etc.) rarely send CORS headers, which
+    // taints the canvas and breaks captureStream()/toBlob(). Route those
+    // through our own proxy (which does add Access-Control-Allow-Origin) so
+    // crossOrigin="anonymous" actually succeeds instead of falling back to a
+    // tainted load. Local blob:/data:/relative URLs go through untouched.
+    const loadUrl = /^https?:\/\//.test(url) ? `/api/proxy-image?url=${encodeURIComponent(url)}` : url;
+
     return new Promise<HTMLImageElement>((resolve, reject) => {
       const image = new Image();
       image.crossOrigin = 'anonymous';
-      image.src = url;
+      image.src = loadUrl;
 
       image.onload = () => {
         setIsTainted(false);

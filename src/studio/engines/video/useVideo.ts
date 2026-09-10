@@ -2,7 +2,7 @@ import { useCallback, useMemo, useRef, useState } from 'react';
 import type { RefObject } from 'react';
 import { createVideoRecorderEngine } from './video.engine';
 
-export const useVideo = (canvasRef: RefObject<HTMLCanvasElement | null>) => {
+export const useVideo = (canvasRef: RefObject<HTMLCanvasElement | null>, isTainted = false) => {
   const recorderEngineRef = useRef(createVideoRecorderEngine());
   const [isRecording, setIsRecording] = useState(false);
   const [recordingProgress, setRecordingProgress] = useState(0);
@@ -14,11 +14,17 @@ export const useVideo = (canvasRef: RefObject<HTMLCanvasElement | null>) => {
   }, []);
 
   const handleRecordVideo = useCallback(async () => {
-    if (!canvasRef.current || isRecording || !isSupported) {
+    if (!canvasRef.current || isRecording || !isSupported || isTainted) {
       return;
     }
 
-    const stream = canvasRef.current.captureStream(30);
+    let stream: MediaStream;
+    try {
+      stream = canvasRef.current.captureStream(30);
+    } catch (error) {
+      console.error('[Studio Video] Canvas is not origin-clean, cannot record', error);
+      return;
+    }
     if (!stream) {
       return;
     }

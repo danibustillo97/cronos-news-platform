@@ -158,7 +158,7 @@ export const useStudio = () => {
     videoScript: script.videoScript,
   });
 
-  const video = useVideo(canvasRef);
+  const video = useVideo(canvasRef, isTainted);
   const tiktok = useTikTokAuth();
   const share = useSocialShare(selectedNews);
 
