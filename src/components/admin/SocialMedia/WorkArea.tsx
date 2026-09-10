@@ -9,9 +9,8 @@ import {
 import { useStudioContext } from './context';
 import type { ScriptSegment } from '@/studio/shared/types';
 import { DS } from './TopBar';
-import { TikTokPublisher } from './TikTokPublisher';
-import { ViralTools } from './ViralTools';
-import { ContentBlocks } from './ContentBlocks';
+import { InsertBar } from './InsertBar';
+import { ToolsPanel } from './ToolsPanel';
 
 /* ── canvas sizing ── */
 const aspectClass = (format: string, ar: string) => {
@@ -334,26 +333,15 @@ function Timeline() {
 export function WorkArea() {
     return (
         <div className="flex-1 flex min-h-0 overflow-hidden">
-            {/* Left sidebar - Content Blocks */}
-            <div className="flex-shrink-0 border-r overflow-y-auto" style={{ width: 220, borderColor: DS.border, background: DS.bg }}>
-                <ContentBlocks />
-            </div>
-
-            {/* Main content - Canvas and Timeline */}
+            {/* Canvas protagonista: barra de inserción arriba, timeline abajo */}
             <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+                <InsertBar />
                 <CanvasViewer />
                 <Timeline />
             </div>
 
-            {/* Right sidebar - Viral Tools & Publisher (each owns its own header) */}
-            <div className="flex-shrink-0 border-l overflow-y-auto" style={{ width: 240, borderColor: DS.border, background: DS.bg }}>
-                <div className="p-3 space-y-4">
-                    <ViralTools />
-                    <div className="border-t pt-4" style={{ borderColor: DS.border }}>
-                        <TikTokPublisher />
-                    </div>
-                </div>
-            </div>
+            {/* Herramientas — agrupadas por propósito (viral / audio / sponsor / publicar) */}
+            <ToolsPanel />
         </div>
     );
 }

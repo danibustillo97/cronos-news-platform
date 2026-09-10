@@ -2,16 +2,17 @@
 
 import React, { useState } from 'react';
 import {
-    Search, Music, DollarSign, Newspaper,
+    Music, DollarSign, Smartphone, Sparkles,
     RefreshCw, Volume2, Zap, X,
     Image as ImageIcon, ChevronRight, ChevronDown, ChevronUp,
-    ExternalLink, Smartphone, Link2, Unlink,
+    Link2, Unlink,
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import { DS } from './TopBar';
-import { TikTokTemplates } from './TikTokTemplates';
+import { ViralTools } from './ViralTools';
+import { TikTokPublisher } from './TikTokPublisher';
 
-/* ═══ atoms ═══ */
+/* ═══ atoms (shared look with LibraryPanel) ═══ */
 const Label = ({ children }: { children: React.ReactNode }) => (
     <p className="text-[9px] font-bold tracking-[0.2em] uppercase mb-1.5" style={{ color: DS.sub }}>{children}</p>
 );
@@ -20,27 +21,9 @@ const Field = ({ children }: { children: React.ReactNode }) => (
     <div className="space-y-1.5">{children}</div>
 );
 
-const Input = ({ icon, ...p }: React.InputHTMLAttributes<HTMLInputElement> & { icon?: React.ReactNode }) => (
-    <div className="relative">
-        {icon && <span className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" style={{ color: DS.sub }}>{icon}</span>}
-        <input {...p}
-            className="w-full rounded-xl py-2 text-[12px] outline-none transition-all"
-            style={{
-                background: DS.surface,
-                border: `1px solid ${DS.border}`,
-                color: DS.txt,
-                paddingLeft: icon ? 32 : 10,
-                paddingRight: 10,
-            }}
-            onFocus={e => (e.target.style.borderColor = `${DS.accent}50`)}
-            onBlur={e => (e.target.style.borderColor = DS.border)}
-        />
-    </div>
-);
-
-const Textarea = (p: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
-    <textarea {...p}
-        className="w-full rounded-xl py-2 px-2.5 text-[12px] outline-none transition-all resize-none"
+const Input = (p: React.InputHTMLAttributes<HTMLInputElement>) => (
+    <input {...p}
+        className="w-full rounded-xl py-2 px-2.5 text-[12px] outline-none transition-all"
         style={{ background: DS.surface, border: `1px solid ${DS.border}`, color: DS.txt }}
         onFocus={e => (e.target.style.borderColor = `${DS.accent}50`)}
         onBlur={e => (e.target.style.borderColor = DS.border)}
@@ -65,91 +48,7 @@ const Toggle = ({ label, on, onChange }: { label: string; on: boolean; onChange:
     </button>
 );
 
-/* ═══ NEWS CARD ═══ */
-function NewsCard({ n, sel, onSelect }: { n: any; sel: boolean; onSelect: () => void }) {
-    const date = new Date(n.created_at).toLocaleDateString('es', { day: '2-digit', month: 'short' });
-    return (
-        <button type="button" onClick={onSelect}
-            className="w-full text-left rounded-xl overflow-hidden transition-all group"
-            style={{
-                border: `1px solid ${sel ? `${DS.accent}25` : 'transparent'}`,
-                background: sel ? `${DS.accent}08` : 'transparent',
-            }}
-            onMouseEnter={e => { if (!sel) (e.currentTarget as HTMLElement).style.background = DS.surface; }}
-            onMouseLeave={e => { if (!sel) (e.currentTarget as HTMLElement).style.background = 'transparent'; }}
-        >
-            <div className="flex gap-2 p-2">
-                {/* thumbnail */}
-                {n.image_url ? (
-                    <div className="flex-shrink-0 w-12 h-12 rounded-lg overflow-hidden">
-                        <img src={n.image_url} className="w-full h-full object-cover" alt="" />
-                    </div>
-                ) : (
-                    <div className="flex-shrink-0 w-12 h-12 rounded-lg flex items-center justify-center"
-                        style={{ background: DS.surfaceMid }}>
-                        <Newspaper size={14} style={{ color: DS.muted }} />
-                    </div>
-                )}
-                <div className="flex-1 min-w-0 py-0.5">
-                    <p className="text-[11px] font-medium leading-snug line-clamp-2"
-                        style={{ color: sel ? DS.txt : DS.sub }}>
-                        {n.title}
-                    </p>
-                    <div className="flex items-center gap-1.5 mt-1">
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded"
-                            style={{ background: sel ? `${DS.accent}15` : DS.surfaceMid, color: sel ? DS.accent : DS.muted }}>
-                            {n.category}
-                        </span>
-                        <span className="text-[9px]" style={{ color: DS.muted }}>{date}</span>
-                    </div>
-                </div>
-                {sel && <ExternalLink size={10} className="flex-shrink-0 mt-1" style={{ color: DS.accent }} />}
-            </div>
-        </button>
-    );
-}
-
-/* ═══ CONTENT PANEL ═══ */
-function ContentPanel() {
-    const { searchTerm, setSearchTerm, news, selectedNews, handleNewsSelect, customTitle, setCustomTitle } = useStudioContext();
-    const filtered = news.filter(n => n.title.toLowerCase().includes(searchTerm.toLowerCase()));
-
-    return (
-        <div className="flex flex-col h-full min-h-0 p-3 gap-3">
-            <Input
-                type="text"
-                placeholder="Buscar noticia…"
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-                icon={<Search size={12} />}
-            />
-
-            <div className="flex-1 overflow-y-auto min-h-0 space-y-0.5 -mr-1 pr-1">
-                {filtered.map(n => (
-                    <NewsCard
-                        key={n.id} n={n}
-                        sel={selectedNews?.id === n.id}
-                        onSelect={() => handleNewsSelect(n)}
-                    />
-                ))}
-                {filtered.length === 0 && (
-                    <div className="flex flex-col items-center justify-center py-8 gap-2">
-                        <Newspaper size={20} style={{ color: DS.muted }} />
-                        <p className="text-[11px]" style={{ color: DS.muted }}>Sin resultados</p>
-                    </div>
-                )}
-            </div>
-
-            <Field>
-                <Label>Titular del canvas</Label>
-                <Textarea rows={3} value={customTitle} onChange={e => setCustomTitle(e.target.value)}
-                    placeholder="Texto que aparecerá en el canvas…" />
-            </Field>
-        </div>
-    );
-}
-
-/* ═══ AUDIO PANEL ═══ */
+/* ═══ AUDIO ═══ */
 function AudioPanel() {
     const {
         bgAudioName, bgAudioVolume, setBgAudioVolume, handleAudioUpload,
@@ -257,7 +156,7 @@ function AudioPanel() {
     );
 }
 
-/* ═══ SPONSOR PANEL ═══ */
+/* ═══ SPONSOR ═══ */
 function SponsorPanel() {
     const { sponsorName, setSponsorName, sponsorLogo, setSponsorLogo, handleLogoUpload } = useStudioContext();
 
@@ -306,7 +205,7 @@ function SponsorPanel() {
     );
 }
 
-/* ═══ TIKTOK PANEL ═══ */
+/* ═══ TIKTOK (cuenta + publicar) ═══ */
 function TikTokPanel() {
     const {
         tiktokAccount,
@@ -349,35 +248,32 @@ function TikTokPanel() {
 
     return (
         <div className="p-3 space-y-4 overflow-y-auto h-full">
-            {/* Templates - Create from scratch */}
-            <TikTokTemplates />
-            
             {/* Connection Status */}
             <div className="p-3 rounded-2xl" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
                 <div className="flex items-center gap-3 mb-3">
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                        style={{ 
-                            background: tiktokAccount?.connected 
-                                ? 'linear-gradient(135deg, #ff0050 0%, #00f2ea 100%)' 
-                                : isConfigPending 
+                        style={{
+                            background: tiktokAccount?.connected
+                                ? 'linear-gradient(135deg, #ff0050 0%, #00f2ea 100%)'
+                                : isConfigPending
                                     ? '#f59e0b'
-                                    : DS.surfaceMid 
+                                    : DS.surfaceMid
                         }}
                     >
-                        <Smartphone size={18} 
+                        <Smartphone size={18}
                             style={{ color: tiktokAccount?.connected || isConfigPending ? '#fff' : DS.muted }} />
                     </div>
                     <div className="flex-1 min-w-0">
                         <p className="text-[12px] font-bold" style={{ color: DS.txt }}>
-                            {tiktokAccount?.connected 
-                                ? 'TikTok Conectado' 
-                                : isConfigPending 
+                            {tiktokAccount?.connected
+                                ? 'TikTok Conectado'
+                                : isConfigPending
                                     ? 'Configuración Pendiente'
                                     : 'TikTok Developer'
                             }
                         </p>
                         <p className="text-[10px] truncate" style={{ color: DS.sub }}>
-                            {tiktokAccount?.connected 
+                            {tiktokAccount?.connected
                                 ? `@${tiktokAccount.display_name || 'usuario'}`
                                 : isConfigPending
                                     ? 'Requiere credenciales de TikTok'
@@ -393,7 +289,7 @@ function TikTokPanel() {
 
                 {isConfigPending ? (
                     <div className="space-y-2">
-                        <div className="p-2.5 rounded-xl text-[10px] leading-relaxed" 
+                        <div className="p-2.5 rounded-xl text-[10px] leading-relaxed"
                             style={{ background: DS.surfaceMid, color: DS.sub, border: `1px solid ${DS.border}` }}
                         >
                             <strong style={{ color: '#f59e0b' }}>⚠ Credenciales no configuradas</strong><br />
@@ -401,7 +297,7 @@ function TikTokPanel() {
                             <code style={{ color: DS.txt }}>TIKTOK_CLIENT_KEY=xxx</code><br />
                             <code style={{ color: DS.txt }}>TIKTOK_CLIENT_SECRET=xxx</code>
                         </div>
-                        
+
                         {testAuthInfo && (
                             <div>
                                 <button type="button" onClick={() => setShowDiagnostics(v => !v)}
@@ -485,19 +381,19 @@ function TikTokPanel() {
                                 )}
                             </div>
                         )}
-                        
+
                         <div className="flex gap-2">
                             <button
                                 onClick={checkConfig}
                                 disabled={isCheckingConfig}
                                 className="flex-1 py-2 rounded-xl text-[11px] font-semibold transition-all"
-                                style={{ 
+                                style={{
                                     background: DS.surfaceMid,
                                     color: DS.sub,
                                     border: `1px solid ${DS.border}`
                                 }}
                             >
-                                {isCheckingConfig 
+                                {isCheckingConfig
                                     ? <><RefreshCw size={12} className="inline mr-1 animate-spin" />Verificando...</>
                                     : <><Link2 size={12} className="inline mr-1" />Verificar Config</>
                                 }
@@ -505,7 +401,7 @@ function TikTokPanel() {
                             <button
                                 onClick={connectTikTok}
                                 className="flex-1 py-2 rounded-xl text-[11px] font-bold transition-all"
-                                style={{ 
+                                style={{
                                     background: 'linear-gradient(135deg, #ff0050 0%, #ff3377 100%)',
                                     color: '#fff'
                                 }}
@@ -518,7 +414,7 @@ function TikTokPanel() {
                     <button
                         onClick={connectTikTok}
                         className="w-full py-2.5 rounded-xl text-[12px] font-bold flex items-center justify-center gap-2 transition-all"
-                        style={{ 
+                        style={{
                             background: 'linear-gradient(135deg, #ff0050 0%, #ff3377 100%)',
                             color: '#fff'
                         }}
@@ -530,7 +426,7 @@ function TikTokPanel() {
                         <button
                             onClick={disconnectTikTok}
                             className="flex-1 py-2 rounded-xl text-[11px] font-semibold transition-all"
-                            style={{ 
+                            style={{
                                 background: `${DS.accent}15`,
                                 color: DS.accent,
                                 border: `1px solid ${DS.accent}25`
@@ -549,7 +445,8 @@ function TikTokPanel() {
                 )}
             </div>
 
-            {/* Publicar: un solo lugar en pantalla, ver el panel derecho del work area */}
+            {/* Publish Section — único publicador en pantalla */}
+            {tiktokAccount?.connected && <TikTokPublisher showHeader={false} />}
 
             {/* Info */}
             <div className="p-3 rounded-xl" style={{ background: DS.surfaceMid }}>
@@ -565,34 +462,47 @@ function TikTokPanel() {
     );
 }
 
-/* ═══ SIDEBAR ROOT ═══ */
-type Tab = 'content' | 'audio' | 'sponsor' | 'tiktok';
-const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
-    { id: 'content', label: 'Noticias', icon: <Newspaper size={11} /> },
-    { id: 'audio',   label: 'Audio',    icon: <Music size={11} /> },
-    { id: 'sponsor', label: 'Sponsor',  icon: <DollarSign size={11} /> },
-    { id: 'tiktok',  label: 'TikTok',   icon: <Smartphone size={11} /> },
-];
-const PANELS: Record<Tab, React.FC> = { content: ContentPanel, audio: AudioPanel, sponsor: SponsorPanel, tiktok: TikTokPanel };
+/* ═══ VIRAL (envoltorio simple) ═══ */
+function ViralPanel() {
+    return (
+        <div className="h-full overflow-y-auto">
+            <ViralTools />
+        </div>
+    );
+}
 
-export function Sidebar() {
-    const [tab, setTab] = useState<Tab>('content');
+/* ═══ TOOLS PANEL ROOT ═══ */
+type Tab = 'viral' | 'audio' | 'sponsor' | 'tiktok';
+const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
+    { id: 'viral',   label: 'Viral',   icon: <Sparkles size={11} /> },
+    { id: 'audio',   label: 'Audio',   icon: <Music size={11} /> },
+    { id: 'sponsor', label: 'Sponsor', icon: <DollarSign size={11} /> },
+    { id: 'tiktok',  label: 'TikTok',  icon: <Smartphone size={11} /> },
+];
+const PANELS: Record<Tab, React.FC> = { viral: ViralPanel, audio: AudioPanel, sponsor: SponsorPanel, tiktok: TikTokPanel };
+
+export function ToolsPanel() {
+    const [tab, setTab] = useState<Tab>('viral');
     const Panel = PANELS[tab];
 
     return (
         <aside className="flex flex-col flex-shrink-0 h-full overflow-hidden"
-            style={{ width: 240, background: DS.bg, borderRight: `1px solid ${DS.borderSub}` }}
+            style={{ width: 260, background: DS.bg, borderLeft: `1px solid ${DS.borderSub}` }}
         >
+            <div className="px-3 pt-3 pb-1">
+                <p className="text-[9px] font-bold tracking-[0.2em] uppercase" style={{ color: DS.muted }}>Herramientas</p>
+            </div>
+
             {/* tab bar */}
             <div className="flex flex-shrink-0" style={{ borderBottom: `1px solid ${DS.borderSub}` }}>
                 {TABS.map(t => (
                     <button key={t.id} type="button" onClick={() => setTab(t.id)}
-                        className="relative flex-1 flex items-center justify-center gap-1.5 py-2.5 text-[10px] font-semibold uppercase tracking-wider transition-all"
+                        className="relative flex-1 flex items-center justify-center gap-1 py-2.5 text-[9px] font-semibold uppercase tracking-wider transition-all"
                         style={{ color: tab === t.id ? DS.txt : DS.sub }}
                     >
                         {t.icon}{t.label}
                         {tab === t.id && (
-                            <span className="absolute bottom-0 left-3 right-3 h-[2px] rounded-full"
+                            <span className="absolute bottom-0 left-2 right-2 h-[2px] rounded-full"
                                 style={{ background: DS.accent }} />
                         )}
                     </button>

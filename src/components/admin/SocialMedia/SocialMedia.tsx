@@ -4,7 +4,7 @@ import React from 'react';
 import { useStudio } from '@/studio/orchestration';
 import { StudioContext } from './context';
 import { TopBar, DS } from './TopBar';
-import { Sidebar } from './Sidebar';
+import { LibraryPanel } from './LibraryPanel';
 import { WorkArea } from './WorkArea';
 
 export default function SocialMedia() {
@@ -15,7 +15,7 @@ export default function SocialMedia() {
             <div className="w-full h-full overflow-hidden" style={{ background: DS.bg }}>
                 <TopBar />
                 <div className="flex overflow-hidden" style={{ height: 'calc(100% - 48px)' }}>
-                    <Sidebar />
+                    <LibraryPanel />
                     <WorkArea />
                 </div>
             </div>
