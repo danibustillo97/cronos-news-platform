@@ -3,7 +3,7 @@
 import React from 'react';
 import { useStudio } from '@/studio/orchestration';
 import { StudioContext } from './context';
-import { TopBar } from './TopBar';
+import { TopBar, DS } from './TopBar';
 import { Sidebar } from './Sidebar';
 import { WorkArea } from './WorkArea';
 
@@ -12,7 +12,7 @@ export default function SocialMedia() {
 
     return (
         <StudioContext.Provider value={studio}>
-            <div className="w-full h-full overflow-hidden" style={{ background: '#070708' }}>
+            <div className="w-full h-full overflow-hidden" style={{ background: DS.bg }}>
                 <TopBar />
                 <div className="flex overflow-hidden" style={{ height: 'calc(100% - 48px)' }}>
                     <Sidebar />

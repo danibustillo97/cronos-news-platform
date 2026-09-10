@@ -6,7 +6,6 @@ import {
     Smartphone, Type, Check,
     LayoutTemplate, SplitSquareHorizontal, Newspaper, Minus,
     Wand2, Hash, Scissors, CaseSensitive, Sparkles,
-    Pause,
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import type { FormatType, LayoutMode } from '@/studio/shared/types';
@@ -43,19 +42,19 @@ const Btn = ({ active, onClick, title, children, variant = 'default', disabled }
     
     const styles = {
         primary: 'bg-white text-black hover:bg-gray-100 disabled:opacity-40',
-        danger: active 
-            ? 'bg-[#ff0050] text-white' 
-            : 'bg-[#ff0050]/10 text-[#ff0050] border border-[#ff0050]/30 hover:bg-[#ff0050]/20',
+        danger: active
+            ? 'bg-[#e5173f] text-white'
+            : 'bg-[#e5173f]/10 text-[#e5173f] border border-[#e5173f]/30 hover:bg-[#e5173f]/20',
         ghost: 'text-[#50505c] hover:text-[#e8e8f0]',
-        default: active 
-            ? 'text-white border' 
-            : `text-[${DS.sub}] border border-[${DS.border}] hover:text-[#a0a0ac] hover:border-[#2a2a32]`,
+        default: active
+            ? 'text-white border'
+            : 'text-[#50505c] border border-[#1e1e24] hover:text-[#a0a0ac] hover:border-[#2a2a32]',
     };
 
     const activeStyle = active && variant === 'default' ? {
-        background: 'rgba(255,0,80,0.15)',
-        borderColor: 'rgba(255,0,80,0.4)',
-        color: '#ff0050',
+        background: 'rgba(229,23,63,0.15)',
+        borderColor: 'rgba(229,23,63,0.4)',
+        color: DS.accent,
     } : {};
 
     return (
@@ -74,7 +73,7 @@ const Btn = ({ active, onClick, title, children, variant = 'default', disabled }
 
 /* ═══════════════ QUICK TOOLBAR ═══════════════ */
 function QuickToolbar() {
-    const { isRecording, handleRecordVideo, customTitle, setCustomTitle } = useStudioContext();
+    const { customTitle, setCustomTitle } = useStudioContext();
     const [showEmoji, setShowEmoji] = useState(false);
     
     const addEmoji = (emoji: string) => {
@@ -108,18 +107,6 @@ function QuickToolbar() {
                     </div>
                 )}
             </div>
-            
-            <Sep />
-
-            <Btn
-                title={isRecording ? 'Grabando...' : 'Grabar Video'}
-                variant="danger"
-                onClick={handleRecordVideo}
-                disabled={isRecording}
-            >
-                {isRecording ? <Pause size={14} /> : <Video size={14} />}
-                {isRecording ? 'REC...' : 'Grabar'}
-            </Btn>
         </div>
     );
 }
@@ -208,7 +195,7 @@ export function TopBar() {
                         onClick={() => setLayoutMode(l.id)}
                         className="flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold transition-all duration-100 flex-shrink-0"
                         style={layoutMode === l.id
-                            ? { background: '#ff0050', color: '#fff' }
+                            ? { background: DS.accent, color: '#fff' }
                             : { color: DS.sub }}
                     >
                         {l.icon}{l.label}
@@ -232,7 +219,7 @@ export function TopBar() {
                     onChange={e => setFontSize(Number(e.target.value))}
                     title={`Fuente: ${fontSize}px`}
                     className="w-14 h-0.5 appearance-none rounded cursor-pointer flex-shrink-0"
-                    style={{ accentColor: '#ff0050' }}
+                    style={{ accentColor: DS.accent }}
                 />
                 <span className="text-[10px] font-mono w-5 flex-shrink-0" style={{ color: DS.sub }}>
                     {fontSize}
@@ -246,7 +233,7 @@ export function TopBar() {
                 title="Marca de agua @cronos"
                 className="flex items-center gap-1 px-2 py-1.5 rounded-xl text-[10px] font-bold flex-shrink-0 transition-all"
                 style={showWatermark
-                    ? { background: 'rgba(255,0,80,0.15)', color: '#ff0050', border: `1px solid rgba(255,0,80,0.3)` }
+                    ? { background: 'rgba(229,23,63,0.15)', color: DS.accent, border: '1px solid rgba(229,23,63,0.3)' }
                     : { color: DS.muted, border: `1px solid ${DS.border}`, background: DS.surface }}
             >
                 <Check size={9} />@cronos
@@ -290,7 +277,7 @@ export function TopBar() {
                 disabled={isRecording}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all disabled:opacity-60"
                 style={isRecording
-                    ? { background: 'rgba(255,0,80,0.15)', color: '#ff5c8a', border: '1px solid rgba(255,0,80,0.2)', cursor: 'not-allowed' }
+                    ? { background: 'rgba(229,23,63,0.15)', color: '#ff5c8a', border: '1px solid rgba(229,23,63,0.2)', cursor: 'not-allowed' }
                     : { background: 'linear-gradient(135deg, #ff0050 0%, #ff3377 100%)', color: '#fff' }}
             >
                 {isRecording ? (

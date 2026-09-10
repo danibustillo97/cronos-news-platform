@@ -53,13 +53,13 @@ export function TikTokPublisher({ showHeader = true }: { showHeader?: boolean })
                         <Smartphone size={18} style={{ color: DS.sub }} />
                     </div>
                     <div>
-                        <p className="text-sm font-semibold" style={{ color: DS.txt }}>TikTok Developer</p>
-                        <p className="text-xs" style={{ color: DS.sub }}>Conecta para publicar</p>
+                        <p className="text-[12px] font-semibold" style={{ color: DS.txt }}>TikTok Developer</p>
+                        <p className="text-[10px]" style={{ color: DS.sub }}>Conecta para publicar</p>
                     </div>
                 </div>
                 <button
                     onClick={connectTikTok}
-                    className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+                    className="w-full py-2.5 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-2 transition-all"
                     style={{ background: DS.accent, color: '#fff' }}
                 >
                     <Link2 size={16} />
@@ -85,12 +85,12 @@ export function TikTokPublisher({ showHeader = true }: { showHeader?: boolean })
                         )}
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold truncate" style={{ color: DS.txt }}>
+                        <p className="text-[12px] font-semibold truncate" style={{ color: DS.txt }}>
                             @{tiktokAccount.display_name || 'usuario'}
                         </p>
                         <div className="flex items-center gap-1.5">
                             <div className="w-2 h-2 rounded-full" style={{ background: tiktokAccount.is_expired ? '#ef4444' : '#22c55e' }} />
-                            <p className="text-xs" style={{ color: DS.sub }}>
+                            <p className="text-[10px]" style={{ color: DS.sub }}>
                                 {tiktokAccount.is_expired ? 'Sesión expirada' : 'Conectado'}
                             </p>
                         </div>
@@ -110,23 +110,23 @@ export function TikTokPublisher({ showHeader = true }: { showHeader?: boolean })
             {lastRecordedBlob && (
                 <div className="p-3 rounded-xl space-y-3" style={{ background: DS.surfaceMid, border: `1px solid ${DS.border}` }}>
                     <div className="flex items-center gap-2">
-                        <Video size={16} style={{ color: DS.accent }} />
-                        <p className="text-sm font-medium" style={{ color: DS.txt }}>Video listo para publicar</p>
+                        <Video size={14} style={{ color: DS.accent }} />
+                        <p className="text-[12px] font-medium" style={{ color: DS.txt }}>Video listo para publicar</p>
                     </div>
-                    
+
                     <input
                         type="text"
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         placeholder="Título del video..."
-                        className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                        className="w-full px-3 py-2 rounded-lg text-[12px] outline-none"
                         style={{ background: DS.bg, border: `1px solid ${DS.border}`, color: DS.txt }}
                     />
-                    
+
                     <button
                         onClick={handlePublish}
                         disabled={isPublishing}
-                        className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+                        className="w-full py-2.5 rounded-xl text-[12px] font-semibold flex items-center justify-center gap-2 transition-all disabled:opacity-50"
                         style={{ background: DS.accent, color: '#fff' }}
                     >
                         {isPublishing ? (
@@ -147,7 +147,7 @@ export function TikTokPublisher({ showHeader = true }: { showHeader?: boolean })
             {/* Sin video grabado */}
             {!lastRecordedBlob && (
                 <div className="p-3 rounded-xl text-center" style={{ background: DS.surfaceMid, border: `1px solid ${DS.border}` }}>
-                    <p className="text-xs" style={{ color: DS.sub }}>
+                    <p className="text-[10px]" style={{ color: DS.sub }}>
                         Graba un video para publicarlo en TikTok
                     </p>
                 </div>
@@ -168,15 +168,15 @@ export function TikTokPublisher({ showHeader = true }: { showHeader?: boolean })
                         <X size={16} style={{ color: '#ef4444', flexShrink: 0 }} />
                     )}
                     <div className="flex-1">
-                        <p className="text-sm" style={{ color: publishResult.success ? '#22c55e' : '#ef4444' }}>
+                        <p className="text-[11px]" style={{ color: publishResult.success ? '#22c55e' : '#ef4444' }}>
                             {publishResult.message}
                         </p>
                         {publishResult.url && (
-                            <a 
-                                href={publishResult.url} 
-                                target="_blank" 
+                            <a
+                                href={publishResult.url}
+                                target="_blank"
                                 rel="noopener noreferrer"
-                                className="text-xs underline mt-1 inline-block"
+                                className="text-[10px] underline mt-1 inline-block"
                                 style={{ color: DS.accent }}
                             >
                                 Ver en TikTok

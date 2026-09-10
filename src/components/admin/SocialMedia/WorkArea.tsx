@@ -1,13 +1,14 @@
 'use client';
 
-import React, { useRef, useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-    Download, Share2, Video, RefreshCw, Copy,
+    RefreshCw,
     UploadCloud, Volume2, Trash2, Sparkles, Mic,
     X, AlignLeft, Clock, ChevronDown, ChevronUp,
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import type { ScriptSegment } from '@/studio/shared/types';
+import { DS } from './TopBar';
 import { TikTokPublisher } from './TikTokPublisher';
 import { ViralTools } from './ViralTools';
 import { ContentBlocks } from './ContentBlocks';
@@ -21,16 +22,12 @@ const aspectClass = (format: string, ar: string) => {
 
 /* ─── CANVAS VIEWER ─── */
 function CanvasViewer() {
-    const {
-        canvasRef, format, aspectRatio, isRecording, recordingProgress,
-        isTainted, downloadImage, handleSmartShare, handleRecordVideo,
-        copyCaption, smartCaption,
-    } = useStudioContext();
+    const { canvasRef, format, aspectRatio, isRecording, recordingProgress, isTainted } = useStudioContext();
 
     const ac = aspectClass(format, aspectRatio);
 
     return (
-        <div className="flex-1 min-h-0 flex items-center justify-center bg-[#060607] relative overflow-hidden">
+        <div className="flex-1 min-h-0 flex items-center justify-center relative overflow-hidden" style={{ background: DS.bg }}>
             {/* dot-grid */}
             <div className="absolute inset-0 opacity-[0.025]"
                 style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 1px)', backgroundSize: '24px 24px' }}
@@ -38,7 +35,7 @@ function CanvasViewer() {
 
             {/* canvas wrapper — respects aspect ratio, never overflows */}
             <div className={`relative ${ac} max-h-full rounded-2xl overflow-hidden ring-1 ring-white/[0.07] shadow-[0_0_60px_rgba(0,0,0,0.9)]`}
-                style={{ maxWidth: 'calc(100% - 64px)', maxHeight: 'calc(100% - 64px)' }}
+                style={{ maxWidth: 'calc(100% - 32px)', maxHeight: 'calc(100% - 32px)' }}
             >
                 <canvas ref={canvasRef} className="block w-full h-full object-contain" />
 
@@ -54,36 +51,6 @@ function CanvasViewer() {
                     <div className="absolute top-2.5 left-2.5 rounded-md bg-amber-500/15 border border-amber-500/20 px-2 py-0.5">
                         <span className="text-[9px] font-semibold text-amber-400">CORS</span>
                     </div>
-                )}
-            </div>
-
-            {/* floating bottom bar */}
-            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex items-center gap-1.5 bg-[#0c0c0e]/95 border border-[#1c1c22] rounded-2xl px-3 py-1.5 backdrop-blur-sm shadow-xl">
-                {smartCaption && (
-                    <button type="button" onClick={copyCaption}
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#141416] border border-[#1e1e22] text-[#5a5a62] text-[11px] font-semibold hover:text-[#e0e0e6] transition-all"
-                    >
-                        <Copy size={11} />Caption
-                    </button>
-                )}
-                <button type="button" onClick={handleSmartShare}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-[#141416] border border-[#1e1e22] text-[#7a7a82] text-[11px] font-semibold hover:text-[#e0e0e6] hover:border-[#2e2e34] transition-all"
-                >
-                    <Share2 size={11} />Compartir
-                </button>
-                {format === 'video' ? (
-                    <button type="button" onClick={handleRecordVideo} disabled={isRecording}
-                        className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[11px] font-bold transition-all
-                        ${isRecording ? 'bg-red-950 text-red-400 border border-red-900/30 cursor-not-allowed' : 'bg-[#e5173f] text-white hover:bg-red-500'}`}
-                    >
-                        {isRecording ? <><RefreshCw size={11} className="animate-spin" />{Math.round(recordingProgress)}%</> : <><Video size={11} />Grabar MP4</>}
-                    </button>
-                ) : (
-                    <button type="button" onClick={downloadImage} disabled={isTainted}
-                        className="flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg text-[11px] font-bold bg-white text-black hover:bg-gray-100 disabled:opacity-40 transition-all"
-                    >
-                        <Download size={11} />Exportar
-                    </button>
                 )}
             </div>
         </div>
@@ -104,10 +71,10 @@ function Clip({
     const hasAudio = Boolean(seg.audioBuffer);
 
     if (isSpecial) return (
-        <div className="relative flex-shrink-0 flex flex-col items-center justify-center rounded-lg border border-[#1a1a1e] bg-[#0d0d0f] mx-0.5 opacity-30 gap-0.5"
+        <div className="relative flex-shrink-0 flex flex-col items-center justify-center rounded-lg border border-[#1a1a1e] bg-[#0d0d0f] mx-0.5 opacity-40 gap-0.5"
             style={{ width: w, height: '100%' }}>
-            <span className="text-[7px] font-bold tracking-widest text-[#2e2e36]">{seg.text === 'INTRO_SEQUENCE' ? 'INTRO' : 'OUTRO'}</span>
-            <span className="text-[7px] font-mono text-[#222226]">{(seg.duration / 1000).toFixed(1)}s</span>
+            <span className="text-[10px] font-bold tracking-widest text-[#4a4a52]">{seg.text === 'INTRO_SEQUENCE' ? 'INTRO' : 'OUTRO'}</span>
+            <span className="text-[10px] font-mono text-[#3a3a40]">{(seg.duration / 1000).toFixed(1)}s</span>
         </div>
     );
 
@@ -133,22 +100,22 @@ function Clip({
 
             <div className="relative z-10 p-1 h-full flex flex-col justify-between">
                 <div className="flex justify-between items-start">
-                    <span className={`text-[8px] font-mono ${isActive ? 'text-[#e5173f]' : 'text-[#2a2a30]'}`}>
+                    <span className={`text-[10px] font-mono ${isActive ? 'text-[#e5173f]' : 'text-[#4a4a52]'}`}>
                         {idx + 1}·{(seg.duration / 1000).toFixed(1)}s
                     </span>
-                    <div className="flex items-center gap-px opacity-0 group-hover:opacity-100 transition-opacity">
-                        {hasAudio && <Volume2 size={7} className="text-emerald-400" />}
-                        <button type="button" onClick={onRemove} className="w-3 h-3 flex items-center justify-center text-[#2a2a30] hover:text-[#e5173f]">
-                            <Trash2 size={7} />
+                    <div className="flex items-center gap-1">
+                        {hasAudio && <Volume2 size={9} className="text-emerald-400" />}
+                        <button type="button" onClick={onRemove} className="w-3.5 h-3.5 flex items-center justify-center text-[#4a4a52] hover:text-[#e5173f]">
+                            <Trash2 size={9} />
                         </button>
                     </div>
                 </div>
-                <p className="text-[8px] text-[#8a8a92] leading-tight line-clamp-2">{seg.text}</p>
+                <p className="text-[10px] text-[#a0a0a8] leading-tight line-clamp-2">{seg.text}</p>
                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
                     <button type="button" onClick={e => { e.stopPropagation(); onDelta(-500); }}
-                        className="w-3.5 h-3.5 flex items-center justify-center text-[#3a3a40] hover:text-white"><ChevronDown size={7} /></button>
+                        className="w-3.5 h-3.5 flex items-center justify-center text-[#5a5a62] hover:text-white"><ChevronDown size={9} /></button>
                     <button type="button" onClick={e => { e.stopPropagation(); onDelta(500); }}
-                        className="w-3.5 h-3.5 flex items-center justify-center text-[#3a3a40] hover:text-white"><ChevronUp size={7} /></button>
+                        className="w-3.5 h-3.5 flex items-center justify-center text-[#5a5a62] hover:text-white"><ChevronUp size={9} /></button>
                 </div>
             </div>
         </div>
@@ -217,8 +184,32 @@ function Timeline() {
     } = useStudioContext();
 
     const [zoom, setZoom] = useState(PX_PER_SEC);
+    const trackRef = useRef<HTMLDivElement | null>(null);
+    const userZoomedRef = useRef(false);
     const totalMs = videoScript.reduce((s, seg) => s + seg.duration, 0) || 1000;
     const totalSec = Math.ceil(totalMs / 1000);
+
+    /* fit the whole clip to the available width by default; stop once the user zooms manually */
+    useEffect(() => {
+        const el = trackRef.current;
+        if (!el || userZoomedRef.current) return;
+
+        const fit = () => {
+            const width = el.clientWidth;
+            if (!width || !totalSec) return;
+            setZoom(Math.min(PX_PER_SEC, Math.max(24, Math.floor((width - 120) / totalSec))));
+        };
+
+        fit();
+        const observer = new ResizeObserver(fit);
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [totalSec]);
+
+    const adjustZoom = useCallback((next: (z: number) => number) => {
+        userZoomedRef.current = true;
+        setZoom(next);
+    }, []);
 
     /* balance durations by word count */
     const balance = useCallback(() => {
@@ -248,16 +239,16 @@ function Timeline() {
         <div className="flex-shrink-0 flex flex-col bg-[#09090b] border-t border-[#111114]" style={{ height: 196 }}>
 
             {/* toolbar */}
-            <div className="flex items-center gap-1.5 px-3 h-8 border-b border-[#0e0e11] flex-shrink-0">
-                <span className="text-[9px] font-bold tracking-[0.2em] uppercase text-[#242428] mr-1">Timeline</span>
-                <span className="text-[9px] font-mono text-[#242428]">{(totalMs / 1000).toFixed(1)}s · {videoScript.length} seg</span>
+            <div className="flex items-center gap-1.5 px-3 h-8 border-b flex-shrink-0" style={{ borderColor: DS.borderSub }}>
+                <span className="text-[10px] font-bold tracking-[0.2em] uppercase text-[#5a5a62] mr-1">Timeline</span>
+                <span className="text-[10px] font-mono text-[#5a5a62]">{(totalMs / 1000).toFixed(1)}s · {videoScript.length} seg</span>
                 <div className="flex-1" />
 
                 {/* zoom */}
                 <div className="flex items-center">
-                    <button onClick={() => setZoom(z => Math.max(40, z - 20))} className="w-5 h-5 flex items-center justify-center text-[#3a3a40] hover:text-[#8a8a90] text-xs font-bold">−</button>
-                    <span className="text-[9px] font-mono text-[#2a2a30] w-5 text-center">{zoom}</span>
-                    <button onClick={() => setZoom(z => Math.min(300, z + 20))} className="w-5 h-5 flex items-center justify-center text-[#3a3a40] hover:text-[#8a8a90] text-xs font-bold">+</button>
+                    <button onClick={() => adjustZoom(z => Math.max(24, z - 20))} className="w-5 h-5 flex items-center justify-center text-[#5a5a62] hover:text-[#b0b0b8] text-xs font-bold">−</button>
+                    <span className="text-[9px] font-mono text-[#5a5a62] w-5 text-center">{zoom}</span>
+                    <button onClick={() => adjustZoom(z => Math.min(300, z + 20))} className="w-5 h-5 flex items-center justify-center text-[#5a5a62] hover:text-[#b0b0b8] text-xs font-bold">+</button>
                 </div>
 
                 {/* tools */}
@@ -285,17 +276,17 @@ function Timeline() {
             </div>
 
             {/* scrollable track */}
-            <div className="flex-1 overflow-x-auto overflow-y-hidden bg-[#070709]" style={{ minHeight: 0 }}>
+            <div ref={trackRef} className="flex-1 overflow-x-auto overflow-y-hidden bg-[#070709]" style={{ minHeight: 0 }}>
                 <div style={{ width: Math.max(totalSec * zoom + 120, 600), height: '100%' }}>
 
                     {/* ruler */}
-                    <div className="relative bg-[#060608] border-b border-[#111115]" style={{ height: 20 }}>
+                    <div className="relative border-b" style={{ height: 20, background: DS.bg, borderColor: DS.surface }}>
                         {ticks.map(s => (
                             <div key={s} className="absolute top-0 flex flex-col items-center pointer-events-none"
                                 style={{ left: 48 + s * zoom }}>
                                 <div className="w-px mt-1 bg-[#1c1c22]" style={{ height: s % (tickStep * 2) === 0 ? 6 : 4 }} />
                                 {s % (tickStep * 2) === 0 && (
-                                    <span className="text-[7px] font-mono text-[#222228] mt-0.5">{s}s</span>
+                                    <span className="text-[9px] font-mono text-[#3a3a40] mt-0.5">{s}s</span>
                                 )}
                             </div>
                         ))}
@@ -304,8 +295,8 @@ function Timeline() {
                     {/* track row */}
                     <div className="flex items-stretch px-0" style={{ height: 'calc(100% - 20px)' }}>
                         {/* track label */}
-                        <div className="flex-shrink-0 w-12 flex items-center justify-end pr-2 border-r border-[#0e0e11]">
-                            <span className="text-[7px] font-bold text-[#1c1c22] uppercase tracking-widest">V1</span>
+                        <div className="flex-shrink-0 w-12 flex items-center justify-end pr-2 border-r" style={{ borderColor: DS.borderSub }}>
+                            <span className="text-[9px] font-bold text-[#4a4a52] uppercase tracking-widest">V1</span>
                         </div>
 
                         {/* clips */}
@@ -344,7 +335,7 @@ export function WorkArea() {
     return (
         <div className="flex-1 flex min-h-0 overflow-hidden">
             {/* Left sidebar - Content Blocks */}
-            <div className="w-64 flex-shrink-0 border-r border-[#1e1e24] bg-[#0a0a0c] overflow-y-auto">
+            <div className="flex-shrink-0 border-r overflow-y-auto" style={{ width: 220, borderColor: DS.border, background: DS.bg }}>
                 <ContentBlocks />
             </div>
 
@@ -353,21 +344,12 @@ export function WorkArea() {
                 <CanvasViewer />
                 <Timeline />
             </div>
-            
-            {/* Right sidebar - Viral Tools & Publisher */}
-            <div className="w-72 flex-shrink-0 border-l border-[#1e1e24] bg-[#0a0a0c] overflow-y-auto">
+
+            {/* Right sidebar - Viral Tools & Publisher (each owns its own header) */}
+            <div className="flex-shrink-0 border-l overflow-y-auto" style={{ width: 240, borderColor: DS.border, background: DS.bg }}>
                 <div className="p-3 space-y-4">
-                    <div>
-                        <h3 className="text-xs font-bold uppercase tracking-wider text-[#50505c] mb-3 px-1">
-                            Optimización Viral
-                        </h3>
-                        <ViralTools />
-                    </div>
-                    
-                    <div className="border-t border-[#1e1e24] pt-4">
-                        <h3 className="text-xs font-bold uppercase tracking-wider text-[#50505c] mb-3 px-1">
-                            Publicar
-                        </h3>
+                    <ViralTools />
+                    <div className="border-t pt-4" style={{ borderColor: DS.border }}>
                         <TikTokPublisher />
                     </div>
                 </div>

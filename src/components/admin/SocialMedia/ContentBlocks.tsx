@@ -9,7 +9,7 @@ import {
 import { useStudioContext } from './context';
 import { DS } from './TopBar';
 
-// Viral content blocks
+// Viral content blocks — 3 tones total (marca + 2 variantes), no arcoíris
 const CONTENT_BLOCKS = [
     {
         id: 'image',
@@ -31,7 +31,7 @@ const CONTENT_BLOCKS = [
         id: 'text',
         name: 'Texto Viral',
         icon: <Type size={18} />,
-        color: '#00f2ea',
+        color: '#64748b',
         description: 'Texto con estilo TikTok',
         shortcut: 'TXT',
     },
@@ -39,7 +39,7 @@ const CONTENT_BLOCKS = [
         id: 'sticker',
         name: 'Sticker',
         icon: <Sticker size={18} />,
-        color: '#f59e0b',
+        color: '#22c55e',
         description: 'Emoji o sticker animado',
         shortcut: 'STK',
     },
@@ -47,7 +47,7 @@ const CONTENT_BLOCKS = [
         id: 'hook',
         name: 'Hook 3s',
         icon: <Sparkles size={18} />,
-        color: '#a855f7',
+        color: '#e5173f',
         description: 'Primeros 3 segundos virales',
         shortcut: 'HK',
     },
@@ -55,7 +55,7 @@ const CONTENT_BLOCKS = [
         id: 'sound',
         name: 'Sonido',
         icon: <Music2 size={18} />,
-        color: '#ec4899',
+        color: '#64748b',
         description: 'Música trending o efecto',
         shortcut: 'SND',
     },
@@ -148,7 +148,7 @@ export function ContentBlocks() {
         <div className="p-4 space-y-4">
             {/* Header */}
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold flex items-center gap-2" style={{ color: DS.txt }}>
+                <h3 className="text-[12px] font-bold flex items-center gap-2" style={{ color: DS.txt }}>
                     <LayoutGrid size={16} style={{ color: DS.accent }} />
                     Agregar Contenido
                 </h3>
@@ -211,7 +211,7 @@ export function ContentBlocks() {
                             <p className="text-[10px] font-semibold" style={{ color: DS.txt }}>
                                 {block.name}
                             </p>
-                            <p className="text-[8px] mt-0.5" style={{ color: DS.sub }}>
+                            <p className="text-[9px] mt-0.5" style={{ color: DS.sub }}>
                                 {block.shortcut}
                             </p>
                         </button>
@@ -230,7 +230,7 @@ export function ContentBlocks() {
                             style={{ background: DS.surface, borderColor: DS.border }}
                         >
                             <div className="flex items-center justify-between mb-2">
-                                <span className="text-xs font-semibold" style={{ color: DS.txt }}>
+                                <span className="text-[11px] font-semibold" style={{ color: DS.txt }}>
                                     {layout.name}
                                 </span>
                                 <span className="text-[9px] flex items-center gap-1" style={{ color: DS.sub }}>
@@ -243,9 +243,9 @@ export function ContentBlocks() {
                             </p>
                             <div className="flex items-center gap-1 mt-2">
                                 {layout.elements.map((el, i) => (
-                                    <span 
+                                    <span
                                         key={i}
-                                        className="px-1.5 py-0.5 rounded text-[8px]"
+                                        className="px-1.5 py-0.5 rounded text-[9px]"
                                         style={{ background: DS.surfaceMid, color: DS.sub }}
                                     >
                                         {el}

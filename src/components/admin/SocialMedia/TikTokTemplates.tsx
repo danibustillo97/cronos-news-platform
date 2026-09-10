@@ -167,10 +167,10 @@ export function TikTokTemplates() {
     return (
         <div className="p-4 space-y-4">
             <div className="flex items-center justify-between">
-                <h3 className="text-sm font-bold" style={{ color: DS.txt }}>
+                <h3 className="text-[12px] font-bold" style={{ color: DS.txt }}>
                     Plantillas Virales
                 </h3>
-                <span className="text-xs" style={{ color: DS.sub }}>
+                <span className="text-[10px]" style={{ color: DS.sub }}>
                     Optimizado para TikTok
                 </span>
             </div>
@@ -195,14 +195,14 @@ export function TikTokTemplates() {
                             </div>
                             <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
-                                    <p className="text-sm font-semibold" style={{ color: DS.txt }}>
+                                    <p className="text-[12px] font-semibold" style={{ color: DS.txt }}>
                                         {template.name}
                                     </p>
                                     {selectedTemplate === template.id && (
-                                        <Sparkles size={14} style={{ color: template.color }} />
+                                        <Sparkles size={13} style={{ color: template.color }} />
                                     )}
                                 </div>
-                                <p className="text-xs mt-0.5" style={{ color: DS.sub }}>
+                                <p className="text-[10px] mt-0.5" style={{ color: DS.sub }}>
                                     {template.description}
                                 </p>
                                 <div className="flex items-center gap-3 mt-2">
@@ -250,7 +250,7 @@ export function TikTokTemplates() {
                     className="p-3 rounded-xl text-center"
                     style={{ background: DS.accentDim, border: `1px solid ${DS.accent}30` }}
                 >
-                    <p className="text-xs" style={{ color: DS.accent }}>
+                    <p className="text-[10px]" style={{ color: DS.accent }}>
                         Plantilla seleccionada. Configura tu contenido en el canvas.
                     </p>
                 </div>

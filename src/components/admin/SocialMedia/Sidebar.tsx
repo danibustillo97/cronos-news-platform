@@ -4,12 +4,11 @@ import React, { useState } from 'react';
 import {
     Search, Music, DollarSign, Newspaper,
     RefreshCw, Volume2, Zap, X,
-    Image as ImageIcon, ChevronRight,
+    Image as ImageIcon, ChevronRight, ChevronDown, ChevronUp,
     ExternalLink, Smartphone, Link2, Unlink,
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import { DS } from './TopBar';
-import { TikTokPublisher } from './TikTokPublisher';
 import { TikTokTemplates } from './TikTokTemplates';
 
 /* ═══ atoms ═══ */
@@ -320,6 +319,7 @@ function TikTokPanel() {
     const [isCheckingConfig, setIsCheckingConfig] = useState(false);
     const [testAuthInfo, setTestAuthInfo] = useState<any>(null);
     const [isTestingAuth, setIsTestingAuth] = useState(false);
+    const [showDiagnostics, setShowDiagnostics] = useState(false);
 
     const testAuth = async () => {
         setIsTestingAuth(true);
@@ -344,6 +344,7 @@ function TikTokPanel() {
         setIsCheckingConfig(false);
         // Also run test auth
         await testAuth();
+        setShowDiagnostics(true);
     };
 
     return (
@@ -402,72 +403,84 @@ function TikTokPanel() {
                         </div>
                         
                         {testAuthInfo && (
-                            <div className="p-2.5 rounded-xl text-[9px] leading-relaxed space-y-2" 
-                                style={{ background: '#1a1a1e', border: `1px solid ${DS.border}` }}
-                            >
-                                <div className="flex items-center gap-2">
-                                    <strong style={{ 
-                                        color: testAuthInfo.likelyValidKey && testAuthInfo.processed?.redirectUri?.isHttps 
-                                            ? '#22c55e' : '#ef4444' 
-                                    }}>
-                                        {testAuthInfo.likelyValidKey && testAuthInfo.processed?.redirectUri?.isHttps 
-                                            ? '✓ Parece válido' : '✗ Problemas detectados'}
-                                    </strong>
-                                    <span style={{ color: DS.sub }}>({testAuthInfo.timestamp})</span>
-                                </div>
-                                
-                                {testAuthInfo.issues?.length > 0 && (
-                                    <div style={{ color: '#ef4444' }}>
-                                        <strong>Problemas:</strong>
-                                        <ul className="mt-1 ml-3 space-y-0.5">
-                                            {testAuthInfo.issues.map((issue: string, i: number) => (
-                                                <li key={i}>• {issue}</li>
-                                            ))}
-                                        </ul>
-                                    </div>
-                                )}
-                                
-                                {testAuthInfo.processed?.clientKey && (
-                                    <div style={{ color: DS.sub }}>
-                                        <strong>Client Key:</strong><br />
-                                        Valor: {testAuthInfo.processed.clientKey.value}<br />
-                                        Longitud: {testAuthInfo.processed.clientKey.length} chars<br />
-                                        Formato válido: {testAuthInfo.processed.clientKey.isValidFormat ? '✓' : '✗'}<br />
-                                        Empieza con letra: {testAuthInfo.processed.clientKey.startsWithLetter ? '✓' : '✗'}
-                                    </div>
-                                )}
-                                
-                                {testAuthInfo.processed?.redirectUri && (
-                                    <div style={{ color: DS.sub }}>
-                                        <strong>Redirect URI:</strong><br />
-                                        Valor: {testAuthInfo.processed.redirectUri.value}<br />
-                                        HTTPS: {testAuthInfo.processed.redirectUri.isHttps ? '✓' : '✗'}<br />
-                                        Incluye /callback: {testAuthInfo.processed.redirectUri.includesCallback ? '✓' : '✗'}
-                                    </div>
-                                )}
-                                
-                                {testAuthInfo.builtUrl && (
-                                    <div style={{ color: DS.sub }}>
-                                        <strong>URL Generada:</strong><br />
-                                        <code style={{ 
-                                            display: 'block', 
-                                            wordBreak: 'break-all',
-                                            color: '#888',
-                                            fontSize: '8px'
-                                        }}>
-                                            {testAuthInfo.builtUrl}
-                                        </code>
-                                    </div>
-                                )}
-                                
-                                {testAuthInfo.nextSteps && (
-                                    <div style={{ color: '#f59e0b' }}>
-                                        <strong>Siguientes pasos:</strong>
-                                        <ol className="mt-1 ml-3 space-y-0.5">
-                                            {testAuthInfo.nextSteps.slice(0, 4).map((step: string, i: number) => (
-                                                <li key={i}>{step}</li>
-                                            ))}
-                                        </ol>
+                            <div>
+                                <button type="button" onClick={() => setShowDiagnostics(v => !v)}
+                                    className="w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-[10px] font-semibold transition-all"
+                                    style={{ background: DS.surfaceMid, color: DS.sub, border: `1px solid ${DS.border}` }}
+                                >
+                                    <span>Diagnóstico técnico</span>
+                                    {showDiagnostics ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
+                                </button>
+
+                                {showDiagnostics && (
+                                    <div className="mt-1.5 p-2.5 rounded-xl text-[10px] leading-relaxed space-y-2"
+                                        style={{ background: DS.bg, border: `1px solid ${DS.border}` }}
+                                    >
+                                        <div className="flex items-center gap-2">
+                                            <strong style={{
+                                                color: testAuthInfo.likelyValidKey && testAuthInfo.processed?.redirectUri?.isHttps
+                                                    ? '#22c55e' : '#ef4444'
+                                            }}>
+                                                {testAuthInfo.likelyValidKey && testAuthInfo.processed?.redirectUri?.isHttps
+                                                    ? '✓ Parece válido' : '✗ Problemas detectados'}
+                                            </strong>
+                                            <span style={{ color: DS.sub }}>({testAuthInfo.timestamp})</span>
+                                        </div>
+
+                                        {testAuthInfo.issues?.length > 0 && (
+                                            <div style={{ color: '#ef4444' }}>
+                                                <strong>Problemas:</strong>
+                                                <ul className="mt-1 ml-3 space-y-0.5">
+                                                    {testAuthInfo.issues.map((issue: string, i: number) => (
+                                                        <li key={i}>• {issue}</li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+
+                                        {testAuthInfo.processed?.clientKey && (
+                                            <div style={{ color: DS.sub }}>
+                                                <strong>Client Key:</strong><br />
+                                                Valor: {testAuthInfo.processed.clientKey.value}<br />
+                                                Longitud: {testAuthInfo.processed.clientKey.length} chars<br />
+                                                Formato válido: {testAuthInfo.processed.clientKey.isValidFormat ? '✓' : '✗'}<br />
+                                                Empieza con letra: {testAuthInfo.processed.clientKey.startsWithLetter ? '✓' : '✗'}
+                                            </div>
+                                        )}
+
+                                        {testAuthInfo.processed?.redirectUri && (
+                                            <div style={{ color: DS.sub }}>
+                                                <strong>Redirect URI:</strong><br />
+                                                Valor: {testAuthInfo.processed.redirectUri.value}<br />
+                                                HTTPS: {testAuthInfo.processed.redirectUri.isHttps ? '✓' : '✗'}<br />
+                                                Incluye /callback: {testAuthInfo.processed.redirectUri.includesCallback ? '✓' : '✗'}
+                                            </div>
+                                        )}
+
+                                        {testAuthInfo.builtUrl && (
+                                            <div style={{ color: DS.sub }}>
+                                                <strong>URL Generada:</strong><br />
+                                                <code style={{
+                                                    display: 'block',
+                                                    wordBreak: 'break-all',
+                                                    color: '#888',
+                                                    fontSize: '9px'
+                                                }}>
+                                                    {testAuthInfo.builtUrl}
+                                                </code>
+                                            </div>
+                                        )}
+
+                                        {testAuthInfo.nextSteps && (
+                                            <div style={{ color: '#f59e0b' }}>
+                                                <strong>Siguientes pasos:</strong>
+                                                <ol className="mt-1 ml-3 space-y-0.5">
+                                                    {testAuthInfo.nextSteps.slice(0, 4).map((step: string, i: number) => (
+                                                        <li key={i}>{step}</li>
+                                                    ))}
+                                                </ol>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                             </div>
@@ -536,8 +549,7 @@ function TikTokPanel() {
                 )}
             </div>
 
-            {/* Publish Section — misma UI/lógica que usa el work area, sin duplicarla */}
-            {tiktokAccount?.connected && <TikTokPublisher showHeader={false} />}
+            {/* Publicar: un solo lugar en pantalla, ver el panel derecho del work area */}
 
             {/* Info */}
             <div className="p-3 rounded-xl" style={{ background: DS.surfaceMid }}>
@@ -569,7 +581,7 @@ export function Sidebar() {
 
     return (
         <aside className="flex flex-col flex-shrink-0 h-full overflow-hidden"
-            style={{ width: 260, background: DS.bg, borderRight: `1px solid ${DS.borderSub}` }}
+            style={{ width: 240, background: DS.bg, borderRight: `1px solid ${DS.borderSub}` }}
         >
             {/* tab bar */}
             <div className="flex flex-shrink-0" style={{ borderBottom: `1px solid ${DS.borderSub}` }}>
