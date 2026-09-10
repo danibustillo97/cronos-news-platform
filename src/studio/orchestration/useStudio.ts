@@ -19,15 +19,11 @@ import type {
   FormatType,
   LayoutMode,
   AspectRatio,
-  TabType,
   StudioAudioApi,
   Voice,
 } from '@/studio/shared/types';
 
 export interface StudioApi {
-  // Navigation
-  activeTab: TabType;
-  setActiveTab: (tab: TabType) => void;
   // News
   searchTerm: string;
   setSearchTerm: (value: string) => void;
@@ -150,7 +146,6 @@ const resolveLayoutForNews = (news: NewsItem): Exclude<LayoutMode, 'auto'> => {
 };
 
 export const useStudio = () => {
-  const [activeTab, setActiveTab] = useState<StudioApi['activeTab']>('content');
   const [searchTerm, setSearchTerm] = useState('');
   const [news, setNews] = useState<NewsItem[]>([]);
   const [selectedNews, setSelectedNews] = useState<NewsItem | null>(null);
@@ -648,8 +643,6 @@ export const useStudio = () => {
   }, [refreshTikTokAccount]);
 
   return {
-    activeTab,
-    setActiveTab,
     searchTerm,
     setSearchTerm,
     news,

@@ -2,11 +2,11 @@
 
 import React, { useState } from 'react';
 import {
-    Download, Video, RefreshCw, Share2, Copy,
-    Smartphone, Music, Type, Check, ImagePlus,
+    Video, RefreshCw, Share2, Copy,
+    Smartphone, Type, Check,
     LayoutTemplate, SplitSquareHorizontal, Newspaper, Minus,
     Wand2, Hash, Scissors, CaseSensitive, Sparkles,
-    Play, Pause, Redo, Undo, Zap, AlignLeft, Palette
+    Pause,
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import type { FormatType, LayoutMode } from '@/studio/shared/types';
@@ -23,17 +23,6 @@ export const DS = {
     txt:         '#e8e8f0',
     sub:         '#50505c',
     muted:       '#28282e',
-} as const;
-
-/* ═══════════════ TIKTOK ONLY CONFIG ═══════════════ */
-export const TIKTOK_CONFIG = {
-    icon: <span className="font-black text-[10px] leading-none">TK</span>,
-    color: '#ff0050',
-    bg: '#000000',
-    label: 'TikTok Dev',
-    format: '9:16',
-    maxChars: 2200,
-    maxDuration: 180, // seconds
 } as const;
 
 /* ═══════════════ ATOMS ═══════════════ */
@@ -97,13 +86,6 @@ function QuickToolbar() {
     
     return (
         <div className="flex items-center gap-1">
-            <Btn title="Agregar Imagen" onClick={() => {}}>
-                <ImagePlus size={14} /> Imagen
-            </Btn>
-            <Btn title="Agregar Texto" onClick={() => {}}>
-                <Type size={14} /> Texto
-            </Btn>
-            
             {/* Emoji Picker */}
             <div className="relative">
                 <Btn title="Emojis Virales" onClick={() => setShowEmoji(!showEmoji)} variant="danger">
@@ -128,18 +110,9 @@ function QuickToolbar() {
             </div>
             
             <Sep />
-            
-            <Btn title="Deshacer">
-                <Undo size={14} />
-            </Btn>
-            <Btn title="Rehacer">
-                <Redo size={14} />
-            </Btn>
-            
-            <Sep />
-            
-            <Btn 
-                title={isRecording ? 'Grabando...' : 'Grabar Video'} 
+
+            <Btn
+                title={isRecording ? 'Grabando...' : 'Grabar Video'}
                 variant="danger"
                 onClick={handleRecordVideo}
                 disabled={isRecording}

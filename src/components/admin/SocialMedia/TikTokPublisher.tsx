@@ -3,20 +3,9 @@
 import React, { useState, useCallback } from 'react';
 import { Upload, CheckCircle, X, Smartphone, RefreshCw, Clock, Video, Link2 } from 'lucide-react';
 import { useStudioContext } from './context';
+import { DS } from './TopBar';
 
-const DS = {
-    bg: '#09090b',
-    surface: '#111114',
-    surfaceMid: '#16161a',
-    border: '#1e1e24',
-    accent: '#e5173f',
-    accentDim: 'rgba(229,23,63,0.12)',
-    txt: '#e8e8f0',
-    sub: '#50505c',
-    muted: '#28282e',
-} as const;
-
-export function TikTokPublisher() {
+export function TikTokPublisher({ showHeader = true }: { showHeader?: boolean }) {
     const { tiktokAccount, connectTikTok, disconnectTikTok, refreshTikTokAccount, lastRecordedBlob, publishToTikTok, clearLastRecording } = useStudioContext();
     
     const [isPublishing, setIsPublishing] = useState(false);
@@ -83,37 +72,39 @@ export function TikTokPublisher() {
     return (
         <div className="p-4 rounded-2xl space-y-4" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
             {/* Header - Cuenta conectada */}
-            <div className="flex items-center gap-3">
-                <div 
-                    className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                    style={{ background: 'linear-gradient(135deg, #ff0050 0%, #00f2ea 100%)' }}
-                >
-                    {tiktokAccount.avatar_url ? (
-                        <img src={tiktokAccount.avatar_url} alt="" className="w-full h-full rounded-xl object-cover" />
-                    ) : (
-                        <Smartphone size={18} style={{ color: '#fff' }} />
-                    )}
-                </div>
-                <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold truncate" style={{ color: DS.txt }}>
-                        @{tiktokAccount.display_name || 'usuario'}
-                    </p>
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full" style={{ background: tiktokAccount.is_expired ? '#ef4444' : '#22c55e' }} />
-                        <p className="text-xs" style={{ color: DS.sub }}>
-                            {tiktokAccount.is_expired ? 'Sesión expirada' : 'Conectado'}
-                        </p>
+            {showHeader && (
+                <div className="flex items-center gap-3">
+                    <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                        style={{ background: 'linear-gradient(135deg, #ff0050 0%, #00f2ea 100%)' }}
+                    >
+                        {tiktokAccount.avatar_url ? (
+                            <img src={tiktokAccount.avatar_url} alt="" className="w-full h-full rounded-xl object-cover" />
+                        ) : (
+                            <Smartphone size={18} style={{ color: '#fff' }} />
+                        )}
                     </div>
+                    <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold truncate" style={{ color: DS.txt }}>
+                            @{tiktokAccount.display_name || 'usuario'}
+                        </p>
+                        <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full" style={{ background: tiktokAccount.is_expired ? '#ef4444' : '#22c55e' }} />
+                            <p className="text-xs" style={{ color: DS.sub }}>
+                                {tiktokAccount.is_expired ? 'Sesión expirada' : 'Conectado'}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={disconnectTikTok}
+                        className="p-2 rounded-lg transition-all hover:bg-red-500/10"
+                        style={{ color: DS.sub }}
+                        title="Desconectar"
+                    >
+                        <X size={16} />
+                    </button>
                 </div>
-                <button
-                    onClick={disconnectTikTok}
-                    className="p-2 rounded-lg transition-all hover:bg-red-500/10"
-                    style={{ color: DS.sub }}
-                    title="Desconectar"
-                >
-                    <X size={16} />
-                </button>
-            </div>
+            )}
 
             {/* Video disponible para publicar */}
             {lastRecordedBlob && (

@@ -6,18 +6,7 @@ import {
     Play, Clock, Hash, Music, Type, Plus
 } from 'lucide-react';
 import { useStudioContext } from './context';
-
-const DS = {
-    bg: '#09090b',
-    surface: '#111114',
-    surfaceMid: '#16161a',
-    border: '#1e1e24',
-    accent: '#e5173f',
-    accentDim: 'rgba(229,23,63,0.12)',
-    txt: '#e8e8f0',
-    sub: '#50505c',
-    muted: '#28282e',
-} as const;
+import { DS } from './TopBar';
 
 export interface Template {
     id: string;

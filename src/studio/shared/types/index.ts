@@ -1,6 +1,5 @@
 import type { ComponentType } from 'react';
 
-export type TabType = 'content' | 'design' | 'editor' | 'video' | 'audio' | 'sponsor';
 export type FormatType = 'square' | 'story' | 'video';
 export type LayoutMode = 'auto' | 'overlay' | 'split' | 'breaking' | 'minimal';
 export type AspectRatio = '9:16' | '16:9';
