@@ -5,12 +5,14 @@ import {
     Music, DollarSign, Smartphone, Sparkles,
     RefreshCw, Volume2, Zap, X,
     Image as ImageIcon, ChevronRight, ChevronDown, ChevronUp,
-    Link2, Unlink,
+    Link2, Unlink, FolderInput,
 } from 'lucide-react';
 import { useStudioContext } from './context';
+import { useProduction } from '@/studio/lab/ProductionContext';
 import { DS } from './TopBar';
 import { ViralTools } from './ViralTools';
 import { TikTokPublisher } from './TikTokPublisher';
+import { LabInfoPanel } from './LabInfoPanel';
 
 /* ═══ atoms (shared look with LibraryPanel) ═══ */
 const Label = ({ children }: { children: React.ReactNode }) => (
@@ -472,17 +474,19 @@ function ViralPanel() {
 }
 
 /* ═══ TOOLS PANEL ROOT ═══ */
-type Tab = 'viral' | 'audio' | 'sponsor' | 'tiktok';
+type Tab = 'viral' | 'audio' | 'sponsor' | 'tiktok' | 'lab';
 const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: 'viral',   label: 'Viral',   icon: <Sparkles size={11} /> },
     { id: 'audio',   label: 'Audio',   icon: <Music size={11} /> },
     { id: 'sponsor', label: 'Sponsor', icon: <DollarSign size={11} /> },
     { id: 'tiktok',  label: 'TikTok',  icon: <Smartphone size={11} /> },
+    { id: 'lab',     label: 'Historia', icon: <FolderInput size={11} /> },
 ];
-const PANELS: Record<Tab, React.FC> = { viral: ViralPanel, audio: AudioPanel, sponsor: SponsorPanel, tiktok: TikTokPanel };
+const PANELS: Record<Tab, React.FC> = { viral: ViralPanel, audio: AudioPanel, sponsor: SponsorPanel, tiktok: TikTokPanel, lab: LabInfoPanel };
 
 export function ToolsPanel() {
-    const [tab, setTab] = useState<Tab>('viral');
+    const { activeStory } = useProduction();
+    const [tab, setTab] = useState<Tab>(activeStory ? 'lab' : 'viral');
     const Panel = PANELS[tab];
 
     return (

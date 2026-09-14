@@ -4,7 +4,7 @@ import React, { useState, useCallback } from 'react';
 import {
     Zap, Hash, Sparkles, TrendingUp,
     Copy, Check, RefreshCw, Lightbulb,
-    Volume2, Type, Clock
+    Volume2, Type, Clock,
 } from 'lucide-react';
 import { useStudioContext } from './context';
 import { DS } from './TopBar';
@@ -26,9 +26,8 @@ const slugifyTag = (value: string) =>
         .replace(/[^a-z0-9]+/g, '');
 
 export function ViralTools() {
-    const { customTitle, setCustomTitle, selectedNews } = useStudioContext();
+    const { customTitle, setCustomTitle, selectedNews, generatedHook, setGeneratedHook } = useStudioContext();
     const [copied, setCopied] = useState(false);
-    const [generatedHook, setGeneratedHook] = useState('');
     const [selectedHashtags, setSelectedHashtags] = useState<string[]>([]);
     const [isGenerating, setIsGenerating] = useState(false);
 
@@ -132,6 +131,10 @@ export function ViralTools() {
                     )}
                     {isGenerating ? 'Generando...' : 'Generar Hook'}
                 </button>
+
+                <p className="text-[9px] px-0.5" style={{ color: DS.muted }}>
+                    Los hooks reales que escribió LAB para esta historia están en Herramientas → Historia.
+                </p>
             </div>
 
             {/* Hashtag Selector */}

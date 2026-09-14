@@ -1,7 +1,9 @@
 "use client";
 import React from 'react';
+import Image from 'next/image';
 import { Clock, ChevronRight } from 'lucide-react';
 import { stripHtml, truncateText } from '@/lib/textUtils';
+import { proxiedImage } from '@/lib/media';
 
 interface News {
   id: string;
@@ -38,19 +40,26 @@ const formatDate = (dateString: string) => {
 }
 
 export default function NewsCard({ news, onClick, showStatus = false, darkMode = false }: NewsCardProps) {
+  const image = proxiedImage(news.image_url);
   return (
-    <article 
+    <article
         className={`${darkMode ? 'bg-white/5 border border-white/10 hover:border-white/20' : 'bg-white shadow-lg hover:shadow-xl'} rounded-2xl overflow-hidden transition-all duration-300 group cursor-pointer h-full flex flex-col transform hover:-translate-y-1`}
         onClick={onClick}
     >
       <div className="relative aspect-video w-full overflow-hidden bg-neutral-900">
-        <img 
-          src={news.image_url || 'https://via.placeholder.com/600x400'} 
-          alt={news.title}
-          loading="lazy"
-          decoding="async"
-          className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
-        />
+        {image ? (
+          <Image
+            src={image}
+            alt={news.title}
+            fill
+            sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 320px"
+            className="object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-800 to-neutral-950">
+            <span className="text-red-500/80 font-black text-sm tracking-tight">Nexus News</span>
+          </div>
+        )}
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-t from-black/60 to-transparent opacity-60" />
         <div className="absolute top-3 left-3 flex gap-2">
             <span className="bg-white/95 backdrop-blur-md px-2 py-1 rounded text-xs font-bold text-neutral-900 shadow-sm uppercase tracking-wide">

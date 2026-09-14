@@ -271,9 +271,9 @@ export function TopBar() {
                 <Share2 size={10} />
             </Btn>
 
-            <button 
-                type="button" 
-                onClick={handleRecordVideo} 
+            <button
+                type="button"
+                onClick={handleRecordVideo}
                 disabled={isRecording}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-[11px] font-bold flex-shrink-0 transition-all disabled:opacity-60"
                 style={isRecording

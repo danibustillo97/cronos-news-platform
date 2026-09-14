@@ -185,6 +185,7 @@ function Timeline() {
     const [zoom, setZoom] = useState(PX_PER_SEC);
     const trackRef = useRef<HTMLDivElement | null>(null);
     const userZoomedRef = useRef(false);
+
     const totalMs = videoScript.reduce((s, seg) => s + seg.duration, 0) || 1000;
     const totalSec = Math.ceil(totalMs / 1000);
 
@@ -301,11 +302,14 @@ function Timeline() {
                         {/* clips */}
                         <div className="flex items-stretch px-2 py-2 gap-0.5">
                             {videoScript.length === 0 ? (
-                                <button type="button" onClick={generateVideoScript}
-                                    className="self-center flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e5173f]/20 bg-[#e5173f]/5 text-[#e5173f] text-[10px] font-semibold hover:bg-[#e5173f]/10 transition-all"
-                                >
-                                    <Sparkles size={10} />Generar guion con IA
-                                </button>
+                                <div className="self-center flex items-center gap-2">
+                                    <button type="button" onClick={generateVideoScript}
+                                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-[#e5173f]/20 bg-[#e5173f]/5 text-[#e5173f] text-[10px] font-semibold hover:bg-[#e5173f]/10 transition-all"
+                                    >
+                                        <Sparkles size={10} />Generar guion con IA
+                                    </button>
+                                    <span className="text-[10px]" style={{ color: '#4a4a52' }}>o cargá el guion real en Herramientas → Historia</span>
+                                </div>
                             ) : videoScript.map((seg, idx) => (
                                 <Clip
                                     key={idx}

@@ -1,12 +1,10 @@
 export type View =
     | "dashboard"
     | "news"
+    | "production"
     | "social"
-    | "stories"
-    | "social_gen"
-    | "tags_seo"
-    | "analytics"
-    | "settings";
+    | "distribution"
+    | "tags_seo";
 
 export type AnalysisMode =
     | "noris"

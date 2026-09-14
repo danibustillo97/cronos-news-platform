@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
-import { Edit, Plus, FileText, User, LayoutGrid, List as ListIcon, Bot, RefreshCw, Filter, Trash2, Globe, Eye } from "lucide-react";
+import { Edit, Plus, FileText, User, LayoutGrid, List as ListIcon, Bot, RefreshCw, Filter, Trash2, Globe, Eye, Factory } from "lucide-react";
 import NewsCard from "@/components/news/NewsCard";
 import { supabase } from "@/lib/supabaseClient";
 import { toast } from "sonner";
+import { useProduction } from "@/studio/lab/ProductionContext";
 
 interface News {
   id: string;
@@ -30,12 +31,14 @@ import { useEditorWorkspace } from "@/context/EditorWorkspaceContext";
 
 export default function AdminNewsManager() {
   const { openEditor, updateDraft } = useEditorWorkspace();
+  const { setActiveView, convertToContent, lastError } = useProduction();
   const [newsList, setNewsList] = useState<News[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
   const [filterStatus, setFilterStatus] = useState<'all' | 'published' | 'draft'>('all');
   const [isDeleting, setIsDeleting] = useState<string | null>(null);
   const [isPublishing, setIsPublishing] = useState<string | null>(null);
+  const [isConverting, setIsConverting] = useState<string | null>(null);
 
   const fetchNews = async () => {
     // 1. Instant Cache Load
@@ -100,6 +103,27 @@ export default function AdminNewsManager() {
     }
   };
 
+  const handleProduce = async (news: News) => {
+    // "Convertir en contenido": resuelve/crea la Story y dispara LAB real
+    // vía el Local Runtime -- el usuario nunca ve ni necesita un story_id.
+    setIsConverting(news.id);
+    const toastId = toast.loading("Convirtiendo en contenido...");
+    const result = await convertToContent(news.id, news.title, news.image_url ?? null);
+    if (!result) {
+      const msg = lastError?.error === "RUNTIME_UNAVAILABLE"
+        ? "El runtime local no está disponible."
+        : lastError?.error === "SCHEMA_NOT_PROVISIONED"
+          ? "Falta aplicar el schema de Supabase (ver supabase_setup/)."
+          : lastError?.message || "No se pudo convertir en contenido";
+      toast.error(msg, { id: toastId });
+      setIsConverting(null);
+      return;
+    }
+    toast.success("Producción iniciada", { id: toastId });
+    setActiveView('production');
+    setIsConverting(null);
+  };
+
   const handlePublish = async (id: string) => {
     setIsPublishing(id);
     const toastId = toast.loading("Publishing...");
@@ -126,7 +150,7 @@ export default function AdminNewsManager() {
   const handleDelete = async (id: string) => {
     // Ideally replace confirm with a custom modal, but toast is priority for status
     if (!confirm("Are you sure you want to delete this story? This action cannot be undone.")) return;
-    
+
     setIsDeleting(id);
     const toastId = toast.loading("Deleting...");
     
@@ -262,7 +286,15 @@ export default function AdminNewsManager() {
                                <Edit size={14} /> Edit
                             </button>
                           </a>
-                        
+
+                        <button
+                          onClick={() => handleProduce(news)}
+                          disabled={isConverting === news.id}
+                          className="w-full max-w-[140px] bg-blue-600/20 border border-blue-600/50 text-blue-400 px-4 py-2 rounded-lg font-bold text-sm hover:bg-blue-600 hover:text-white transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                        >
+                          <Factory size={14} /> {isConverting === news.id ? "Convirtiendo..." : "Convertir en contenido"}
+                        </button>
+
                         {news.status !== 'published' && (
                            <button 
                              onClick={() => handlePublish(news.id)}
@@ -335,13 +367,21 @@ export default function AdminNewsManager() {
                                 {isPublishing === n.id ? <RefreshCw className="animate-spin" size={16} /> : <Globe size={16} />}
                               </button>
                             )}
-                            <button 
-                                onClick={() => handleEdit(n)} 
+                            <button
+                                onClick={() => handleEdit(n)}
                                 className="p-2 hover:bg-white/10 rounded text-neutral-400 hover:text-white transition-colors"
                             >
                                 <Edit size={16} />
                             </button>
-                            <button 
+                            <button
+                                onClick={() => handleProduce(n)}
+                                disabled={isConverting === n.id}
+                                className="p-2 hover:bg-blue-500/20 rounded text-neutral-400 hover:text-blue-400 transition-colors disabled:opacity-50"
+                                title="Convertir en contenido"
+                            >
+                                <Factory size={16} />
+                            </button>
+                            <button
                               onClick={() => handleDelete(n.id)}
                               disabled={isDeleting === n.id}
                               className="p-2 hover:bg-red-500/20 rounded text-neutral-400 hover:text-red-500 transition-colors"

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState } from "react";
+import Image from "next/image";
 import {
   ArrowLeft,
   Share2,
@@ -10,7 +11,8 @@ import {
   Send
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import AdSpace from '@/components/ads/AdSpace';
+import AdSlot from '@/components/ads/AdSlot';
+import { proxiedImage } from '@/lib/media';
 
 /* =======================
    TIPOS
@@ -137,50 +139,30 @@ export default function ArticleClient({ news }: { news: NewsItem }) {
           )}
 
           {/* IMAGEN */}
-          <img
-            src={news.image_url}
-            alt={news.title}
-            className="w-full h-[450px] object-cover rounded-2xl mb-10"
-            loading="lazy"
-          />
+          {proxiedImage(news.image_url) && (
+            <div className="relative w-full h-[280px] sm:h-[400px] md:h-[450px] rounded-2xl overflow-hidden mb-10">
+              <Image
+                src={proxiedImage(news.image_url)!}
+                alt={news.title}
+                fill
+                sizes="(max-width: 768px) 100vw, 896px"
+                className="object-cover"
+                priority
+              />
+            </div>
+          )}
 
           {/* CONTENIDO */}
           <section className="space-y-6 text-lg text-gray-300 leading-relaxed text-justify">
             {paragraphs.map((p, i) => (
-              <p key={i}>{p}</p>
+              <React.Fragment key={i}>
+                <p>{p}</p>
+                {i === 1 && <AdSlot position="ARTICLE_MIDDLE" className="my-10" />}
+              </React.Fragment>
             ))}
           </section>
 
-          {/* BLOQUE SEO: CLAVES */}
-          <section className="mt-14 border-t border-gray-800 pt-8">
-            <h2 className="text-2xl font-black mb-6">🔍 Claves de la noticia</h2>
-            <ul className="space-y-4 text-gray-300 text-lg">
-              <li><strong className="text-white">Qué ocurrió:</strong> {news.summary}</li>
-              <li><strong className="text-white">Por qué es importante:</strong> El hecho tiene impacto directo en el contexto actual y genera repercusiones inmediatas.</li>
-              <li><strong className="text-white">Qué se espera ahora:</strong> En los próximos días se esperan nuevas decisiones y reacciones oficiales.</li>
-            </ul>
-          </section>
-
-          {/* ANTECEDENTES */}
-          <section className="mt-12 bg-gray-900/40 border border-gray-800 rounded-2xl p-6">
-            <h2 className="text-2xl font-black mb-4">📚 Antecedentes</h2>
-            <p className="text-gray-300 text-lg leading-relaxed">
-              Este acontecimiento se suma a otros hechos recientes que han marcado la actualidad.
-              Situaciones similares ya se han presentado anteriormente, generando análisis y debate.
-            </p>
-          </section>
-
-          {/* IMPACTO */}
-          <section className="mt-12">
-            <h2 className="text-2xl font-black mb-4">💬 Impacto y reacciones</h2>
-            <p className="text-gray-300 text-lg leading-relaxed">
-              La noticia ha generado reacciones inmediatas en redes sociales y entre analistas,
-              quienes consideran que este hecho podría marcar un punto de inflexión.
-            </p>
-          </section>
-
-          {/* PUBLICIDAD */}
-          <AdSpace slotId="8962635274" className="my-16" />
+          <AdSlot position="ARTICLE_END" className="my-16" />
 
           {/* TAGS */}
           {news.tags && news.tags.length > 0 && (

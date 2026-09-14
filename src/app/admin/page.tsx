@@ -3,19 +3,22 @@
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
-import { Bell, Search, Cpu, Wifi, LogOut, Facebook, Twitter, Instagram, Youtube, Linkedin, MessageCircle } from "lucide-react";
+import { Bell, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminDashboard from "@/components/admin/AdminDashboard";
 import SmartWorkspace from "@/components/admin/SmartWorkspace";
 import AdminSeoTags from "@/components/admin/AdminSeoTags";
-import SocialMediaGenerator from "@/components/admin/SocialMedia/SocialMedia";
+import StudioView from "@/components/admin/Studio/StudioView";
+import { ProductionWorkspace } from "@/components/admin/Production/ProductionWorkspace";
+import { DistributionView } from "@/components/admin/Distribution/DistributionView";
+import { useProduction } from "@/studio/lab/ProductionContext";
 
 import { View, AnalysisMode } from "@/types/admin";
 
 export default function AdminPage() {
-  const [activeView, setActiveView] = useState<View>("dashboard");
+  const { activeView, setActiveView, activeStory } = useProduction();
   const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("noris");
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
@@ -23,13 +26,11 @@ export default function AdminPage() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check URL params immediately
     const url = new URL(window.location.href);
-    const viewParam = url.searchParams.get('view');
-    
-    if (viewParam === 'social') {
-      setActiveView('social');
-    }
+    const viewParam = url.searchParams.get('view') as View | null;
+    if (viewParam) setActiveView(viewParam);
+    // Runs once on mount to honor a deep link (?view=social, etc).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -52,41 +53,25 @@ export default function AdminPage() {
 
   const pageTitle = useMemo(() => {
     switch (activeView) {
-      case "dashboard":
-        return "Command Center";
-      case "news":
-        return "Analysis Desk";
-      case "social":
-        return "Content Studio";
-      case "tags_seo":
-        return "SEO Intelligence";
-      default:
-        return "Nexus Admin";
+      case "dashboard": return "Command Center";
+      case "news": return "News";
+      case "production": return "Producción";
+      case "social": return "Studio";
+      case "distribution": return "Distribución";
+      case "tags_seo": return "SEO Intelligence";
+      default: return "CRONOS";
     }
   }, [activeView]);
 
   const renderContent = () => {
     switch (activeView) {
-      case "dashboard":
-        return <AdminDashboard />;
-
-      case "news":
-        return (
-          <SmartWorkspace />
-        );
-
-      case "social":
-        return <SocialMediaGenerator />;
-
-      case "tags_seo":
-        return <AdminSeoTags />;
-
-      default:
-        return (
-          <div className="flex items-center justify-center h-[60vh] text-neutral-500">
-            <Cpu size={64} className="text-neutral-800" />
-          </div>
-        );
+      case "dashboard": return <AdminDashboard />;
+      case "news": return <SmartWorkspace />;
+      case "production": return <ProductionWorkspace />;
+      case "social": return <StudioView />;
+      case "distribution": return <DistributionView />;
+      case "tags_seo": return <AdminSeoTags />;
+      default: return null;
     }
   };
 
@@ -98,6 +83,8 @@ export default function AdminPage() {
     );
   }
 
+  const fullBleed = activeView === 'social' || activeView === 'production' || activeView === 'distribution';
+
   return (
     <div className="bg-[#050505] h-screen text-white overflow-hidden">
       <AdminSidebar
@@ -106,20 +93,27 @@ export default function AdminPage() {
       />
 
       <div className="flex flex-col h-screen overflow-hidden" style={{ marginLeft: 48, width: 'calc(100vw - 48px)' }}>
-        <header className={`border-b border-white/10 px-8 flex items-center justify-between bg-black/60 backdrop-blur flex-shrink-0 ${activeView === 'social' ? 'hidden' : 'h-20'}`}>
-          <div className="flex items-center gap-6">
-            <h1 className="text-2xl font-black tracking-tight">
+        <header className={`border-b border-white/10 px-6 flex items-center justify-between bg-black/60 backdrop-blur flex-shrink-0 ${activeView === 'social' ? 'hidden' : 'h-14'}`}>
+          <div className="flex items-center gap-4 min-w-0">
+            <h1 className="text-[15px] font-bold tracking-tight">
               {pageTitle}
             </h1>
 
+            {activeStory?.title && (
+              <>
+                <span className="text-neutral-700">/</span>
+                <span className="text-[12px] text-neutral-400 truncate max-w-[360px]">{activeStory.title}</span>
+              </>
+            )}
+
             {activeView === "news" && (
-              <div className="flex gap-2">
+              <div className="flex gap-2 ml-2">
                 {(["noris", "breaking", "opinion", "data"] as AnalysisMode[]).map(
                   (mode) => (
                     <button
                       key={mode}
                       onClick={() => setAnalysisMode(mode)}
-                      className={`px-3 py-1 rounded-full text-xs uppercase tracking-widest ${analysisMode === mode
+                      className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-widest ${analysisMode === mode
                         ? "bg-red-500/10 text-red-500 border border-red-500/30"
                         : "text-neutral-400 border border-white/10 hover:text-white"
                         }`}
@@ -130,36 +124,30 @@ export default function AdminPage() {
                 )}
               </div>
             )}
-
-            <div className="flex items-center gap-3 ml-8">
-              <Facebook size={16} className="text-blue-500 cursor-pointer hover:text-blue-400" onClick={() => setActiveView("social")} />
-              <Twitter size={16} className="text-blue-400 cursor-pointer hover:text-blue-300" onClick={() => setActiveView("social")} />
-              <Instagram size={16} className="text-pink-500 cursor-pointer hover:text-pink-400" onClick={() => setActiveView("social")} />
-              <Youtube size={16} className="text-red-500 cursor-pointer hover:text-red-400" onClick={() => setActiveView("social")} />
-              <Linkedin size={16} className="text-blue-600 cursor-pointer hover:text-blue-500" onClick={() => setActiveView("social")} />
-              <MessageCircle size={16} className="text-black cursor-pointer hover:text-gray-700" onClick={() => setActiveView("social")} />
-            </div>
           </div>
 
-          <div className="flex items-center gap-6">
-            <Wifi size={16} className="text-green-500" />
-            <Bell size={18} />
-            <button onClick={handleLogout}>
-              <LogOut size={18} />
+          <div className="flex items-center gap-5 flex-shrink-0">
+            <span className="flex items-center gap-1.5 text-[10px] text-neutral-500">
+              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+              live
+            </span>
+            <Bell size={16} className="text-neutral-500" />
+            <button onClick={handleLogout} className="text-neutral-500 hover:text-white transition-colors">
+              <LogOut size={16} />
             </button>
           </div>
         </header>
 
-        <main className={`min-h-0 flex-1 ${activeView === 'social' ? 'overflow-hidden' : 'p-8 overflow-y-auto'}`}>
+        <main className={`min-h-0 flex-1 ${fullBleed ? 'overflow-hidden' : 'p-6 overflow-y-auto'}`}>
           <AnimatePresence mode="wait">
             <motion.div
               key={activeView}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.2 }}
-              className={activeView === 'social' ? 'h-full flex flex-col' : undefined}
-              style={activeView === 'social' ? { height: '100%' } : undefined}
+              exit={{ opacity: 0, y: -8 }}
+              transition={{ duration: 0.15 }}
+              className={fullBleed ? 'h-full flex flex-col' : undefined}
+              style={fullBleed ? { height: '100%' } : undefined}
             >
               {renderContent()}
             </motion.div>

@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import {
-    LayoutDashboard, FileText, Tags, BarChart2,
-    Settings, Globe, Zap, Share2,
+    LayoutDashboard, Newspaper, Tags, Factory,
+    Clapperboard, Radio, Globe, Zap,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,12 +14,12 @@ interface AdminSidebarProps {
 }
 
 const ITEMS = [
-    { id: "dashboard", label: "Command Center", icon: LayoutDashboard },
-    { id: "news",      label: "News Grid",       icon: FileText },
-    { id: "social",    label: "Content Studio",  icon: Share2 },
-    { id: "tags_seo",  label: "SEO Intelligence", icon: Tags },
-    { id: "analytics", label: "Live Analytics",  icon: BarChart2 },
-    { id: "settings",  label: "System Config",   icon: Settings },
+    { id: "dashboard",    label: "Command Center", icon: LayoutDashboard },
+    { id: "news",         label: "News",           icon: Newspaper },
+    { id: "production",   label: "Producción",     icon: Factory },
+    { id: "social",       label: "Studio",         icon: Clapperboard },
+    { id: "distribution", label: "Distribución",   icon: Radio },
+    { id: "tags_seo",     label: "SEO",            icon: Tags },
 ];
 
 export default function AdminSidebar({ activeView, setActiveView }: AdminSidebarProps) {

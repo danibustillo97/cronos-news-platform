@@ -1,5 +1,6 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { ChangeEvent, RefObject } from 'react';
+import { useProduction } from '@/studio/lab/ProductionContext';
 import { useAudio } from '@/studio/engines/audio/useAudio';
 import { useVideo } from '@/studio/engines/video/useVideo';
 import { useScript } from '@/studio/engines/text/useScript';
@@ -30,6 +31,8 @@ export interface StudioApi {
   // Content
   customTitle: string;
   setCustomTitle: (value: string) => void;
+  generatedHook: string;
+  setGeneratedHook: (value: string) => void;
   // Design
   layoutMode: LayoutMode;
   setLayoutMode: (value: LayoutMode) => void;
@@ -84,6 +87,8 @@ export interface StudioApi {
   lastRecordedBlob: Blob | null;
   lastRecordedUrl: string | null;
   clearLastRecording: () => void;
+  loadRenderedVideo: (file: File) => void;
+  loadRenderedVideoFromUrl: (url: string) => Promise<void>;
   // Audio engine
   voices: Voice[];
   selectedVoice: string;
@@ -118,6 +123,7 @@ export interface StudioApi {
  */
 export const useStudio = () => {
   const [customTitle, setCustomTitle] = useState('');
+  const [generatedHook, setGeneratedHook] = useState('');
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('overlay');
   const [format, setFormat] = useState<FormatType>('story');
   const [fontSize, setFontSize] = useState(48);
@@ -146,6 +152,17 @@ export const useStudio = () => {
 
   const { searchTerm, setSearchTerm, news, selectedNews, setSelectedNews, handleNewsSelect } =
     useNews(handleNewsSelected);
+
+  const { activeStory } = useProduction();
+  const syncedStoryRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!activeStory?.newsId || syncedStoryRef.current === activeStory.newsId) return;
+    const match = news.find(n => n.id === activeStory.newsId);
+    if (match) {
+      syncedStoryRef.current = activeStory.newsId;
+      handleNewsSelect(match);
+    }
+  }, [activeStory?.newsId, news, handleNewsSelect]);
 
   const { canvasRef, isTainted, downloadImage } = useCanvasRenderer({
     selectedNews,
@@ -229,6 +246,8 @@ export const useStudio = () => {
     setSelectedNews,
     customTitle,
     setCustomTitle,
+    generatedHook,
+    setGeneratedHook,
     layoutMode,
     setLayoutMode,
     format,
@@ -282,6 +301,8 @@ export const useStudio = () => {
     lastRecordedBlob: video.lastRecordedBlob,
     lastRecordedUrl: video.lastRecordedUrl,
     clearLastRecording: video.clearLastRecording,
+    loadRenderedVideo: video.loadRenderedVideo,
+    loadRenderedVideoFromUrl: video.loadRenderedVideoFromUrl,
     bgAudioName,
     bgAudioVolume,
     setBgAudioVolume,

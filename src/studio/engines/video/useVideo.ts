@@ -68,6 +68,30 @@ export const useVideo = (canvasRef: RefObject<HTMLCanvasElement | null>, isTaint
     setLastRecordedUrl(null);
   }, [lastRecordedUrl]);
 
+  // Carga un video ya renderizado externamente (ej. el final_reel.mp4 de un
+  // export de LAB) en el mismo slot que ocupa un video grabado en vivo con
+  // el canvas -- el resto del Studio (preview, publishToTikTok) no distingue
+  // el origen del Blob, así que no hace falta ningún otro cambio.
+  const loadRenderedVideo = useCallback((file: File) => {
+    if (lastRecordedUrl) {
+      URL.revokeObjectURL(lastRecordedUrl);
+    }
+    setLastRecordedBlob(file);
+    setLastRecordedUrl(URL.createObjectURL(file));
+  }, [lastRecordedUrl]);
+
+  // Same slot, but sourced from a backend-served reference (rule: frontend
+  // never parses/uploads LAB artifacts — it fetches the final_reel the
+  // backend already resolved via GET /api/stories/{id}/workspace).
+  const loadRenderedVideoFromUrl = useCallback(async (url: string) => {
+    const response = await fetch(url);
+    if (!response.ok) throw new Error(`Failed to fetch rendered video: ${response.status}`);
+    const blob = await response.blob();
+    if (lastRecordedUrl) URL.revokeObjectURL(lastRecordedUrl);
+    setLastRecordedBlob(blob);
+    setLastRecordedUrl(URL.createObjectURL(blob));
+  }, [lastRecordedUrl]);
+
   return {
     isRecording,
     recordingProgress,
@@ -75,5 +99,7 @@ export const useVideo = (canvasRef: RefObject<HTMLCanvasElement | null>, isTaint
     lastRecordedBlob,
     lastRecordedUrl,
     clearLastRecording,
+    loadRenderedVideo,
+    loadRenderedVideoFromUrl,
   };
 };

@@ -1,0 +1,126 @@
+{
+  "nodes": [
+    {
+      "id": "a1a1a1a1a1a1a1a1",
+      "type": "group",
+      "x": -60,
+      "y": -60,
+      "width": 1060,
+      "height": 420,
+      "label": "Ramas activas",
+      "color": "4"
+    },
+    {
+      "id": "b2b2b2b2b2b2b2b2",
+      "type": "group",
+      "x": -60,
+      "y": 460,
+      "width": 1500,
+      "height": 340,
+      "label": "Base común y ramas obsoletas (bot Vercel)",
+      "color": "3"
+    },
+    {
+      "id": "c3c3c3c3c3c3c3c3",
+      "type": "text",
+      "x": 0,
+      "y": 0,
+      "width": 460,
+      "height": 300,
+      "color": "4",
+      "text": "# 🟢 master\n**Producción** · nexusnews.info\n\nHEAD: `9ccb162`\n33 commits\n\n- Rama por defecto\n- `SocialMediaGenerator.tsx` monolítico (~2750 líneas) todavía en uso\n- Next.js ^15.4.5\n\n[[Master (producción)]]"
+    },
+    {
+      "id": "d4d4d4d4d4d4d4d4",
+      "type": "text",
+      "x": 540,
+      "y": 0,
+      "width": 460,
+      "height": 300,
+      "color": "5",
+      "text": "# 🔵 feature/social-media-studio-v2\n**Desarrollo activo**\n\nHEAD: `d0558f9`\n48 commits (+15 sobre master)\n\n- Reescribe redes sociales como editor NLE\n- Nuevo `src/studio/` (engines audio/video/texto)\n- Integración TikTok OAuth+PKCE\n\n[[Feature - Social Media Studio v2]]"
+    },
+    {
+      "id": "e5e5e5e5e5e5e5e5",
+      "type": "text",
+      "x": 220,
+      "y": 520,
+      "width": 420,
+      "height": 220,
+      "color": "2",
+      "text": "# ⚪ fd7919c \"Recunstruccion\"\n2025-10-22\n\nCommit ancestro común entre `master` y las ramas del bot de Vercel — **anterior** a la gran reescritura del proyecto."
+    },
+    {
+      "id": "f6f6f6f6f6f6f6f6",
+      "type": "text",
+      "x": -20,
+      "y": 780,
+      "width": 420,
+      "height": 280,
+      "color": "3",
+      "text": "# 🟡 vercel/...cve-vu-rvyb3v\nautor: `vercel[bot]`, 2025-12-30\n\nFix automático de CVE de React Server Components. Pinea `next` a `15.3.8`.\n\n⚠️ Basada en `fd7919c`, no en `master` actual — **no fusionar tal cual**.\n\n[[Vercel - Fix CVE RSC]]"
+    },
+    {
+      "id": "g7g7g7g7g7g7g7g7",
+      "type": "text",
+      "x": 460,
+      "y": 780,
+      "width": 420,
+      "height": 280,
+      "color": "3",
+      "text": "# 🟡 vercel/...cve-vu-z7xhwa\nautor: `vercel[bot]`, 2025-12-30\n\nDuplicado casi idéntico del fix anterior (mismo PR abierto dos veces).\n\n[[Vercel - Fix CVE RSC]]"
+    },
+    {
+      "id": "h8h8h8h8h8h8h8h8",
+      "type": "text",
+      "x": 1040,
+      "y": 0,
+      "width": 400,
+      "height": 300,
+      "color": "6",
+      "text": "# 🧭 Recomendación\n\n1. **Trabajar sobre `feature/social-media-studio-v2`** — es donde está el desarrollo vivo.\n2. Mergear a `master` cuando el Studio esté estable.\n3. Cerrar las ramas del bot de Vercel una vez confirmado que `master` (Next ^15.4.5) ya cubre la CVE.\n\n[[Roadmap]]"
+    }
+  ],
+  "edges": [
+    {
+      "id": "i9i9i9i9i9i9i9i9",
+      "fromNode": "c3c3c3c3c3c3c3c3",
+      "fromSide": "right",
+      "toNode": "d4d4d4d4d4d4d4d4",
+      "toSide": "left",
+      "toEnd": "arrow",
+      "color": "5",
+      "label": "+15 commits, diverge en Social Media Studio"
+    },
+    {
+      "id": "j0j0j0j0j0j0j0j0",
+      "fromNode": "e5e5e5e5e5e5e5e5",
+      "fromSide": "top",
+      "toNode": "c3c3c3c3c3c3c3c3",
+      "toSide": "bottom",
+      "toEnd": "arrow",
+      "color": "4",
+      "label": "reescritura completa → hoy"
+    },
+    {
+      "id": "k1k1k1k1k1k1k1k1",
+      "fromNode": "e5e5e5e5e5e5e5e5",
+      "fromSide": "bottom",
+      "toNode": "f6f6f6f6f6f6f6f6",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "color": "3",
+      "label": "bot Vercel, base desactualizada"
+    },
+    {
+      "id": "l2l2l2l2l2l2l2l2",
+      "fromNode": "e5e5e5e5e5e5e5e5",
+      "fromSide": "bottom",
+      "toNode": "g7g7g7g7g7g7g7g7",
+      "toSide": "top",
+      "toEnd": "arrow",
+      "color": "3",
+      "label": "duplicado"
+    }
+  ]
+}

@@ -1,119 +1,225 @@
 "use client";
-import { ArrowUpRight, ArrowDownRight, Users, Eye, MousePointer, Clock, Zap, Activity } from "lucide-react";
-import { motion } from "framer-motion";
+
+import { useEffect, useState } from "react";
+import { FileText, Globe, ArrowRight, Factory, CheckCircle2, AlertTriangle, Circle, Sparkles } from "lucide-react";
+import { supabase } from "@/lib/supabaseClient";
+import { useProduction } from "@/studio/lab/ProductionContext";
+import { apiUrl } from "@/studio/lab/api-client";
+import { DS } from "@/components/admin/SocialMedia/TopBar";
+
+interface NewsSummary {
+  total: number;
+  published: number;
+  draft: number;
+  recent: { id: string; title: string; status: string; published_at: string }[];
+}
+
+function useNewsSummary() {
+  const [summary, setSummary] = useState<NewsSummary | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from('news')
+      .select('id, title, status, published_at')
+      .order('published_at', { ascending: false })
+      .limit(200)
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+        setSummary({
+          total: data.length,
+          published: data.filter(n => n.status === 'published').length,
+          draft: data.filter(n => n.status !== 'published').length,
+          recent: data.slice(0, 5),
+        });
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  return summary;
+}
+
+interface DiscoveryItem {
+  newsId: string; title: string; category: string | null; score: number;
+  reasons: { factor: string; explanation: string }[];
+}
+
+function useDiscoveryToday() {
+  const [items, setItems] = useState<DiscoveryItem[] | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    fetch(apiUrl('/api/discovery/today')).then(r => r.json()).then(body => {
+      if (!cancelled && Array.isArray(body.items)) setItems(body.items.slice(0, 5));
+    }).catch(() => { if (!cancelled) setItems([]); });
+    return () => { cancelled = true; };
+  }, []);
+  return items;
+}
+
+const Stat = ({ label, value }: { label: string; value: string | number }) => (
+  <div className="p-4 rounded-xl" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
+    <p className="text-[9px] font-bold tracking-[0.2em] uppercase" style={{ color: DS.sub }}>{label}</p>
+    <p className="text-2xl font-bold mt-1" style={{ color: DS.txt }}>{value}</p>
+  </div>
+);
 
 export default function AdminDashboard() {
-  const stats = [
-    { title: "Total Views", value: "124.5K", change: "+12.5%", trend: "up", icon: Eye, color: "text-blue-500" },
-    { title: "Active Users", value: "45.2K", change: "+8.1%", trend: "up", icon: Users, color: "text-green-500" },
-    { title: "Avg. CTR", value: "2.4%", change: "-0.5%", trend: "down", icon: MousePointer, color: "text-purple-500" },
-    { title: "Time on Site", value: "4m 32s", change: "+14.2%", trend: "up", icon: Clock, color: "text-orange-500" },
-  ];
+  const { activeStory, workspace, setActiveView, lastError } = useProduction();
+  const news = useNewsSummary();
+  const discovery = useDiscoveryToday();
+
+  const stages = workspace?.production?.stages ?? [];
+  const done = stages.filter(s => s.done).length;
+  const composition = workspace?.compositions[0] ?? null;
+  const pendingReview = composition?.status === 'READY_FOR_REVIEW';
 
   return (
-    <div className="space-y-6">
-      {/* KPI Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
-          <motion.div
-            key={stat.title}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: index * 0.1 }}
-            className="bg-white/5 backdrop-blur-md p-6 rounded-2xl border border-white/10 hover:border-white/20 transition-colors group"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <div className={`p-3 rounded-xl bg-black/40 ${stat.color} group-hover:scale-110 transition-transform`}>
-                <stat.icon size={24} />
-              </div>
-              <div className={`flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full ${
-                stat.trend === 'up' ? 'bg-green-500/10 text-green-500' : 'bg-red-500/10 text-red-500'
-              }`}>
-                {stat.trend === 'up' ? <ArrowUpRight size={14} /> : <ArrowDownRight size={14} />}
-                {stat.change}
-              </div>
-            </div>
-            <h3 className="text-neutral-400 text-sm font-medium">{stat.title}</h3>
-            <p className="text-3xl font-black text-white mt-1 tracking-tight">{stat.value}</p>
-          </motion.div>
-        ))}
+    <div className="space-y-5 max-w-5xl">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h2 className="text-lg font-bold" style={{ color: DS.txt }}>¿Qué está pasando hoy?</h2>
+          <p className="text-[12px] mt-0.5" style={{ color: DS.sub }}>Estado real de producción y contenido — sin métricas simuladas.</p>
+        </div>
+        {lastError?.error === 'SCHEMA_NOT_PROVISIONED' && (
+          <span className="flex-shrink-0 text-[10px] font-semibold px-2.5 py-1.5 rounded-lg" style={{ color: '#f59e0b', background: '#f59e0b12', border: '1px solid #f59e0b30' }}>
+            Backend no provisto — ver supabase_setup/cronos_platform_schema.sql
+          </span>
+        )}
       </div>
 
-      {/* Main Charts Area */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Traffic Chart */}
-        <div className="lg:col-span-2 bg-white/5 backdrop-blur-md p-8 rounded-3xl border border-white/10 relative overflow-hidden">
-          <div className="absolute top-0 right-0 w-64 h-64 bg-red-600/10 rounded-full blur-[80px] pointer-events-none"></div>
-          
-          <div className="flex items-center justify-between mb-10 relative z-10">
-            <div>
-               <h3 className="text-xl font-bold text-white flex items-center gap-2">
-                 <Activity size={20} className="text-red-500" />
-                 Traffic Performance
-               </h3>
-               <p className="text-neutral-500 text-sm">Real-time data stream</p>
-            </div>
-            <div className="flex bg-black/40 rounded-lg p-1 border border-white/5">
-                {['1H', '24H', '7D', '30D'].map(t => (
-                    <button key={t} className="px-3 py-1 text-xs font-bold text-neutral-400 hover:text-white hover:bg-white/10 rounded transition-colors">
-                        {t}
-                    </button>
-                ))}
-            </div>
-          </div>
-          
-          {/* Custom CSS Chart Mock */}
-          <div className="h-64 flex items-end justify-between gap-3 px-2 relative z-10">
-            {[40, 65, 45, 80, 55, 90, 70, 85, 60, 75, 50, 95].map((height, i) => (
-              <div key={i} className="w-full bg-white/5 rounded-t-lg relative group overflow-hidden">
-                 <motion.div 
-                   initial={{ height: 0 }}
-                   animate={{ height: `${height}%` }}
-                   transition={{ duration: 1, delay: i * 0.05, ease: "easeOut" }}
-                   className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-red-600 to-red-400 opacity-80 group-hover:opacity-100 transition-opacity rounded-t-sm"
-                 />
-                 <div className="opacity-0 group-hover:opacity-100 absolute -top-10 left-1/2 -translate-x-1/2 bg-black border border-white/20 text-white text-xs font-mono py-1 px-2 rounded transition-opacity whitespace-nowrap z-20 shadow-xl pointer-events-none">
-                    {height * 124} views
-                 </div>
+      {/* Discover Today */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
+        <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${DS.borderSub}` }}>
+          <Sparkles size={14} style={{ color: DS.accent }} />
+          <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: DS.sub }}>Discover Today</span>
+        </div>
+        {discovery === null ? (
+          <div className="p-4 text-[11px]" style={{ color: DS.sub }}>Cargando…</div>
+        ) : discovery.length === 0 ? (
+          <div className="p-4 text-[11px]" style={{ color: DS.sub }}>Sin noticias recientes para puntuar.</div>
+        ) : (
+          <div className="divide-y" style={{ borderColor: DS.borderSub }}>
+            {discovery.map(item => (
+              <div key={item.newsId} className="flex items-center gap-3 px-4 py-2.5">
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 text-[10px] font-bold" style={{ background: DS.surfaceMid, color: DS.accent }}>
+                  {item.score.toFixed(1)}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <p className="text-[11px] font-medium truncate" style={{ color: DS.txt }}>{item.title}</p>
+                  <p className="text-[9px] mt-0.5" style={{ color: DS.muted }}>{item.reasons.map(r => r.explanation).join(' · ')}</p>
+                </div>
+                {item.category && (
+                  <span className="flex-shrink-0 text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ background: DS.surfaceMid, color: DS.sub }}>
+                    {item.category}
+                  </span>
+                )}
               </div>
             ))}
           </div>
-          <div className="flex justify-between mt-6 text-xs text-neutral-500 font-mono px-2">
-            <span>00:00</span><span>02:00</span><span>04:00</span><span>06:00</span><span>08:00</span><span>10:00</span>
-            <span>12:00</span><span>14:00</span><span>16:00</span><span>18:00</span><span>20:00</span><span>22:00</span>
-          </div>
+        )}
+      </div>
+
+      {/* active story in production */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
+        <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${DS.borderSub}` }}>
+          <Factory size={14} style={{ color: DS.accent }} />
+          <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: DS.sub }}>Producción activa</span>
         </div>
 
-        {/* Sources / AI Insight */}
-        <div className="bg-gradient-to-b from-neutral-900 to-black p-8 rounded-3xl border border-white/10 relative overflow-hidden flex flex-col">
-          <div className="absolute inset-0 bg-neutral-900 opacity-20"></div>
-          
-          <div className="relative z-10 mb-auto">
-             <div className="flex items-center gap-2 mb-6">
-                 <div className="p-2 bg-gradient-to-tr from-purple-500 to-blue-500 rounded-lg">
-                    <Zap size={18} className="text-white" />
-                 </div>
-                 <h3 className="text-lg font-bold text-white">AI Insights</h3>
-             </div>
-             
-             <div className="space-y-4">
-                <div className="bg-white/5 border border-white/5 p-4 rounded-xl">
-                   <p className="text-neutral-300 text-sm leading-relaxed">
-                      <span className="text-purple-400 font-bold">Trend Alert:</span> Football articles are performing 24% better than average today. Consider publishing more Champions League content.
-                   </p>
-                </div>
-                <div className="bg-white/5 border border-white/5 p-4 rounded-xl">
-                   <p className="text-neutral-300 text-sm leading-relaxed">
-                      <span className="text-blue-400 font-bold">SEO Tip:</span> 3 recent drafts are missing meta-descriptions. Fixing this could boost traffic by ~5%.
-                   </p>
-                </div>
-             </div>
-          </div>
+        {workspace?.story ? (
+          <div className="p-4 space-y-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-[14px] font-semibold truncate" style={{ color: DS.txt }}>{workspace.story.headline}</p>
+                <p className="text-[11px] mt-0.5" style={{ color: DS.sub }}>{done} de {stages.length} etapas — {workspace.story.status.toLowerCase()}</p>
+              </div>
+              <button
+                onClick={() => setActiveView('production')}
+                className="flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all"
+                style={{ background: DS.accentDim, color: DS.accent }}
+              >
+                Continuar producción <ArrowRight size={12} />
+              </button>
+            </div>
 
-          <button className="w-full mt-8 py-4 rounded-xl bg-white text-black font-bold text-sm hover:scale-105 transition-transform shadow-[0_0_20px_rgba(255,255,255,0.2)] relative z-10">
-            Generate Report
-          </button>
+            {stages.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {stages.map(s => (
+                  <span key={s.id}
+                    className="flex items-center gap-1 px-2 py-1 rounded-md text-[9px] font-semibold"
+                    style={{
+                      background: s.done ? '#22c55e12' : DS.surfaceMid,
+                      color: s.done ? '#22c55e' : DS.muted,
+                      border: `1px solid ${s.done ? '#22c55e30' : DS.border}`,
+                    }}
+                  >
+                    {s.done ? <CheckCircle2 size={9} /> : <Circle size={9} />}
+                    {s.label}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            {pendingReview && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg text-[11px]" style={{ background: '#f59e0b12', color: '#f59e0b', border: '1px solid #f59e0b30' }}>
+                <AlertTriangle size={12} />
+                Composition lista — esperando Human Review antes de pasar a Studio.
+              </div>
+            )}
+          </div>
+        ) : activeStory ? (
+          <div className="p-6 text-center">
+            <p className="text-[12px]" style={{ color: DS.sub }}>{activeStory.title} — todavía no se produjo.</p>
+            <button onClick={() => setActiveView('production')}
+              className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all"
+              style={{ background: DS.accentDim, color: DS.accent }}
+            >
+              Producir ahora <ArrowRight size={12} />
+            </button>
+          </div>
+        ) : (
+          <div className="p-6 text-center">
+            <p className="text-[12px]" style={{ color: DS.sub }}>No hay ninguna historia en producción.</p>
+            <button
+              onClick={() => setActiveView('news')}
+              className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all"
+              style={{ background: DS.accentDim, color: DS.accent }}
+            >
+              Ir a News <ArrowRight size={12} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* real news snapshot */}
+      <div className="rounded-2xl overflow-hidden" style={{ background: DS.surface, border: `1px solid ${DS.border}` }}>
+        <div className="flex items-center gap-2 px-4 py-3" style={{ borderBottom: `1px solid ${DS.borderSub}` }}>
+          <FileText size={14} style={{ color: DS.accent }} />
+          <span className="text-[11px] font-bold uppercase tracking-widest" style={{ color: DS.sub }}>Redacción</span>
         </div>
+
+        {!news ? (
+          <div className="p-4 text-[11px]" style={{ color: DS.sub }}>Cargando…</div>
+        ) : (
+          <div className="p-4 space-y-3">
+            <div className="grid grid-cols-3 gap-2">
+              <Stat label="Total" value={news.total} />
+              <Stat label="Publicadas" value={news.published} />
+              <Stat label="Borradores" value={news.draft} />
+            </div>
+            <div className="space-y-1">
+              {news.recent.map(n => (
+                <div key={n.id} className="flex items-center justify-between px-2 py-1.5 rounded-lg" style={{ background: DS.surfaceMid }}>
+                  <span className="text-[11px] truncate" style={{ color: DS.txt }}>{n.title}</span>
+                  <span className="flex-shrink-0 flex items-center gap-1 text-[9px] font-semibold px-1.5 py-0.5 rounded"
+                    style={{ color: n.status === 'published' ? '#22c55e' : '#f59e0b', background: n.status === 'published' ? '#22c55e12' : '#f59e0b12' }}>
+                    <Globe size={9} />{n.status === 'published' ? 'Publicada' : 'Borrador'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
