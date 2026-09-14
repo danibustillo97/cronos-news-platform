@@ -131,7 +131,7 @@ export function DistributionView() {
                 </div>
 
                 <p className="flex items-center gap-1.5 text-[10px]" style={{ color: DS.muted }}>
-                    <Link2 size={10} />"No conectado" = sin credenciales/adapter configurado todavía — no publica nada.
+                    <Link2 size={10} />&ldquo;No conectado&rdquo; = sin credenciales/adapter configurado todavía — no publica nada.
                 </p>
             </div>
         </div>

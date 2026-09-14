@@ -1,76 +1,39 @@
-# 📰 Cronos News Platform
+# CRONOS
 
-**Cronos News Platform** es una aplicación web desarrollada con **Next.js** y **TypeScript**, enfocada en la generación automatizada y visualización de noticias deportivas. Combina tecnologías modernas de frontend con automatización backend para mantener actualizado un portal informativo sin intervención manual constante.
+Content Operating System para producción editorial, multimedia y audiovisual.
+Automatización primero, IA solo donde agrega valor — ver [`obsidian-vault/Roadmap.md`](obsidian-vault/Roadmap.md) para el estado y las prioridades vigentes.
 
-> 🚀 **Demo en vivo**: [https://nexusnews.info](https://nexusnews.info)
+## Estructura del workspace
 
----
-
-## 📌 Características principales
-
-- 🔄 Noticias generadas automáticamente mediante scraping con Python.
-- ⚡ Interfaz rápida y moderna construida con Next.js + Tailwind.
-- 🧠 Sistema preparado para extracción y publicación automática de contenido.
-- 📱 Diseño responsive adaptable a cualquier dispositivo.
-- 🔍 Optimización SEO para posicionamiento orgánico.
-- 📊 Panel visual profesional tipo blog/redacción.
-
----
-
-## 🛠️ Tecnologías utilizadas
-
-- **Next.js** – Framework de React para SSR y generación estática
-- **TypeScript** – Tipado estático robusto
-- **Tailwind CSS** – Utilidades CSS para diseño moderno y responsivo
-- **Supabase** *(opcional)* – Backend como servicio (auth, BDD, APIs)
-- **Python + Web Scraping** – Automatización de noticias desde fuentes deportivas
-
----
-
-## 📦 Instalación local
-
-```bash
-# Clona el repositorio
-git clone https://github.com/danibustillo97/cronos-news-platform.git
-
-# Entra al proyecto
-cd cronos-news-platform
-
-# Instala las dependencias
-npm install
-
-# Inicia el servidor de desarrollo
-npm run dev
+```
+frontend/         Next.js + TypeScript — portal público y panel /admin (News, Producción, Studio, Distribución)
+backend/          Servicio Python (FastAPI) con arquitectura DDD — bounded contexts: news, story, composition, distribution, intelligence, asset
+infrastructure/   Base de datos (schemas SQL de Supabase), y en el futuro: docker, scripts, utilidades
+obsidian-vault/   Documentación viva del proyecto (roadmap, arquitectura, decisiones)
 ```
 
-Abre [http://localhost:3000](http://localhost:3000) para ver la app en tu navegador.
+`rpa/` (automatizaciones de scraping) se incorpora como módulo hermano cuando se ejecute la migración descrita en [`infrastructure/scripts/migrate-workspace.ps1`](infrastructure/scripts/migrate-workspace.ps1).
 
----
+## Arquitectura conceptual
 
-## 🧪 Próximas mejoras
+```
+SCRAPER → RAW CONTENT → PRODUCTION → EDITORIAL INTELLIGENCE → POST STRUCTURING
+  → MEDIA RESOLUTION → PREVIEW → READY → NEWS → STUDIO → PUBLISH → ANALYTICS
+```
 
-- [ ] Panel administrativo para edición, publicación y control editorial
-- [ ] Clasificación por deportes, ligas o países
-- [ ] Soporte multiidioma (i18n)
-- [ ] Modo oscuro
-- [ ] Control de estados: borrador, publicado, archivado
-- [ ] Publicación programada y workflows de revisión
+- **Production** es el centro de procesamiento editorial — News nunca limpia ni reescribe contenido, solo lista lo que ya está listo (`READY`).
+- Los bounded contexts del backend (`News`, `Story`, `Composition`, `Distribution`) implementan esta cadena con máquinas de estado propias; ver `backend/app/domain/*/entities.py`.
 
----
+## Desarrollo local
 
+```bash
+# Frontend
+cd frontend && npm install && npm run dev
 
+# Backend
+cd backend && python -m venv venv && ./venv/Scripts/pip install -r requirements.txt && ./venv/Scripts/python -m uvicorn app.presentation.main:app --reload
+```
 
-## 👨‍💻 Autor
+## Documentación
 
-**Danilo Bustillo**  
-Desarrollador Full Stack con experiencia en automatización de procesos, scraping inteligente, infraestructura cloud y soluciones frontend modernas.
-
-- [LinkedIn](https://www.linkedin.com/in/danibustillo97)
-- 📫 danibustillo97@gmail.com
-- 🌐 Portafolio: *[próximamente]*
-
----
-
-## 📄 Licencia
-
-Este proyecto es de uso libre para fines personales, educativos o de demostración. Para uso comercial, contactar previamente al autor.
+Ver [`obsidian-vault/`](obsidian-vault/) para el roadmap, la arquitectura, y las notas de decisiones (stack técnico, Supabase, ramas activas).

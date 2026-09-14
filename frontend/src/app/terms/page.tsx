@@ -74,7 +74,7 @@ export default function TermsOfService() {
             <section>
               <h2 className="text-xl font-semibold text-red-600 mb-3">7. Limitación de responsabilidad</h2>
               <p>
-                El servicio se proporciona "tal cual". No somos responsables por problemas con 
+                El servicio se proporciona &ldquo;tal cual&rdquo;. No somos responsables por problemas con
                 plataformas de terceros como TikTok.
               </p>
             </section>
