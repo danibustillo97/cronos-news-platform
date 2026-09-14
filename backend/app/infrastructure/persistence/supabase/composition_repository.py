@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from app.domain.composition.entities import Composition, CompositionContent, CompositionKind, CompositionStatus, ScriptLine
+from app.domain.composition.entities import (
+    Composition, CompositionContent, CompositionKind, CompositionShot, CompositionStatus, ScriptLine,
+)
 from app.domain.shared.ids import CompositionId, ProductionId, StoryId
 from app.infrastructure.persistence.supabase.guard import raise_if_schema_missing
 
@@ -41,6 +43,13 @@ class SupabaseCompositionRepository:
                 "script": [{"section": s.section, "text": s.text} for s in content.script],
                 "narrative_summary": content.narrative_summary, "media_summary": content.media_summary,
                 "asset_refs": content.asset_refs, "final_asset_ref": content.final_asset_ref,
+                "shots": [
+                    {
+                        "shot_id": s.shot_id, "scene_id": s.scene_id, "disposition": s.disposition,
+                        "duration_seconds": s.duration_seconds, "asset_refs": s.asset_refs,
+                    }
+                    for s in content.shots
+                ],
             },
             "target_platforms": composition.target_platforms,
         }
@@ -58,6 +67,13 @@ class SupabaseCompositionRepository:
             script=[ScriptLine(s["section"], s["text"]) for s in c.get("script", [])],
             narrative_summary=c.get("narrative_summary"), media_summary=c.get("media_summary"),
             asset_refs=c.get("asset_refs", []), final_asset_ref=c.get("final_asset_ref"),
+            shots=[
+                CompositionShot(
+                    shot_id=s["shot_id"], scene_id=s["scene_id"], disposition=s["disposition"],
+                    duration_seconds=s["duration_seconds"], asset_refs=s.get("asset_refs", []),
+                )
+                for s in c.get("shots", [])
+            ],
         )
         return Composition(
             id=CompositionId.of(row["id"]), story_id=StoryId.of(row["story_id"]),

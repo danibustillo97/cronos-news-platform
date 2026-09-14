@@ -11,7 +11,7 @@ from app.application.use_cases.list_news import NewsWorkspace, NewsWorkspaceItem
 from app.application.use_cases.get_story_workspace import StoryWorkspace
 from app.presentation.schemas import (
     NewsOut, NewsWorkspaceItemOut, NewsWorkspaceOut, DiscoveryItemOut, DiscoveryReasonOut,
-    StoryOut, ProductionOut, ProductionStageOut, CompositionOut, CompositionContentOut,
+    StoryOut, ProductionOut, ProductionStageOut, CompositionOut, CompositionContentOut, CompositionShotOut,
     DistributionPlanOut, StoryWorkspaceOut, CategoryGroupOut, CategoryOut, TopicOut,
     ActiveProductionItemOut,
 )
@@ -75,6 +75,13 @@ def composition_out(composition: Composition, storage) -> CompositionOut:
             angle=c.angle, hook=c.hook, script=[{"section": s.section, "text": s.text} for s in c.script],
             narrative_summary=c.narrative_summary, media_summary=c.media_summary,
             asset_refs=c.asset_refs, final_asset_url=final_url,
+            shots=[
+                CompositionShotOut(
+                    shot_id=s.shot_id, scene_id=s.scene_id, disposition=s.disposition,
+                    duration_seconds=s.duration_seconds, asset_refs=s.asset_refs,
+                )
+                for s in c.shots
+            ],
         ),
         target_platforms=composition.target_platforms,
     )

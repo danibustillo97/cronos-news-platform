@@ -91,6 +91,14 @@ class ActiveProductionsOut(CamelModel):
     items: list[ActiveProductionItemOut]
 
 
+class CompositionShotOut(CamelModel):
+    shot_id: str
+    scene_id: str
+    disposition: str
+    duration_seconds: float
+    asset_refs: list[str]
+
+
 class CompositionContentOut(CamelModel):
     angle: str | None
     hook: str | None
@@ -99,6 +107,7 @@ class CompositionContentOut(CamelModel):
     media_summary: str | None
     asset_refs: list[str]
     final_asset_url: str | None
+    shots: list[CompositionShotOut]
 
 
 class CompositionOut(CamelModel):

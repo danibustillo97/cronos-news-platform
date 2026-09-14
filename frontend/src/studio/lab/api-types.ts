@@ -30,6 +30,14 @@ export interface ProductionDTO {
   completedAt: string | null;
 }
 
+export interface CompositionShotDTO {
+  shotId: string;
+  sceneId: string;
+  disposition: string;
+  durationSeconds: number;
+  assetRefs: string[];
+}
+
 export interface CompositionContentDTO {
   angle: string | null;
   hook: string | null;
@@ -38,6 +46,7 @@ export interface CompositionContentDTO {
   mediaSummary: string | null;
   assetRefs: string[];
   finalAssetUrl: string | null;
+  shots: CompositionShotDTO[];
 }
 
 export interface CompositionDTO {

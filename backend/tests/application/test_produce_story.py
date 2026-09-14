@@ -10,7 +10,10 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.domain.shared.errors import CapabilityUnavailableError
-from app.domain.intelligence.entities import EditorialIntelligence, StoryIntelligence, NarrativeDirection, AudioDirection, MediaPlan
+from app.domain.intelligence.entities import (
+    EditorialIntelligence, StoryIntelligence, NarrativeDirection, AudioDirection, MediaPlan,
+    SceneMediaDecision, AssemblyResult, AssemblyShot,
+)
 from app.application.use_cases.produce_story import ProduceStory, ProduceStoryInput
 
 
@@ -281,6 +284,47 @@ def test_produce_story_uses_lab_item_id_not_story_id_for_capability_lookups():
     use_case.execute(ProduceStoryInput(story_id="story-6"))
 
     assert seen_ids == ["totally-different-lab-item"]
+
+
+def test_produce_story_joins_media_assets_into_composition_shots_by_scene_id():
+    """Bug real: asset_refs quedaba hardcodeado en [] aunque Media Planning
+    ya supiera qué assets tiene cada escena -- Assembly y Media se unen por
+    scene_id (mismo criterio documentado en la nota de Narrative & Audio
+    Direction), nunca se inventa un shot que Assembly no produjo."""
+    class FakeMediaWithAssets:
+        def plan(self, story_id):
+            return MediaPlan(scenes=[
+                SceneMediaDecision(scene_id="scene-1", media_type="GENERATED_IMAGE", generation_required=True, asset_ids=["asset-1"]),
+                SceneMediaDecision(scene_id="scene-2", media_type="REAL_IMAGE", generation_required=False, asset_ids=["asset-2", "asset-3"]),
+            ])
+
+    class FakeAssembly:
+        def result(self, story_id):
+            return AssemblyResult(
+                assembly_plan_id="plan-1", declared_duration_seconds=10.0, included_duration_seconds=7.0,
+                shots=[
+                    AssemblyShot(shot_id="shot-1", scene_id="scene-1", disposition="INCLUDED", duration_seconds=3.0),
+                    AssemblyShot(shot_id="shot-2", scene_id="scene-2", disposition="INCLUDED", duration_seconds=4.0),
+                ],
+                final_asset_ref="final_reel.mp4",
+            )
+
+    use_case = ProduceStory(
+        stories=InMemoryStoryRepo(), productions=InMemoryProductionRepo(),
+        compositions=InMemoryCompositionRepo(), intelligence=InMemoryIntelligenceRepo(), news=InMemoryNewsRepo(),
+        editorial=FakeEditorial(), story_intelligence=FakeStoryIntelligence(), narrative=FakeNarrative(),
+        audio=FakeAudio(), media=FakeMediaWithAssets(),
+        sequence=UnavailableCapability(), animation=UnavailableCapability(),
+        render=UnavailableCapability(), assembly=FakeAssembly(),
+    )
+
+    result = use_case.execute(ProduceStoryInput(story_id="story-7"))
+
+    content = result.compositions[0].content
+    assert [shot.shot_id for shot in content.shots] == ["shot-1", "shot-2"]
+    assert content.shots[0].asset_refs == ["asset-1"]
+    assert content.shots[1].asset_refs == ["asset-2", "asset-3"]
+    assert content.asset_refs == ["asset-1", "asset-2", "asset-3"]  # flattened, in shot order
 
 
 def test_produce_story_fails_cleanly_when_nothing_is_available():

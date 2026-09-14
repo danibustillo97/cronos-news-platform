@@ -39,6 +39,20 @@ class ScriptLine:
 
 
 @dataclass(frozen=True)
+class CompositionShot:
+    """One shot of the Composition's timeline, joined from LAB's typed
+    Intelligence value objects by scene_id (AssemblyResult.shots x
+    MediaPlan.scenes) — never invented. disposition mirrors LAB's own
+    vocabulary (INCLUDED / EXCLUDED_NO_ASSET / BLOCKED_NOT_RENDERED): a shot
+    with no real asset is excluded, never given a fabricated placeholder."""
+    shot_id: str
+    scene_id: str
+    disposition: str
+    duration_seconds: float
+    asset_refs: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
 class CompositionContent:
     angle: str | None
     hook: str | None
@@ -47,6 +61,7 @@ class CompositionContent:
     media_summary: str | None
     asset_refs: list[str]
     final_asset_ref: str | None
+    shots: list[CompositionShot] = field(default_factory=list)
 
 
 @dataclass

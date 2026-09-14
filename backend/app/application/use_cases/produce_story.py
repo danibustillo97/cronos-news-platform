@@ -15,7 +15,7 @@ from app.domain.shared.ids import StoryId, ProductionId, CompositionId
 from app.domain.shared.errors import CapabilityUnavailableError, NotFoundError
 from app.domain.story.entities import Story, StorySource
 from app.domain.production.entities import Production, ProductionStage, ProductionStatus
-from app.domain.composition.entities import Composition, CompositionContent, CompositionKind, ScriptLine
+from app.domain.composition.entities import Composition, CompositionContent, CompositionKind, CompositionShot, ScriptLine
 from app.domain.ports import (
     NewsRepository, StoryRepository, ProductionRepository, CompositionRepository, IntelligenceRepository,
     EditorialIntelligencePort, StoryIntelligencePort, NarrativeDirectionPort, AudioDirectionPort,
@@ -164,6 +164,21 @@ class ProduceStory:
             story.mark_produced(editorial_result.what_happened if editorial_result else None)
 
         if story_intel_result or assembly_result:
+            # Join AssemblyResult.shots (shot_id/scene_id/disposition/duration)
+            # with MediaPlan.scenes (scene_id -> asset_ids) by scene_id — the
+            # same join the LAB architecture (Narrative & Audio Direction
+            # note) already relies on. Never fabricates a shot: only exists
+            # when Assembly actually produced one.
+            assets_by_scene = {s.scene_id: s.asset_ids for s in media_result.scenes} if media_result else {}
+            shots = [
+                CompositionShot(
+                    shot_id=s.shot_id, scene_id=s.scene_id, disposition=s.disposition,
+                    duration_seconds=s.duration_seconds, asset_refs=assets_by_scene.get(s.scene_id, []),
+                )
+                for s in assembly_result.shots
+            ] if assembly_result else []
+            asset_refs = [ref for shot in shots for ref in shot.asset_refs]
+
             content = CompositionContent(
                 angle=editorial_result.angle if editorial_result else None,
                 hook=story_intel_result.hooks[0].text if story_intel_result and story_intel_result.hooks else None,
@@ -173,8 +188,9 @@ class ProduceStory:
                     f"{assembly_result.included_duration_seconds}s incluidos de {assembly_result.declared_duration_seconds}s declarados"
                     if assembly_result else None
                 ),
-                asset_refs=[],
+                asset_refs=asset_refs,
                 final_asset_ref=assembly_result.final_asset_ref if assembly_result else None,
+                shots=shots,
             )
             composition = Composition.draft(
                 CompositionId.new(), StoryId.of(input.story_id), production.id,
