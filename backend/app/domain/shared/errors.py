@@ -49,6 +49,25 @@ class CapabilityUnavailableError(Exception):
         self.reason = reason
 
 
+class QuickReelNotEligible(Exception):
+    """Raised by the QuickReel use case (P8) -- a deterministic, rules-only
+    eligibility gate, no AI reasoning involved. `reason` distinguishes
+    genuinely different situations, never collapsed into one message:
+      - "story_not_ready": the owning Story hasn't reached PRODUCED yet
+        (see CRONOS - Domain Language Alignment's READY mapping).
+      - "composition_not_approved": the Composition itself isn't APPROVED
+        (that same mapping's "para una pieza concreta" clause).
+      - "no_includable_shots": every shot is EXCLUDED_NO_ASSET /
+        BLOCKED_NOT_RENDERED -- there is nothing existing to assemble, and
+        Quick Reel never fabricates a shot to fill the gap.
+    """
+
+    def __init__(self, composition_id: str, reason: str) -> None:
+        super().__init__(f"Composition {composition_id} is not eligible for Quick Reel ({reason})")
+        self.composition_id = composition_id
+        self.reason = reason
+
+
 class SchemaNotProvisionedError(Exception):
     """Raised by a Supabase repository when the CRONOS schema
     (supabase_setup/cronos_platform_schema.sql) has not been applied yet."""
