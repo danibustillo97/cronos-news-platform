@@ -1,0 +1,23 @@
+# Only nginx runs in Docker, on purpose. backend/frontend/automation's
+# Local Runtime stay as native processes (Python venv, npm) started by
+# ../scripts/nexus.ps1 -- containerizing a Next.js dev server + a
+# --reload uvicorn on Windows/Docker Desktop trades away fast hot-reload
+# for no real benefit in local dev (bind-mount file-watch across the
+# WSL2 boundary is slow). Nginx is the one piece worth containerizing:
+# it has no first-class native Windows service story here, and it's
+# stateless, so there's nothing to lose by running it in a container.
+#
+# host.docker.internal (used in nginx.conf) is how the container reaches
+# those native host processes.
+
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: nexus-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped

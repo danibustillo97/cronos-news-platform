@@ -47,3 +47,6 @@ yarn-error.log*
 # purpose -- see obsidian-vault/Roadmap.md) -- never tracked as regular
 # files by NEXUS's own repo, never merged into it. ===
 automation/
+
+# === nexus.ps1 runtime state (logs) -- regenerated every `nexus up` ===
+.nexus/
