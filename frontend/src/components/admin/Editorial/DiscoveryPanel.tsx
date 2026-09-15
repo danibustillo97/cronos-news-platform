@@ -223,9 +223,29 @@ export default function DiscoveryPanel({ onAdvance }: { onAdvance?: () => void }
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
+      const updated: DiscoveryItem = await res.json();
       setItems((prev) => prev.filter((i) => i.id !== itemId)); // moved out of the current status filter
       if (decision === "SEND_TO_EDITORIAL") {
-        toast.success("Story creada -- lista para Artifact");
+        if (updated.storyId) {
+          // Artifact runs as a real async job (LLM call, 10-60+s) --
+          // trigger it now and let the Ready tab poll/show its result.
+          try {
+            const jobRes = await fetch(apiUrl("/api/artifacts/jobs"), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ storyId: updated.storyId }),
+            });
+            if (!jobRes.ok) {
+              const jobBody = await jobRes.json().catch(() => null);
+              throw new Error(jobBody?.message || `HTTP ${jobRes.status}`);
+            }
+            toast.success("Story creada -- Artifact generando el editorial");
+          } catch (err) {
+            toast.error(err instanceof Error ? `Artifact no se pudo iniciar: ${err.message}` : "Artifact no se pudo iniciar");
+          }
+        } else {
+          toast.success("Story creada -- lista para Artifact");
+        }
         onAdvance?.();
       } else {
         toast.success("Actualizado");
