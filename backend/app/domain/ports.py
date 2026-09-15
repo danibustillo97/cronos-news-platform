@@ -23,6 +23,7 @@ from app.domain.intelligence.entities import (
     EditorialIntelligence, StoryIntelligence, NarrativeDirection, AudioDirection,
     MediaPlan, SequencePlan, AnimationPlan, RenderResult, AssemblyResult,
 )
+from app.domain.discovery.entities import DiscoveryFilters, DiscoveryItem, DiscoveryJob, IngestedContent
 
 
 # ── repository ports ─────────────────────────────────────────────────────
@@ -81,6 +82,23 @@ class SiteSettingsRepository(Protocol):
     seeded by the schema migration itself), never None."""
     def get_seo(self) -> SiteSeoSettings: ...
     def save_seo(self, settings: SiteSeoSettings) -> None: ...
+
+
+class DiscoveryRepository(Protocol):
+    def find_by_id(self, item_id: str) -> DiscoveryItem | None: ...
+    def list(self, filters: DiscoveryFilters) -> list[DiscoveryItem]:
+        """Server-side filtered/sorted/paginated -- never a full-table
+        fetch for the UI to filter client-side (rule: no unbounded lists
+        in React)."""
+        ...
+    def exists_by_source_url(self, source_url: str) -> bool: ...
+    def save(self, item: DiscoveryItem) -> None: ...
+
+
+class DiscoveryJobRepository(Protocol):
+    def find_by_id(self, job_id: str) -> DiscoveryJob | None: ...
+    def list_recent(self, limit: int = 20) -> list[DiscoveryJob]: ...
+    def save(self, job: DiscoveryJob) -> None: ...
 
 
 class IntelligenceRepository(Protocol):
@@ -184,3 +202,26 @@ class ExecutionRuntimePort(Protocol):
     def start_production(self, production_id: str, story_id: str, item_id: str) -> None: ...
     def cancel_production(self, production_id: str) -> None: ...
     def resume_production(self, production_id: str, story_id: str, item_id: str) -> None: ...
+
+
+class DiscoveryContentReaderPort(Protocol):
+    """Reads what Automation's real ingestion actually produced for a set
+    of item ids -- the raw material IngestDiscoveryResults maps into real
+    DiscoveryItem entities. Never invents an item that wasn't really
+    ingested; a missing id is simply absent from the result."""
+    def read_many(self, item_ids: list[str]) -> list[IngestedContent]: ...
+
+
+class DiscoveryRunnerPort(Protocol):
+    """Automation's real ingestion capability (lab.ingestion.run, run via
+    automation/runtime) -- the only thing that actually fetches from the
+    real world. This backend never scrapes anything itself (same
+    'NEWS/PRODUCTION NO PRODUCE, AUTOMATION PRODUCES' boundary as
+    ExecutionRuntimePort, applied to raw content instead of a full
+    production)."""
+    def trigger(self, job_id: str, params: dict) -> None:
+        """Fire-and-forget: automation/runtime runs the job asynchronously
+        and reports completion back via PATCH /api/discovery/jobs/{id}.
+        Raises RuntimeUnavailableError if automation/runtime can't be
+        reached at all -- never silently queues nothing."""
+        ...

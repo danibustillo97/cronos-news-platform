@@ -7,14 +7,16 @@ from app.domain.composition.entities import Composition
 from app.domain.distribution.entities import DistributionPlan
 from app.domain.category.entities import CategoryGroup
 from app.domain.settings.entities import SiteSeoSettings
-from app.application.use_cases.get_discovery_today import DiscoveryItem
+from app.domain.discovery.entities import DiscoveryItem, DiscoveryJob
+from app.application.use_cases.get_discovery_today import NewsRankingItem
 from app.application.use_cases.list_news import NewsWorkspace, NewsWorkspaceItem
 from app.application.use_cases.get_story_workspace import StoryWorkspace
 from app.presentation.schemas import (
-    NewsOut, NewsWorkspaceItemOut, NewsWorkspaceOut, DiscoveryItemOut, DiscoveryReasonOut,
+    NewsOut, NewsWorkspaceItemOut, NewsWorkspaceOut, NewsRankingItemOut, DiscoveryReasonOut,
     StoryOut, ProductionOut, ProductionStageOut, CompositionOut, CompositionContentOut, CompositionShotOut,
     DistributionPlanOut, StoryWorkspaceOut, CategoryGroupOut, CategoryOut, TopicOut,
     ActiveProductionItemOut, SeoSettingsOut,
+    DiscoveryJobOut, DiscoveryItemOut, MaterialReferenceOut, DiscoveryScoresOut,
 )
 
 
@@ -36,8 +38,8 @@ def news_workspace_out(workspace: NewsWorkspace) -> NewsWorkspaceOut:
     return NewsWorkspaceOut(items=[news_workspace_item_out(i) for i in workspace.items], counts=workspace.counts)
 
 
-def discovery_item_out(item: DiscoveryItem) -> DiscoveryItemOut:
-    return DiscoveryItemOut(
+def news_ranking_item_out(item: NewsRankingItem) -> NewsRankingItemOut:
+    return NewsRankingItemOut(
         news_id=item.news_id, headline=item.headline, category=item.category, score=item.score,
         reasons=[DiscoveryReasonOut(factor=r.factor, weight=r.weight, explanation=r.explanation) for r in item.reasons],
     )
@@ -123,4 +125,38 @@ def category_group_out(group: CategoryGroup) -> CategoryGroupOut:
 def seo_settings_out(settings: SiteSeoSettings) -> SeoSettingsOut:
     return SeoSettingsOut(
         site_title=settings.site_title, meta_description=settings.meta_description, keywords=settings.keywords,
+    )
+
+
+def discovery_job_out(job: DiscoveryJob) -> DiscoveryJobOut:
+    return DiscoveryJobOut(
+        id=job.id, status=job.status.value, params=job.params, created_at=job.created_at.isoformat(),
+        started_at=job.started_at.isoformat() if job.started_at else None,
+        finished_at=job.finished_at.isoformat() if job.finished_at else None,
+        items_found=job.items_found, error=job.error,
+    )
+
+
+def discovery_item_out(item: DiscoveryItem) -> DiscoveryItemOut:
+    return DiscoveryItemOut(
+        id=str(item.id), source_url=item.source_url, original_url=item.original_url,
+        original_title=item.original_title, raw_text=item.raw_text, source_name=item.source_name,
+        source_domain=item.source_domain, author=item.author, language=item.language,
+        category_id=item.category_id, topics=item.topics,
+        published_at=item.published_at.isoformat() if item.published_at else None,
+        discovered_at=item.discovered_at.isoformat(),
+        materials=[
+            MaterialReferenceOut(
+                kind=m.kind.value, url=m.url, usable_as_final_asset=m.usable_as_final_asset,
+                editorial_prompt=m.editorial_prompt,
+            )
+            for m in item.materials
+        ],
+        scores=DiscoveryScoresOut(
+            freshness_score=item.scores.freshness_score, relevance_score=item.scores.relevance_score,
+            impact_score=item.scores.impact_score, source_quality_score=item.scores.source_quality_score,
+            completeness_score=item.scores.completeness_score, material_score=item.scores.material_score,
+            duplicate_of=item.scores.duplicate_of,
+        ),
+        status=item.status.value, story_id=str(item.story_id) if item.story_id else None,
     )

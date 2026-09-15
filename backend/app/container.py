@@ -15,6 +15,11 @@ from app.infrastructure.persistence.supabase.distribution_repository import Supa
 from app.infrastructure.persistence.supabase.category_repository import SupabaseCategoryRepository
 from app.infrastructure.persistence.supabase.site_settings_repository import SupabaseSiteSettingsRepository
 from app.infrastructure.persistence.supabase.intelligence_repository import SupabaseIntelligenceRepository
+from app.infrastructure.persistence.supabase.discovery_repository import (
+    SupabaseDiscoveryJobRepository, SupabaseDiscoveryRepository,
+)
+from app.infrastructure.lab.local.discovery_reader import LocalDiscoveryContentReader
+from app.infrastructure.runtime.discovery_runner_adapter import DiscoveryRunnerAdapter
 from app.infrastructure.lab.local.editorial_intelligence_adapter import LocalEditorialIntelligenceAdapter
 from app.infrastructure.lab.local.story_intelligence_adapter import LocalStoryIntelligenceAdapter
 from app.infrastructure.lab.local.narrative_direction_adapter import LocalNarrativeDirectionAdapter
@@ -41,6 +46,10 @@ from app.application.use_cases.list_news import ListNews
 from app.application.use_cases.convert_news_to_content import ConvertNewsToContent
 from app.application.use_cases.list_active_productions import ListActiveProductions
 from app.application.use_cases.seo_settings import GetSeoSettings, UpdateSeoSettings
+from app.application.use_cases.discovery import (
+    DecideDiscoveryItem, GetDiscoveryJob, ListDiscoveryItems, ListDiscoveryJobs,
+    ReportDiscoveryJobStatus, TriggerDiscovery,
+)
 
 
 class Container:
@@ -55,6 +64,8 @@ class Container:
         self.category_repo = SupabaseCategoryRepository(client)
         self.site_settings_repo = SupabaseSiteSettingsRepository(client)
         self.intelligence_repo = SupabaseIntelligenceRepository(client)
+        self.discovery_repo = SupabaseDiscoveryRepository(client)
+        self.discovery_job_repo = SupabaseDiscoveryJobRepository(client)
 
         reader = default_reader()
         self.lab_editorial = LocalEditorialIntelligenceAdapter(reader)
@@ -71,6 +82,8 @@ class Container:
         self.publishing_availability = EnvPublishingAvailability()
         self.storage = LocalLabStorageAdapter()
         self.runtime = LocalRuntimeAdapter()
+        self.discovery_content_reader = LocalDiscoveryContentReader()
+        self.discovery_runner = DiscoveryRunnerAdapter()
 
         self.prepare_content = PrepareContent(self.news_repo, self.story_repo)
         self.convert_news_to_content = ConvertNewsToContent(
@@ -90,6 +103,14 @@ class Container:
         self.list_news = ListNews(self.news_repo, self.story_repo)
         self.get_seo_settings = GetSeoSettings(self.site_settings_repo)
         self.update_seo_settings = UpdateSeoSettings(self.site_settings_repo)
+        self.trigger_discovery = TriggerDiscovery(self.discovery_job_repo, self.discovery_runner)
+        self.get_discovery_job = GetDiscoveryJob(self.discovery_job_repo)
+        self.list_discovery_jobs = ListDiscoveryJobs(self.discovery_job_repo)
+        self.report_discovery_job_status = ReportDiscoveryJobStatus(
+            self.discovery_job_repo, self.discovery_repo, self.discovery_content_reader, self.category_repo,
+        )
+        self.list_discovery_items = ListDiscoveryItems(self.discovery_repo)
+        self.decide_discovery_item = DecideDiscoveryItem(self.discovery_repo, self.story_repo)
 
 
 @lru_cache(maxsize=1)

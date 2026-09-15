@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import {
     LayoutDashboard, Newspaper, Tags, Factory,
-    Clapperboard, Radio, Globe, Zap,
+    Clapperboard, Radio, Globe, Zap, Compass,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -13,8 +13,16 @@ interface AdminSidebarProps {
     setActiveView: (view: string) => void;
 }
 
+// "discovery" is the real Discovery bounded context (search -> discover ->
+// evaluate -> select over Automation's real ingestion) -- kept alongside
+// the existing tabs rather than replacing them yet, since Ready/Publish
+// aren't real capabilities yet either. See docs/NEXUS_ROADMAP.md: the
+// nav collapses to Discovery/Ready/Publish only once all three are
+// equally real, not before (never hide working functionality without a
+// real replacement).
 const ITEMS = [
     { id: "dashboard",    label: "Command Center", icon: LayoutDashboard },
+    { id: "discovery",    label: "Discovery",      icon: Compass },
     { id: "news",         label: "News",           icon: Newspaper },
     { id: "production",   label: "Producción",     icon: Factory },
     { id: "social",       label: "Studio",         icon: Clapperboard },

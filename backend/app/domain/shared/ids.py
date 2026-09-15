@@ -51,3 +51,11 @@ class AssetId(EntityId):
 
 class DistributionPlanId(EntityId):
     pass
+
+
+class DiscoveryItemId(EntityId):
+    pass
+
+
+class ArtifactId(EntityId):
+    pass

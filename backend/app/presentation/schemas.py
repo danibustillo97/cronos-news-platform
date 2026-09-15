@@ -41,7 +41,11 @@ class DiscoveryReasonOut(CamelModel):
     explanation: str
 
 
-class DiscoveryItemOut(CamelModel):
+class NewsRankingItemOut(CamelModel):
+    """The Command Center's simple recency+category re-ranking over
+    existing `news` rows (GET /api/discovery/today) -- kept distinct from
+    DiscoveryItemOut (the real Discovery bounded context) on purpose,
+    see app/application/use_cases/get_discovery_today.py's own docstring."""
     news_id: str
     headline: str
     category: str | None
@@ -190,6 +194,70 @@ class UpdateSeoSettingsRequest(CamelModel):
     site_title: str
     meta_description: str
     keywords: list[str]
+
+
+class TriggerDiscoveryRequest(CamelModel):
+    max_sources: int | None = None
+    max_items: int | None = None
+
+
+class DiscoveryJobOut(CamelModel):
+    id: str
+    status: str
+    params: dict
+    created_at: str
+    started_at: str | None
+    finished_at: str | None
+    items_found: int | None
+    error: str | None
+
+
+class ReportDiscoveryJobStatusRequest(CamelModel):
+    status: str
+    items_found: int | None = None
+    item_ids: list[str] | None = None
+    error: str | None = None
+
+
+class MaterialReferenceOut(CamelModel):
+    kind: str
+    url: str
+    usable_as_final_asset: bool | None
+    editorial_prompt: str | None
+
+
+class DiscoveryScoresOut(CamelModel):
+    freshness_score: float | None
+    relevance_score: float | None
+    impact_score: float | None
+    source_quality_score: float | None
+    completeness_score: float | None
+    material_score: float | None
+    duplicate_of: str | None
+
+
+class DiscoveryItemOut(CamelModel):
+    id: str
+    source_url: str
+    original_url: str
+    original_title: str
+    raw_text: str
+    source_name: str | None
+    source_domain: str
+    author: str | None
+    language: str | None
+    category_id: str | None
+    topics: list[str]
+    published_at: str | None
+    discovered_at: str
+    materials: list[MaterialReferenceOut]
+    scores: DiscoveryScoresOut
+    status: str
+    story_id: str | None
+
+
+class DecideDiscoveryItemRequest(CamelModel):
+    decision: str
 
 
 class ErrorOut(CamelModel):
