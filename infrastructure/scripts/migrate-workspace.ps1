@@ -1,4 +1,16 @@
 <#
+.DEPRECATED (2026-09-15)
+  This exact migration already happened, by a different (safer) method:
+  Desktop/news is now Desktop/NEXUS, and Desktop/RPA_NEWS_SCRIPT is now
+  NEXUS/automation. This script targeted Desktop/creation-advanced and a
+  `rpa/` name that were never actually used, and moving whole directories
+  turned out to be blocked on this machine by the running session itself
+  holding them as a working directory -- the actual migration moved each
+  top-level item individually instead (see git log / obsidian-vault/
+  Roadmap.md for the real steps taken). Kept here for history, not as
+  something to run again -- DEPRECATE, not delete, per this project's own
+  rule against removing code without evidence it's unused.
+
 .SYNOPSIS
   Relocates the CRONOS workspace from Desktop/news + Desktop/RPA into
   Desktop/creation-advanced/{frontend,backend,infrastructure,rpa}.
