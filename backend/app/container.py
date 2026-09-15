@@ -13,6 +13,7 @@ from app.infrastructure.persistence.supabase.production_repository import Supaba
 from app.infrastructure.persistence.supabase.composition_repository import SupabaseCompositionRepository
 from app.infrastructure.persistence.supabase.distribution_repository import SupabaseDistributionRepository
 from app.infrastructure.persistence.supabase.category_repository import SupabaseCategoryRepository
+from app.infrastructure.persistence.supabase.site_settings_repository import SupabaseSiteSettingsRepository
 from app.infrastructure.persistence.supabase.intelligence_repository import SupabaseIntelligenceRepository
 from app.infrastructure.lab.local.editorial_intelligence_adapter import LocalEditorialIntelligenceAdapter
 from app.infrastructure.lab.local.story_intelligence_adapter import LocalStoryIntelligenceAdapter
@@ -39,6 +40,7 @@ from app.application.use_cases.list_categories import ListCategories
 from app.application.use_cases.list_news import ListNews
 from app.application.use_cases.convert_news_to_content import ConvertNewsToContent
 from app.application.use_cases.list_active_productions import ListActiveProductions
+from app.application.use_cases.seo_settings import GetSeoSettings, UpdateSeoSettings
 
 
 class Container:
@@ -51,6 +53,7 @@ class Container:
         self.composition_repo = SupabaseCompositionRepository(client)
         self.distribution_repo = SupabaseDistributionRepository(client)
         self.category_repo = SupabaseCategoryRepository(client)
+        self.site_settings_repo = SupabaseSiteSettingsRepository(client)
         self.intelligence_repo = SupabaseIntelligenceRepository(client)
 
         reader = default_reader()
@@ -85,6 +88,8 @@ class Container:
         self.get_discovery_today = GetDiscoveryToday(self.news_repo)
         self.list_categories = ListCategories(self.category_repo)
         self.list_news = ListNews(self.news_repo, self.story_repo)
+        self.get_seo_settings = GetSeoSettings(self.site_settings_repo)
+        self.update_seo_settings = UpdateSeoSettings(self.site_settings_repo)
 
 
 @lru_cache(maxsize=1)

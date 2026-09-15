@@ -189,6 +189,22 @@ create table if not exists production_jobs (
 create index if not exists production_jobs_production_id_idx on production_jobs(production_id);
 
 -- ============================================================
+-- SITE SETTINGS — singleton row (id='global'). Backs the "Global SEO
+-- Config" panel in /admin (AdminSeoTags.tsx) and frontend/src/app/
+-- layout.tsx's generateMetadata(); replaces both the hardcoded
+-- defaultValue props that admin form used to save nowhere and the
+-- build-time-frozen `export const metadata` layout.tsx used to have.
+-- ============================================================
+
+create table if not exists site_settings (
+  id text primary key default 'global',
+  site_title text not null,
+  meta_description text not null,
+  keywords text[] not null default '{}',
+  updated_at timestamptz not null default now()
+);
+
+-- ============================================================
 -- RLS — reads open (operational dashboards are behind Supabase Auth on the
 -- admin routes already), writes restricted to authenticated sessions.
 -- ============================================================
@@ -206,6 +222,7 @@ alter table distribution_plans enable row level security;
 alter table publication_records enable row level security;
 alter table runtime_registrations enable row level security;
 alter table production_jobs enable row level security;
+alter table site_settings enable row level security;
 
 do $$
 declare
@@ -215,7 +232,7 @@ begin
     'category_groups','categories','topics','cronos_stories','story_sources',
     'story_intelligence','productions','compositions','assets',
     'distribution_plans','publication_records',
-    'runtime_registrations','production_jobs'
+    'runtime_registrations','production_jobs','site_settings'
   ]
   loop
     execute format('drop policy if exists "read_all" on %I', t);
@@ -332,3 +349,18 @@ begin
     end;
   end loop;
 end $$;
+
+-- ============================================================
+-- SEED — site_settings singleton, con los valores que hasta ahora estaban
+-- hardcodeados en frontend/src/app/layout.tsx (export const metadata) --
+-- no se inventa un valor nuevo, se persiste el que ya era real y visible
+-- en el sitio.
+-- ============================================================
+
+insert into site_settings (id, site_title, meta_description, keywords) values (
+  'global',
+  'Nexus News | Noticias Deportivas al Instante',
+  'El mejor portal de noticias deportivas con análisis IA en tiempo real. Cobertura de fútbol, NBA, F1 y más.',
+  array['deportes', 'noticias', 'fútbol', 'NBA', 'F1', 'resultados en vivo']
+)
+on conflict (id) do nothing;

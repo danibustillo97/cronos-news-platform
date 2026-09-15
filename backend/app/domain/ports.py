@@ -18,6 +18,7 @@ from app.domain.composition.entities import Composition
 from app.domain.distribution.entities import DistributionPlan, Platform
 from app.domain.asset.entities import Asset
 from app.domain.category.entities import CategoryGroup
+from app.domain.settings.entities import SiteSeoSettings
 from app.domain.intelligence.entities import (
     EditorialIntelligence, StoryIntelligence, NarrativeDirection, AudioDirection,
     MediaPlan, SequencePlan, AnimationPlan, RenderResult, AssemblyResult,
@@ -73,6 +74,13 @@ class DistributionRepository(Protocol):
 
 class CategoryRepository(Protocol):
     def list_tree(self) -> list[CategoryGroup]: ...
+
+
+class SiteSettingsRepository(Protocol):
+    """Singleton config -- get_seo always returns a value (the row is
+    seeded by the schema migration itself), never None."""
+    def get_seo(self) -> SiteSeoSettings: ...
+    def save_seo(self, settings: SiteSeoSettings) -> None: ...
 
 
 class IntelligenceRepository(Protocol):

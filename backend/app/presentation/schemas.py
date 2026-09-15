@@ -180,6 +180,18 @@ class CategoryGroupOut(CamelModel):
     categories: list[CategoryOut]
 
 
+class SeoSettingsOut(CamelModel):
+    site_title: str
+    meta_description: str
+    keywords: list[str]
+
+
+class UpdateSeoSettingsRequest(CamelModel):
+    site_title: str
+    meta_description: str
+    keywords: list[str]
+
+
 class ErrorOut(CamelModel):
     error: str
     message: str

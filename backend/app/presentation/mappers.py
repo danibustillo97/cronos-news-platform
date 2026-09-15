@@ -6,6 +6,7 @@ from app.domain.production.entities import Production
 from app.domain.composition.entities import Composition
 from app.domain.distribution.entities import DistributionPlan
 from app.domain.category.entities import CategoryGroup
+from app.domain.settings.entities import SiteSeoSettings
 from app.application.use_cases.get_discovery_today import DiscoveryItem
 from app.application.use_cases.list_news import NewsWorkspace, NewsWorkspaceItem
 from app.application.use_cases.get_story_workspace import StoryWorkspace
@@ -13,7 +14,7 @@ from app.presentation.schemas import (
     NewsOut, NewsWorkspaceItemOut, NewsWorkspaceOut, DiscoveryItemOut, DiscoveryReasonOut,
     StoryOut, ProductionOut, ProductionStageOut, CompositionOut, CompositionContentOut, CompositionShotOut,
     DistributionPlanOut, StoryWorkspaceOut, CategoryGroupOut, CategoryOut, TopicOut,
-    ActiveProductionItemOut,
+    ActiveProductionItemOut, SeoSettingsOut,
 )
 
 
@@ -116,4 +117,10 @@ def category_group_out(group: CategoryGroup) -> CategoryGroupOut:
             )
             for c in group.categories
         ],
+    )
+
+
+def seo_settings_out(settings: SiteSeoSettings) -> SeoSettingsOut:
+    return SeoSettingsOut(
+        site_title=settings.site_title, meta_description=settings.meta_description, keywords=settings.keywords,
     )
