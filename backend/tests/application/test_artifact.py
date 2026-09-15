@@ -106,11 +106,30 @@ class FakePublisher:
         self._error = error
         self.calls = []
 
-    def publish(self, artifact, category_name):
+    def publish(self, artifact, category_name, image_url):
         if self._error:
             raise self._error
-        self.calls.append((artifact, category_name))
+        self.calls.append((artifact, category_name, image_url))
         return self._news_id
+
+
+class FakeAssetRepo:
+    def __init__(self):
+        self.items = {}
+
+    def find_by_id(self, asset_id):
+        return self.items.get(asset_id)
+
+    def list_for_story(self, story_id):
+        return [a for a in self.items.values() if str(a.story_id) == story_id]
+
+    def save(self, asset):
+        self.items[str(asset.id)] = asset
+
+
+class FakeStorage:
+    def resolve_url(self, storage_ref):
+        return f"https://cdn.example.com/{storage_ref}"
 
 
 class FakeGenerator:
@@ -273,22 +292,23 @@ def test_publish_artifact_writes_real_row_and_advances_story():
     artifacts, stories, artifact = _approved_artifact_and_story()
     publisher = FakePublisher(news_id="news-42")
 
-    result = PublishArtifact(artifacts, stories, FakeCategoryRepo(_categories()), publisher) \
+    result = PublishArtifact(artifacts, stories, FakeCategoryRepo(_categories()), FakeAssetRepo(), FakeStorage(), publisher) \
         .execute(PublishArtifactInput(artifact_id=str(artifact.id)))
 
     assert result.status == ArtifactStatus.PUBLISHED
     assert result.published_news_id == "news-42"
     assert stories.find_by_id("s1").status == StoryStatus.PUBLISHED
     assert len(publisher.calls) == 1
-    published_artifact, category_name = publisher.calls[0]
+    published_artifact, category_name, image_url = publisher.calls[0]
     assert published_artifact is result
     assert category_name == "Fútbol"  # resolved from the real taxonomy, not the raw id
+    assert image_url is None  # Phase 7 gap: no real image was generated for this test artifact
 
 
 def test_publish_artifact_requires_approved_status():
     artifacts, stories, artifact = _approved_artifact_and_story()
     publisher = FakePublisher()
-    use_case = PublishArtifact(artifacts, stories, FakeCategoryRepo(_categories()), publisher)
+    use_case = PublishArtifact(artifacts, stories, FakeCategoryRepo(_categories()), FakeAssetRepo(), FakeStorage(), publisher)
     use_case.execute(PublishArtifactInput(artifact_id=str(artifact.id)))  # first publish succeeds
 
     with pytest.raises(InvalidStateTransition):
@@ -299,7 +319,7 @@ def test_publish_artifact_requires_approved_status():
 def test_publish_artifact_raises_not_found_for_unknown_artifact():
     artifacts, stories = InMemoryArtifactRepo(), InMemoryStoryRepo()
     with pytest.raises(NotFoundError):
-        PublishArtifact(artifacts, stories, FakeCategoryRepo(), FakePublisher()) \
+        PublishArtifact(artifacts, stories, FakeCategoryRepo(), FakeAssetRepo(), FakeStorage(), FakePublisher()) \
             .execute(PublishArtifactInput(artifact_id="missing"))
 
 

@@ -3,7 +3,8 @@ from datetime import datetime, timezone
 import pytest
 
 from app.domain.artifact.entities import (
-    Artifact, ArtifactJob, ArtifactJobStatus, ArtifactStatus, SeoMetadata, ValidationIssue, ValidationResult,
+    Artifact, ArtifactJob, ArtifactJobStatus, ArtifactStatus, MediaKind, MediaRequirement, SeoMetadata,
+    ValidationIssue, ValidationResult,
 )
 from app.domain.shared.errors import InvalidStateTransition
 from app.domain.shared.ids import ArtifactId, StoryId
@@ -74,6 +75,33 @@ def test_publish_twice_raises():
     a = _artifact(ArtifactStatus.PUBLISHED)
     with pytest.raises(InvalidStateTransition):
         a.publish("news-2")
+
+
+def _artifact_with_media_requirement():
+    a = _artifact()
+    a.media_requirements = [
+        MediaRequirement(placeholder_id="FEATURE_IMAGE", kind=MediaKind.FEATURE_IMAGE, prompt="Foto real"),
+    ]
+    return a
+
+
+def test_fulfill_media_requirement_sets_asset_id():
+    a = _artifact_with_media_requirement()
+    a.fulfill_media_requirement("FEATURE_IMAGE", "asset-1")
+    assert a.media_requirements[0].asset_id == "asset-1"
+
+
+def test_fulfill_media_requirement_twice_raises():
+    a = _artifact_with_media_requirement()
+    a.fulfill_media_requirement("FEATURE_IMAGE", "asset-1")
+    with pytest.raises(ValueError):
+        a.fulfill_media_requirement("FEATURE_IMAGE", "asset-2")
+
+
+def test_fulfill_unknown_media_requirement_raises():
+    a = _artifact_with_media_requirement()
+    with pytest.raises(ValueError):
+        a.fulfill_media_requirement("BODY_IMAGE_01", "asset-1")
 
 
 def _job(status=ArtifactJobStatus.QUEUED):

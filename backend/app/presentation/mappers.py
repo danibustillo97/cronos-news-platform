@@ -9,6 +9,7 @@ from app.domain.category.entities import CategoryGroup
 from app.domain.settings.entities import SiteSeoSettings
 from app.domain.discovery.entities import DiscoveryItem, DiscoveryJob
 from app.domain.artifact.entities import Artifact, ArtifactJob
+from app.domain.asset.entities import MediaGenerationJob
 from app.application.use_cases.get_discovery_today import NewsRankingItem
 from app.application.use_cases.list_news import NewsWorkspace, NewsWorkspaceItem
 from app.application.use_cases.get_story_workspace import StoryWorkspace
@@ -19,6 +20,7 @@ from app.presentation.schemas import (
     ActiveProductionItemOut, SeoSettingsOut,
     DiscoveryJobOut, DiscoveryItemOut, MaterialReferenceOut, DiscoveryScoresOut,
     ArtifactJobOut, ArtifactOut, SeoMetadataOut, SourceReferenceOut, ClaimOut, MediaRequirementOut, ValidationIssueOut,
+    MediaGenerationJobOut,
 )
 
 
@@ -173,7 +175,8 @@ def artifact_job_out(job: ArtifactJob) -> ArtifactJobOut:
     )
 
 
-def artifact_out(artifact: Artifact) -> ArtifactOut:
+def artifact_out(artifact: Artifact, asset_urls: dict[str, str] | None = None) -> ArtifactOut:
+    asset_urls = asset_urls or {}
     return ArtifactOut(
         id=str(artifact.id), story_id=str(artifact.story_id), version=artifact.version, status=artifact.status.value,
         title=artifact.title, subtitle=artifact.subtitle, excerpt=artifact.excerpt, summary=artifact.summary,
@@ -193,10 +196,21 @@ def artifact_out(artifact: Artifact) -> ArtifactOut:
         ],
         claims=[ClaimOut(text=c.text, label=c.label.value, source_urls=c.source_urls) for c in artifact.claims],
         media_requirements=[
-            MediaRequirementOut(placeholder_id=m.placeholder_id, kind=m.kind.value, prompt=m.prompt, asset_id=m.asset_id)
+            MediaRequirementOut(
+                placeholder_id=m.placeholder_id, kind=m.kind.value, prompt=m.prompt, asset_id=m.asset_id,
+                asset_url=asset_urls.get(m.asset_id) if m.asset_id else None,
+            )
             for m in artifact.media_requirements
         ],
         validation_issues=[ValidationIssueOut(check=i.check, detail=i.detail) for i in artifact.validation.issues],
         editorial_notes=artifact.editorial_notes, created_at=artifact.created_at.isoformat(),
         published_news_id=artifact.published_news_id,
+    )
+
+
+def media_generation_job_out(job: MediaGenerationJob) -> MediaGenerationJobOut:
+    return MediaGenerationJobOut(
+        id=job.id, artifact_id=str(job.artifact_id), placeholder_id=job.placeholder_id, status=job.status.value,
+        created_at=job.created_at.isoformat(), started_at=job.started_at.isoformat() if job.started_at else None,
+        finished_at=job.finished_at.isoformat() if job.finished_at else None, asset_id=job.asset_id, error=job.error,
     )

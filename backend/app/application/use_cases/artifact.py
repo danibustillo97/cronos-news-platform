@@ -13,13 +13,13 @@ from datetime import datetime, timezone
 from app.domain.shared.errors import InvalidStateTransition, NotFoundError
 from app.domain.shared.ids import ArtifactId, StoryId
 from app.domain.artifact.entities import (
-    Artifact, ArtifactGenerationRequest, ArtifactJob, ArtifactJobStatus, ArtifactStatus, SeoMetadata,
+    Artifact, ArtifactGenerationRequest, ArtifactJob, ArtifactJobStatus, ArtifactStatus, MediaKind, SeoMetadata,
     SourceMaterial, SourceReference,
 )
 from app.domain.artifact.validation import validate_artifact
 from app.domain.ports import (
     ArtifactGenerationPort, ArtifactGenerationUnavailableError, ArtifactJobRepository, ArtifactPublishingPort,
-    ArtifactRepository, CategoryRepository, DiscoveryRepository, StoryRepository,
+    ArtifactRepository, AssetRepository, CategoryRepository, DiscoveryRepository, StoragePort, StoryRepository,
 )
 
 
@@ -231,11 +231,13 @@ class PublishArtifact:
 
     def __init__(
         self, artifacts: ArtifactRepository, stories: StoryRepository, categories: CategoryRepository,
-        publisher: ArtifactPublishingPort,
+        assets: AssetRepository, storage: StoragePort, publisher: ArtifactPublishingPort,
     ) -> None:
         self._artifacts = artifacts
         self._stories = stories
         self._categories = categories
+        self._assets = assets
+        self._storage = storage
         self._publisher = publisher
 
     def execute(self, input: PublishArtifactInput) -> Artifact:
@@ -250,13 +252,23 @@ class PublishArtifact:
             raise NotFoundError("Story", str(artifact.story_id))
 
         category_name = self._resolve_category_name(artifact.category_id)
-        news_id = self._publisher.publish(artifact, category_name)
+        image_url = self._resolve_feature_image_url(artifact)
+        news_id = self._publisher.publish(artifact, category_name, image_url)
 
         artifact.publish(news_id)
         story.mark_published()
         self._artifacts.save(artifact)
         self._stories.save(story)
         return artifact
+
+    def _resolve_feature_image_url(self, artifact: Artifact) -> str | None:
+        feature = next(
+            (m for m in artifact.media_requirements if m.kind == MediaKind.FEATURE_IMAGE and m.asset_id), None,
+        )
+        if feature is None:
+            return None  # Phase 7 gap: no real image generated yet -- never fabricated
+        asset = self._assets.find_by_id(feature.asset_id)
+        return self._storage.resolve_url(asset.storage_ref) if asset else None
 
     def _resolve_category_name(self, category_id: str | None) -> str | None:
         if category_id is None:

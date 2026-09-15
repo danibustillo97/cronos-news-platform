@@ -74,7 +74,7 @@ def test_publisher_inserts_real_row_and_returns_real_id():
     client = FakeSupabaseClient(returned_id="news-real-id")
     publisher = SupabaseLegacyNewsPublisher(client)
 
-    news_id = publisher.publish(_artifact(), category_name="Fútbol")
+    news_id = publisher.publish(_artifact(), category_name="Fútbol", image_url="https://cdn.example.com/img.jpg")
 
     assert news_id == "news-real-id"
     assert client.inserted_payload["title"] == "Un título real"
@@ -82,4 +82,5 @@ def test_publisher_inserts_real_row_and_returns_real_id():
     assert client.inserted_payload["category"] == "Fútbol"
     assert client.inserted_payload["status"] == "published"
     assert client.inserted_payload["source_url"] == "https://example.com/a"
+    assert client.inserted_payload["image_url"] == "https://cdn.example.com/img.jpg"
     assert "<" not in client.inserted_payload["content"]

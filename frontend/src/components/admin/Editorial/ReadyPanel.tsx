@@ -7,8 +7,8 @@
 // APPROVE here is the real, one-way human decision that makes an
 // Artifact (and its Story) genuinely READY (Story.mark_produced()).
 
-import { useCallback, useEffect, useState } from "react";
-import { CheckCircle2, RefreshCw, AlertTriangle, ThumbsUp, ThumbsDown, ExternalLink } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { CheckCircle2, RefreshCw, AlertTriangle, ThumbsUp, ThumbsDown, ExternalLink, ImagePlus } from "lucide-react";
 import { toast } from "sonner";
 import { apiUrl } from "@/studio/lab/api-client";
 
@@ -30,6 +30,14 @@ interface ValidationIssue {
   detail: string;
 }
 
+interface MediaRequirement {
+  placeholderId: string;
+  kind: "FEATURE_IMAGE" | "BODY_IMAGE" | "VIDEO";
+  prompt: string;
+  assetId: string | null;
+  assetUrl: string | null;
+}
+
 interface Artifact {
   id: string;
   storyId: string;
@@ -45,9 +53,16 @@ interface Artifact {
   entities: string[];
   seo: SeoMetadata;
   sources: SourceReference[];
+  mediaRequirements: MediaRequirement[];
   validationIssues: ValidationIssue[];
   editorialNotes: string | null;
   createdAt: string;
+}
+
+interface MediaGenerationJob {
+  id: string;
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  error: string | null;
 }
 
 const STATUS_OPTIONS = [
@@ -65,6 +80,8 @@ export default function ReadyPanel({ onAdvance }: { onAdvance?: () => void }) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  const [generating, setGenerating] = useState<Record<string, boolean>>({});
+  const pollRefs = useRef<Record<string, ReturnType<typeof setInterval>>>({});
 
   const fetchArtifacts = useCallback(async () => {
     setLoading(true);
@@ -90,6 +107,49 @@ export default function ReadyPanel({ onAdvance }: { onAdvance?: () => void }) {
   useEffect(() => {
     fetchArtifacts();
   }, [fetchArtifacts]);
+
+  useEffect(() => {
+    const refs = pollRefs.current;
+    return () => {
+      Object.values(refs).forEach(clearInterval);
+    };
+  }, []);
+
+  const generateMedia = async (artifactId: string, placeholderId: string) => {
+    const key = `${artifactId}:${placeholderId}`;
+    setGenerating((prev) => ({ ...prev, [key]: true }));
+    try {
+      const res = await fetch(apiUrl(`/api/artifacts/${artifactId}/media/${placeholderId}/generate`), {
+        method: "POST",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || `HTTP ${res.status}`);
+      }
+      const job: MediaGenerationJob = await res.json();
+      toast.success("Generando imagen real -- puede tardar unos segundos");
+
+      pollRefs.current[key] = setInterval(async () => {
+        const r = await fetch(apiUrl(`/api/artifacts/media/jobs/${job.id}`));
+        if (!r.ok) return;
+        const updated: MediaGenerationJob = await r.json();
+        if (updated.status === "COMPLETED" || updated.status === "FAILED") {
+          clearInterval(pollRefs.current[key]);
+          delete pollRefs.current[key];
+          setGenerating((prev) => ({ ...prev, [key]: false }));
+          if (updated.status === "COMPLETED") {
+            toast.success("Imagen generada");
+            fetchArtifacts();
+          } else {
+            toast.error(`Generación falló: ${updated.error}`);
+          }
+        }
+      }, 3000);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo iniciar la generación");
+      setGenerating((prev) => ({ ...prev, [key]: false }));
+    }
+  };
 
   const review = async (artifactId: string, decision: "APPROVE" | "REJECT") => {
     const reason = rejectReason[artifactId]?.trim();
@@ -214,6 +274,39 @@ export default function ReadyPanel({ onAdvance }: { onAdvance?: () => void }) {
                           ))}
                         </div>
                       </div>
+                      {a.mediaRequirements.length > 0 && (
+                        <div className="space-y-2">
+                          <div className="text-[11px] text-neutral-500 font-semibold">Multimedia</div>
+                          {a.mediaRequirements.map((m) => {
+                            const key = `${a.id}:${m.placeholderId}`;
+                            return (
+                              <div key={m.placeholderId} className="flex items-center gap-3 bg-black/30 rounded-xl p-3 border border-white/5">
+                                {m.assetUrl ? (
+                                  <img src={m.assetUrl} alt={m.placeholderId} className="w-20 h-20 object-cover rounded-lg flex-shrink-0" />
+                                ) : (
+                                  <div className="w-20 h-20 rounded-lg bg-white/5 flex items-center justify-center text-neutral-600 flex-shrink-0">
+                                    <ImagePlus size={20} />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <div className="text-[10px] uppercase tracking-wider text-neutral-500">{m.kind} -- {m.placeholderId}</div>
+                                  <p className="text-xs text-neutral-400 line-clamp-2">{m.prompt}</p>
+                                </div>
+                                {!m.assetUrl && m.kind !== "VIDEO" && (
+                                  <button
+                                    onClick={() => generateMedia(a.id, m.placeholderId)}
+                                    disabled={generating[key]}
+                                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 disabled:opacity-50 flex-shrink-0"
+                                  >
+                                    {generating[key] ? <RefreshCw className="animate-spin" size={13} /> : <ImagePlus size={13} />}
+                                    Generar imagen
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

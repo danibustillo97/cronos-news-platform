@@ -303,6 +303,7 @@ class MediaRequirementOut(CamelModel):
     kind: str
     prompt: str
     asset_id: str | None
+    asset_url: str | None = None
 
 
 class ValidationIssueOut(CamelModel):
@@ -336,6 +337,18 @@ class ArtifactOut(CamelModel):
 class ReviewArtifactRequest(CamelModel):
     decision: str
     reason: str | None = None
+
+
+class MediaGenerationJobOut(CamelModel):
+    id: str
+    artifact_id: str
+    placeholder_id: str
+    status: str
+    created_at: str
+    started_at: str | None
+    finished_at: str | None
+    asset_id: str | None
+    error: str | None
 
 
 class ErrorOut(CamelModel):

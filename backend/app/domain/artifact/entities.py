@@ -19,7 +19,7 @@ of a Claude Code skill).
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime
 from enum import Enum
 
@@ -168,6 +168,27 @@ class Artifact:
             raise InvalidStateTransition("Artifact", self.status.value, ArtifactStatus.REJECTED.value)
         self.status = ArtifactStatus.REJECTED
         self.editorial_notes = reason
+
+    def fulfill_media_requirement(self, placeholder_id: str, asset_id: str) -> None:
+        """PHASE 7: attaches a real, generated Asset to one of this
+        Artifact's declared media needs. Only ever moves a requirement
+        from asset_id=None to a real id -- re-fulfilling one that already
+        has an asset would silently discard which image is actually
+        referenced by the published article, so that's a real error, not
+        a quiet overwrite."""
+        updated: list[MediaRequirement] = []
+        found = False
+        for requirement in self.media_requirements:
+            if requirement.placeholder_id != placeholder_id:
+                updated.append(requirement)
+                continue
+            found = True
+            if requirement.asset_id is not None:
+                raise ValueError(f"Media requirement {placeholder_id!r} already has asset {requirement.asset_id!r}")
+            updated.append(replace(requirement, asset_id=asset_id))
+        if not found:
+            raise ValueError(f"No media requirement {placeholder_id!r} on this Artifact")
+        self.media_requirements = updated
 
     def publish(self, news_id: str) -> None:
         """Real, one-way: only an APPROVED (= READY) Artifact can be

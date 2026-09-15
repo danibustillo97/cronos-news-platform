@@ -30,7 +30,7 @@ class SupabaseLegacyNewsPublisher:
     def __init__(self, client) -> None:
         self._client = client
 
-    def publish(self, artifact: Artifact, category_name: str | None) -> str:
+    def publish(self, artifact: Artifact, category_name: str | None, image_url: str | None) -> str:
         primary_source = artifact.sources[0] if artifact.sources else None
         payload = {
             "title": artifact.title,
@@ -46,6 +46,7 @@ class SupabaseLegacyNewsPublisher:
             "author": _DEFAULT_AUTHOR,
             "source": primary_source.source_name if primary_source else None,
             "source_url": primary_source.source_url if primary_source else None,
+            "image_url": image_url,
             "status": "published",
             "published_at": datetime.now(timezone.utc).isoformat(),
         }

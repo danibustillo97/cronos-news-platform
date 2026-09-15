@@ -16,7 +16,7 @@ from app.domain.story.entities import Story
 from app.domain.production.entities import Production
 from app.domain.composition.entities import Composition
 from app.domain.distribution.entities import DistributionPlan, Platform
-from app.domain.asset.entities import Asset
+from app.domain.asset.entities import Asset, MediaGenerationJob, MediaGenerationResult
 from app.domain.category.entities import CategoryGroup
 from app.domain.settings.entities import SiteSeoSettings
 from app.domain.intelligence.entities import (
@@ -64,8 +64,15 @@ class CompositionRepository(Protocol):
 
 
 class AssetRepository(Protocol):
+    def find_by_id(self, asset_id: str) -> Asset | None: ...
     def list_for_story(self, story_id: str) -> list[Asset]: ...
     def save(self, asset: Asset) -> None: ...
+
+
+class MediaGenerationJobRepository(Protocol):
+    def find_by_id(self, job_id: str) -> MediaGenerationJob | None: ...
+    def list_recent(self, limit: int = 20) -> list[MediaGenerationJob]: ...
+    def save(self, job: MediaGenerationJob) -> None: ...
 
 
 class DistributionRepository(Protocol):
@@ -257,7 +264,26 @@ class ArtifactPublishingPort(Protocol):
     title/content/seo/status='published'); it never touches or replaces
     an ingestion row. Returns the new row's real id -- never a fabricated
     one -- and raises on any failure instead of pretending it worked."""
-    def publish(self, artifact: Artifact, category_name: str | None) -> str: ...
+    def publish(self, artifact: Artifact, category_name: str | None, image_url: str | None) -> str: ...
+
+
+class MediaGenerationPort(Protocol):
+    """PHASE 7: the one real image-generation call for an Artifact's
+    declared MediaRequirement. Provider-agnostic like
+    ArtifactGenerationPort -- the concrete adapter (see
+    app/infrastructure/media/) reaches the real Gemini/Cloudflare
+    providers that already exist in automation/lab/media/, through the
+    Local Runtime bridge (NEWS/backend never imports LAB Python directly,
+    same 'NO PRODUCE, LAB PRODUCE' rule as ExecutionRuntimePort). Raises
+    MediaGenerationUnavailableError -- never returns a placeholder
+    image -- when the runtime or the provider isn't reachable/configured."""
+    def generate(self, story_id: str, placeholder_id: str, prompt: str, aspect_ratio: str = "16:9") -> MediaGenerationResult: ...
+
+
+class MediaGenerationUnavailableError(Exception):
+    """The Local Runtime isn't reachable, or the real image provider it
+    called (Gemini/Cloudflare) failed/isn't configured -- always the real
+    error message, never silently retried into a fabricated image."""
 
 
 class DiscoveryContentReaderPort(Protocol):
