@@ -13,16 +13,16 @@ interface AdminSidebarProps {
     setActiveView: (view: string) => void;
 }
 
-// "discovery" is the real Discovery bounded context (search -> discover ->
-// evaluate -> select over Automation's real ingestion) -- kept alongside
-// the existing tabs rather than replacing them yet, since Ready/Publish
-// aren't real capabilities yet either. See docs/NEXUS_ROADMAP.md: the
-// nav collapses to Discovery/Ready/Publish only once all three are
-// equally real, not before (never hide working functionality without a
-// real replacement).
+// "editorial" is the ONE editorial space (Discovery/Ready/Publish live
+// as internal tabs of EditorialView, never as separate sidebar entries --
+// Discovery is the first phase of Editorial, not a module outside it).
+// News/Producción/Studio/Distribución stay as their own items for now:
+// no real replacement exists yet for what they do (see
+// docs/NEXUS_ROADMAP.md) -- removing them would break working
+// functionality with nothing real to take its place.
 const ITEMS = [
     { id: "dashboard",    label: "Command Center", icon: LayoutDashboard },
-    { id: "discovery",    label: "Discovery",      icon: Compass },
+    { id: "editorial",    label: "Editorial",      icon: Compass },
     { id: "news",         label: "News",           icon: Newspaper },
     { id: "production",   label: "Producción",     icon: Factory },
     { id: "social",       label: "Studio",         icon: Clapperboard },

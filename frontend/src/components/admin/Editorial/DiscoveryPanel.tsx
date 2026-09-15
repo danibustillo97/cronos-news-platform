@@ -1,13 +1,13 @@
 "use client";
 
-// Discovery -- search -> discover -> evaluate -> select over Automation's
-// real ingestion (GET/POST /api/discovery/*). This component only
-// consumes the backend's contract and renders it: no scraping, no
-// classification, no scoring happens here -- see
-// backend/app/domain/discovery/ for where that real work happens.
+// Discovery -- the FIRST PHASE of the Editorial flow (DISCOVERY ->
+// ARTIFACT -> READY -> PUBLISH), not a module of its own. Consumes
+// GET/POST /api/discovery/* directly: no scraping, no classification, no
+// scoring happens in this component -- see backend/app/domain/discovery/
+// for where that real work happens.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Compass, RefreshCw, Clock, Tag, Image as ImageIcon, ExternalLink, Check, X, Archive, Send } from "lucide-react";
+import { Compass, RefreshCw, Clock, Tag, Image as ImageIcon, ExternalLink, Check, X, Archive, ArrowRight } from "lucide-react";
 import { toast } from "sonner";
 import { apiUrl } from "@/studio/lab/api-client";
 
@@ -86,9 +86,13 @@ const SORT_OPTIONS = [
   { value: "relevance_score", label: "Mayor relevancia" },
 ];
 
+// "SENT_TO_EDITORIAL" is the real backend status name (kept as-is, tests
+// already cover it) -- labeled "En Artifact" here since, inside this
+// single Editorial space, that's what actually happens next: it becomes
+// the seed of a Story that Artifact (Phase 4, not built yet) will process.
 const STATUS_LABEL: Record<string, string> = {
   DISCOVERED: "Descubierto", SELECTED: "Seleccionado", IGNORED: "Ignorado",
-  ARCHIVED: "Archivado", SENT_TO_EDITORIAL: "Enviado a editorial",
+  ARCHIVED: "Archivado", SENT_TO_EDITORIAL: "En Artifact",
 };
 
 function ageLabel(iso: string): string {
@@ -108,7 +112,7 @@ function ScoreBadge({ label, value }: { label: string; value: number | null }) {
   return <span className={`text-[10px] px-2 py-0.5 rounded ${color}`}>{label}: {pct}%</span>;
 }
 
-export default function DiscoveryView() {
+export default function DiscoveryPanel({ onAdvance }: { onAdvance?: () => void }) {
   const [items, setItems] = useState<DiscoveryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -220,7 +224,12 @@ export default function DiscoveryView() {
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
       setItems((prev) => prev.filter((i) => i.id !== itemId)); // moved out of the current status filter
-      toast.success(decision === "SEND_TO_EDITORIAL" ? "Enviado a editorial -- Story creada" : "Actualizado");
+      if (decision === "SEND_TO_EDITORIAL") {
+        toast.success("Story creada -- lista para Artifact");
+        onAdvance?.();
+      } else {
+        toast.success("Actualizado");
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo actualizar el item");
     }
@@ -284,7 +293,7 @@ export default function DiscoveryView() {
         <div className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl p-4">{error}</div>
       ) : items.length === 0 ? (
         <div className="text-neutral-500 text-sm text-center py-12">
-          No hay items en este filtro. Probá "Discovery Up" o ajustá los filtros.
+          No hay items en este filtro. Probá &quot;Discovery Up&quot; o ajustá los filtros.
         </div>
       ) : (
         <div className="space-y-3">
@@ -338,7 +347,7 @@ export default function DiscoveryView() {
                   {item.status === "SELECTED" && (
                     <button onClick={() => decide(item.id, "SEND_TO_EDITORIAL")}
                       className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20">
-                      <Send size={13} /> Send to Editorial
+                      <ArrowRight size={13} /> Procesar en Artifact
                     </button>
                   )}
                   <button onClick={() => decide(item.id, "IGNORE")}

@@ -1,6 +1,6 @@
 export type View =
     | "dashboard"
-    | "discovery"
+    | "editorial"
     | "news"
     | "production"
     | "social"

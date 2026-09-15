@@ -11,7 +11,7 @@ import AdminDashboard from "@/components/admin/AdminDashboard";
 import SmartWorkspace from "@/components/admin/SmartWorkspace";
 import AdminSeoTags from "@/components/admin/AdminSeoTags";
 import StudioView from "@/components/admin/Studio/StudioView";
-import DiscoveryView from "@/components/admin/Discovery/DiscoveryView";
+import EditorialView from "@/components/admin/Editorial/EditorialView";
 import { ProductionWorkspace } from "@/components/admin/Production/ProductionWorkspace";
 import { DistributionView } from "@/components/admin/Distribution/DistributionView";
 import { useProduction } from "@/studio/lab/ProductionContext";
@@ -55,7 +55,7 @@ export default function AdminPage() {
   const pageTitle = useMemo(() => {
     switch (activeView) {
       case "dashboard": return "Command Center";
-      case "discovery": return "Discovery";
+      case "editorial": return "Editorial";
       case "news": return "News";
       case "production": return "Producción";
       case "social": return "Studio";
@@ -68,7 +68,7 @@ export default function AdminPage() {
   const renderContent = () => {
     switch (activeView) {
       case "dashboard": return <AdminDashboard />;
-      case "discovery": return <DiscoveryView />;
+      case "editorial": return <EditorialView />;
       case "news": return <SmartWorkspace />;
       case "production": return <ProductionWorkspace />;
       case "social": return <StudioView />;
