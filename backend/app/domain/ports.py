@@ -24,6 +24,7 @@ from app.domain.intelligence.entities import (
     MediaPlan, SequencePlan, AnimationPlan, RenderResult, AssemblyResult,
 )
 from app.domain.discovery.entities import DiscoveryFilters, DiscoveryItem, DiscoveryJob, IngestedContent
+from app.domain.artifact.entities import Artifact, ArtifactGenerationRequest, ArtifactGenerationResult, ArtifactJob
 
 
 # ── repository ports ─────────────────────────────────────────────────────
@@ -99,6 +100,22 @@ class DiscoveryJobRepository(Protocol):
     def find_by_id(self, job_id: str) -> DiscoveryJob | None: ...
     def list_recent(self, limit: int = 20) -> list[DiscoveryJob]: ...
     def save(self, job: DiscoveryJob) -> None: ...
+
+
+class ArtifactRepository(Protocol):
+    def find_by_id(self, artifact_id: str) -> Artifact | None: ...
+    def find_latest_for_story(self, story_id: str) -> Artifact | None: ...
+    def list_by_status(self, status: str, limit: int = 50) -> list[Artifact]:
+        """Real listing for the Ready tab -- VALIDATED/APPROVED, never a
+        fabricated count."""
+        ...
+    def save(self, artifact: Artifact) -> None: ...
+
+
+class ArtifactJobRepository(Protocol):
+    def find_by_id(self, job_id: str) -> ArtifactJob | None: ...
+    def list_recent(self, limit: int = 20) -> list[ArtifactJob]: ...
+    def save(self, job: ArtifactJob) -> None: ...
 
 
 class IntelligenceRepository(Protocol):
@@ -202,6 +219,33 @@ class ExecutionRuntimePort(Protocol):
     def start_production(self, production_id: str, story_id: str, item_id: str) -> None: ...
     def cancel_production(self, production_id: str) -> None: ...
     def resume_production(self, production_id: str, story_id: str, item_id: str) -> None: ...
+
+
+class ArtifactGenerationPort(Protocol):
+    """The one real LLM call in the whole editorial pipeline -- deliberately
+    provider-agnostic (see app/infrastructure/llm/ for the concrete
+    adapter). NEXUS's domain/application code never knows which vendor
+    answers this; swapping providers means writing a new adapter, never
+    touching Artifact/TriggerArtifact.
+
+    Never invoked from within a Claude Code session's own reasoning --
+    this is a real outbound API call the production runtime makes on its
+    own, autonomously. Claude Code and its skills (automation/.claude/
+    skills/lab-editorial-*) remain development/inspection tools, not part
+    of this call path.
+
+    Raises a real, specific exception (never returns fabricated content)
+    when the provider isn't configured or the call fails -- see
+    ArtifactGenerationUnavailableError."""
+    def generate(self, request: ArtifactGenerationRequest) -> ArtifactGenerationResult: ...
+
+
+class ArtifactGenerationUnavailableError(Exception):
+    """The configured LLM provider isn't reachable, isn't configured
+    (missing API key), or returned something this backend can't parse
+    into a real ArtifactGenerationResult. Never silently degrades to
+    invented content -- the caller (TriggerArtifact) fails the job
+    honestly with this message."""
 
 
 class DiscoveryContentReaderPort(Protocol):

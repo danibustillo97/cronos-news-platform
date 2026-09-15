@@ -18,8 +18,12 @@ from app.infrastructure.persistence.supabase.intelligence_repository import Supa
 from app.infrastructure.persistence.supabase.discovery_repository import (
     SupabaseDiscoveryJobRepository, SupabaseDiscoveryRepository,
 )
+from app.infrastructure.persistence.supabase.artifact_repository import (
+    SupabaseArtifactJobRepository, SupabaseArtifactRepository,
+)
 from app.infrastructure.lab.local.discovery_reader import LocalDiscoveryContentReader
 from app.infrastructure.runtime.discovery_runner_adapter import DiscoveryRunnerAdapter
+from app.infrastructure.llm.anthropic_adapter import AnthropicArtifactGenerator
 from app.infrastructure.lab.local.editorial_intelligence_adapter import LocalEditorialIntelligenceAdapter
 from app.infrastructure.lab.local.story_intelligence_adapter import LocalStoryIntelligenceAdapter
 from app.infrastructure.lab.local.narrative_direction_adapter import LocalNarrativeDirectionAdapter
@@ -50,6 +54,9 @@ from app.application.use_cases.discovery import (
     DecideDiscoveryItem, GetDiscoveryJob, ListDiscoveryItems, ListDiscoveryJobs,
     ReportDiscoveryJobStatus, TriggerDiscovery,
 )
+from app.application.use_cases.artifact import (
+    GetArtifactJob, ListArtifactsByStatus, ReviewArtifact, RunArtifactJob, TriggerArtifact,
+)
 
 
 class Container:
@@ -66,6 +73,8 @@ class Container:
         self.intelligence_repo = SupabaseIntelligenceRepository(client)
         self.discovery_repo = SupabaseDiscoveryRepository(client)
         self.discovery_job_repo = SupabaseDiscoveryJobRepository(client)
+        self.artifact_repo = SupabaseArtifactRepository(client)
+        self.artifact_job_repo = SupabaseArtifactJobRepository(client)
 
         reader = default_reader()
         self.lab_editorial = LocalEditorialIntelligenceAdapter(reader)
@@ -84,6 +93,7 @@ class Container:
         self.runtime = LocalRuntimeAdapter()
         self.discovery_content_reader = LocalDiscoveryContentReader()
         self.discovery_runner = DiscoveryRunnerAdapter()
+        self.artifact_generator = AnthropicArtifactGenerator()
 
         self.prepare_content = PrepareContent(self.news_repo, self.story_repo)
         self.convert_news_to_content = ConvertNewsToContent(
@@ -111,6 +121,14 @@ class Container:
         )
         self.list_discovery_items = ListDiscoveryItems(self.discovery_repo)
         self.decide_discovery_item = DecideDiscoveryItem(self.discovery_repo, self.story_repo)
+        self.trigger_artifact = TriggerArtifact(self.artifact_job_repo, self.story_repo)
+        self.get_artifact_job = GetArtifactJob(self.artifact_job_repo)
+        self.run_artifact_job = RunArtifactJob(
+            self.artifact_job_repo, self.artifact_repo, self.discovery_repo, self.story_repo,
+            self.category_repo, self.artifact_generator,
+        )
+        self.list_artifacts_by_status = ListArtifactsByStatus(self.artifact_repo)
+        self.review_artifact = ReviewArtifact(self.artifact_repo, self.story_repo)
 
 
 @lru_cache(maxsize=1)

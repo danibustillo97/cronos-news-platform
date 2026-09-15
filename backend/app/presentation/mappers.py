@@ -8,6 +8,7 @@ from app.domain.distribution.entities import DistributionPlan
 from app.domain.category.entities import CategoryGroup
 from app.domain.settings.entities import SiteSeoSettings
 from app.domain.discovery.entities import DiscoveryItem, DiscoveryJob
+from app.domain.artifact.entities import Artifact, ArtifactJob
 from app.application.use_cases.get_discovery_today import NewsRankingItem
 from app.application.use_cases.list_news import NewsWorkspace, NewsWorkspaceItem
 from app.application.use_cases.get_story_workspace import StoryWorkspace
@@ -17,6 +18,7 @@ from app.presentation.schemas import (
     DistributionPlanOut, StoryWorkspaceOut, CategoryGroupOut, CategoryOut, TopicOut,
     ActiveProductionItemOut, SeoSettingsOut,
     DiscoveryJobOut, DiscoveryItemOut, MaterialReferenceOut, DiscoveryScoresOut,
+    ArtifactJobOut, ArtifactOut, SeoMetadataOut, SourceReferenceOut, ClaimOut, MediaRequirementOut, ValidationIssueOut,
 )
 
 
@@ -159,4 +161,41 @@ def discovery_item_out(item: DiscoveryItem) -> DiscoveryItemOut:
             duplicate_of=item.scores.duplicate_of,
         ),
         status=item.status.value, story_id=str(item.story_id) if item.story_id else None,
+    )
+
+
+def artifact_job_out(job: ArtifactJob) -> ArtifactJobOut:
+    return ArtifactJobOut(
+        id=job.id, story_id=str(job.story_id), status=job.status.value, created_at=job.created_at.isoformat(),
+        started_at=job.started_at.isoformat() if job.started_at else None,
+        finished_at=job.finished_at.isoformat() if job.finished_at else None,
+        artifact_id=job.artifact_id, error=job.error,
+    )
+
+
+def artifact_out(artifact: Artifact) -> ArtifactOut:
+    return ArtifactOut(
+        id=str(artifact.id), story_id=str(artifact.story_id), version=artifact.version, status=artifact.status.value,
+        title=artifact.title, subtitle=artifact.subtitle, excerpt=artifact.excerpt, summary=artifact.summary,
+        content_html=artifact.content_html, category_id=artifact.category_id, tags=artifact.tags,
+        entities=artifact.entities,
+        seo=SeoMetadataOut(
+            seo_title=artifact.seo.seo_title, seo_description=artifact.seo.seo_description,
+            slug=artifact.seo.slug, canonical_url=artifact.seo.canonical_url,
+        ),
+        sources=[
+            SourceReferenceOut(
+                source_url=s.source_url, source_name=s.source_name, source_domain=s.source_domain,
+                author=s.author, published_at=s.published_at.isoformat() if s.published_at else None,
+                retrieved_at=s.retrieved_at.isoformat(), license_info=s.license_info,
+            )
+            for s in artifact.sources
+        ],
+        claims=[ClaimOut(text=c.text, label=c.label.value, source_urls=c.source_urls) for c in artifact.claims],
+        media_requirements=[
+            MediaRequirementOut(placeholder_id=m.placeholder_id, kind=m.kind.value, prompt=m.prompt, asset_id=m.asset_id)
+            for m in artifact.media_requirements
+        ],
+        validation_issues=[ValidationIssueOut(check=i.check, detail=i.detail) for i in artifact.validation.issues],
+        editorial_notes=artifact.editorial_notes, created_at=artifact.created_at.isoformat(),
     )

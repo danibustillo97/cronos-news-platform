@@ -260,6 +260,83 @@ class DecideDiscoveryItemRequest(CamelModel):
     decision: str
 
 
+class TriggerArtifactRequest(CamelModel):
+    story_id: str
+
+
+class ArtifactJobOut(CamelModel):
+    id: str
+    story_id: str
+    status: str
+    created_at: str
+    started_at: str | None
+    finished_at: str | None
+    artifact_id: str | None
+    error: str | None
+
+
+class SeoMetadataOut(CamelModel):
+    seo_title: str
+    seo_description: str
+    slug: str
+    canonical_url: str | None
+
+
+class SourceReferenceOut(CamelModel):
+    source_url: str
+    source_name: str | None
+    source_domain: str
+    author: str | None
+    published_at: str | None
+    retrieved_at: str
+    license_info: str | None
+
+
+class ClaimOut(CamelModel):
+    text: str
+    label: str
+    source_urls: list[str]
+
+
+class MediaRequirementOut(CamelModel):
+    placeholder_id: str
+    kind: str
+    prompt: str
+    asset_id: str | None
+
+
+class ValidationIssueOut(CamelModel):
+    check: str
+    detail: str
+
+
+class ArtifactOut(CamelModel):
+    id: str
+    story_id: str
+    version: int
+    status: str
+    title: str
+    subtitle: str | None
+    excerpt: str
+    summary: str
+    content_html: str
+    category_id: str | None
+    tags: list[str]
+    entities: list[str]
+    seo: SeoMetadataOut
+    sources: list[SourceReferenceOut]
+    claims: list[ClaimOut]
+    media_requirements: list[MediaRequirementOut]
+    validation_issues: list[ValidationIssueOut]
+    editorial_notes: str | None
+    created_at: str
+
+
+class ReviewArtifactRequest(CamelModel):
+    decision: str
+    reason: str | None = None
+
+
 class ErrorOut(CamelModel):
     error: str
     message: str
