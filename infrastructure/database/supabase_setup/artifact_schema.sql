@@ -8,7 +8,7 @@ create table if not exists artifacts (
   story_id text not null references cronos_stories(id) on delete cascade,
   version int not null default 1,
   status text not null default 'DRAFT'
-    check (status in ('DRAFT', 'REVIEW_REQUIRED', 'VALIDATED', 'APPROVED', 'REJECTED')),
+    check (status in ('DRAFT', 'REVIEW_REQUIRED', 'VALIDATED', 'APPROVED', 'REJECTED', 'PUBLISHED')),
   title text not null,
   subtitle text,
   excerpt text not null,
@@ -28,7 +28,10 @@ create table if not exists artifacts (
   -- [{check, detail}] -- the real ValidationResult.issues, empty when VALIDATED
   validation_issues jsonb not null default '[]',
   editorial_notes text,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  -- real id of the row this produced in the pre-existing public `news`
+  -- table once PUBLISHED -- null until then, never a placeholder value
+  published_news_id text
 );
 create index if not exists artifacts_story_id_idx on artifacts(story_id);
 create index if not exists artifacts_status_idx on artifacts(status);

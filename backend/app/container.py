@@ -24,6 +24,7 @@ from app.infrastructure.persistence.supabase.artifact_repository import (
 from app.infrastructure.lab.local.discovery_reader import LocalDiscoveryContentReader
 from app.infrastructure.runtime.discovery_runner_adapter import DiscoveryRunnerAdapter
 from app.infrastructure.llm.anthropic_adapter import AnthropicArtifactGenerator
+from app.infrastructure.publishing.legacy_news_publisher import SupabaseLegacyNewsPublisher
 from app.infrastructure.lab.local.editorial_intelligence_adapter import LocalEditorialIntelligenceAdapter
 from app.infrastructure.lab.local.story_intelligence_adapter import LocalStoryIntelligenceAdapter
 from app.infrastructure.lab.local.narrative_direction_adapter import LocalNarrativeDirectionAdapter
@@ -55,7 +56,7 @@ from app.application.use_cases.discovery import (
     ReportDiscoveryJobStatus, TriggerDiscovery,
 )
 from app.application.use_cases.artifact import (
-    GetArtifactJob, ListArtifactsByStatus, ReviewArtifact, RunArtifactJob, TriggerArtifact,
+    GetArtifactJob, ListArtifactsByStatus, PublishArtifact, ReviewArtifact, RunArtifactJob, TriggerArtifact,
 )
 
 
@@ -94,6 +95,7 @@ class Container:
         self.discovery_content_reader = LocalDiscoveryContentReader()
         self.discovery_runner = DiscoveryRunnerAdapter()
         self.artifact_generator = AnthropicArtifactGenerator()
+        self.artifact_publisher = SupabaseLegacyNewsPublisher(client)
 
         self.prepare_content = PrepareContent(self.news_repo, self.story_repo)
         self.convert_news_to_content = ConvertNewsToContent(
@@ -129,6 +131,9 @@ class Container:
         )
         self.list_artifacts_by_status = ListArtifactsByStatus(self.artifact_repo)
         self.review_artifact = ReviewArtifact(self.artifact_repo, self.story_repo)
+        self.publish_artifact = PublishArtifact(
+            self.artifact_repo, self.story_repo, self.category_repo, self.artifact_publisher,
+        )
 
 
 @lru_cache(maxsize=1)

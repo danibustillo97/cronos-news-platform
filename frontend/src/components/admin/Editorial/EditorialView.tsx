@@ -45,7 +45,7 @@ export default function EditorialView() {
       </div>
 
       {tab === "discovery" && <DiscoveryPanel onAdvance={() => setTab("ready")} />}
-      {tab === "ready" && <ReadyPanel />}
+      {tab === "ready" && <ReadyPanel onAdvance={() => setTab("publish")} />}
       {tab === "publish" && <PublishPanel />}
     </div>
   );

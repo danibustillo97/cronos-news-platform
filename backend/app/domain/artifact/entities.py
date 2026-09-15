@@ -92,6 +92,7 @@ class ArtifactStatus(str, Enum):
     VALIDATED = "VALIDATED"            # passed every real automated check -- still needs human approval
     APPROVED = "APPROVED"              # human approved -- this IS "READY" (see Story.mark_produced())
     REJECTED = "REJECTED"
+    PUBLISHED = "PUBLISHED"            # a real row now exists in the public site's content table
 
 
 @dataclass(frozen=True)
@@ -130,6 +131,7 @@ class Artifact:
     validation: ValidationResult
     created_at: datetime
     editorial_notes: str | None = None  # why REVIEW_REQUIRED, if it is
+    published_news_id: str | None = None  # real id of the row this produced in the public `news` table
 
     @staticmethod
     def draft(
@@ -166,6 +168,15 @@ class Artifact:
             raise InvalidStateTransition("Artifact", self.status.value, ArtifactStatus.REJECTED.value)
         self.status = ArtifactStatus.REJECTED
         self.editorial_notes = reason
+
+    def publish(self, news_id: str) -> None:
+        """Real, one-way: only an APPROVED (= READY) Artifact can be
+        published, and only once -- publishing twice would create a
+        second, duplicate row in the public site's content table."""
+        if self.status != ArtifactStatus.APPROVED:
+            raise InvalidStateTransition("Artifact", self.status.value, ArtifactStatus.PUBLISHED.value)
+        self.status = ArtifactStatus.PUBLISHED
+        self.published_news_id = news_id
 
 
 class ArtifactJobStatus(str, Enum):

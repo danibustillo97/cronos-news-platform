@@ -330,6 +330,7 @@ class ArtifactOut(CamelModel):
     validation_issues: list[ValidationIssueOut]
     editorial_notes: str | None
     created_at: str
+    published_news_id: str | None = None
 
 
 class ReviewArtifactRequest(CamelModel):

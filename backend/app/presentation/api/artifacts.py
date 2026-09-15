@@ -4,7 +4,9 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Query
 from pydantic import BaseModel
 
 from app.container import Container, get_container
-from app.application.use_cases.artifact import ReviewArtifactInput, RunArtifactJobInput, TriggerArtifactInput
+from app.application.use_cases.artifact import (
+    PublishArtifactInput, ReviewArtifactInput, RunArtifactJobInput, TriggerArtifactInput,
+)
 from app.presentation.schemas import (
     ArtifactJobOut, ArtifactOut, TriggerArtifactRequest, ReviewArtifactRequest,
 )
@@ -53,4 +55,13 @@ def review_artifact(
     artifact = container.review_artifact.execute(
         ReviewArtifactInput(artifact_id=artifact_id, decision=body.decision, reason=body.reason)
     )
+    return artifact_out(artifact)
+
+
+@router.post("/{artifact_id}/publish", response_model=ArtifactOut)
+def publish_artifact(artifact_id: str, container: Container = Depends(get_container)) -> ArtifactOut:
+    """READY -> PUBLISH: writes a real row into the public `news` table
+    and advances both the Artifact and its Story to PUBLISHED. Only
+    reachable from APPROVED -- the use case rejects anything else."""
+    artifact = container.publish_artifact.execute(PublishArtifactInput(artifact_id=artifact_id))
     return artifact_out(artifact)

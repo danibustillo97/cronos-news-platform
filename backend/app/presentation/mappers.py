@@ -198,4 +198,5 @@ def artifact_out(artifact: Artifact) -> ArtifactOut:
         ],
         validation_issues=[ValidationIssueOut(check=i.check, detail=i.detail) for i in artifact.validation.issues],
         editorial_notes=artifact.editorial_notes, created_at=artifact.created_at.isoformat(),
+        published_news_id=artifact.published_news_id,
     )

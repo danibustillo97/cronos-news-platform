@@ -21,8 +21,8 @@ from app.domain.shared.errors import InvalidStateTransition, NotFoundError
 from app.domain.shared.ids import DiscoveryItemId, StoryId
 from app.domain.story.entities import Story, StorySource, StoryStatus
 from app.application.use_cases.artifact import (
-    GetArtifactJob, ReviewArtifact, ReviewArtifactInput, RunArtifactJob, RunArtifactJobInput,
-    TriggerArtifact, TriggerArtifactInput,
+    GetArtifactJob, PublishArtifact, PublishArtifactInput, ReviewArtifact, ReviewArtifactInput, RunArtifactJob,
+    RunArtifactJobInput, TriggerArtifact, TriggerArtifactInput,
 )
 
 
@@ -98,6 +98,19 @@ class FakeCategoryRepo:
 
     def list_tree(self):
         return self._groups
+
+
+class FakePublisher:
+    def __init__(self, news_id="news-1", error=None):
+        self._news_id = news_id
+        self._error = error
+        self.calls = []
+
+    def publish(self, artifact, category_name):
+        if self._error:
+            raise self._error
+        self.calls.append((artifact, category_name))
+        return self._news_id
 
 
 class FakeGenerator:
@@ -241,6 +254,53 @@ def test_review_artifact_approve_advances_story_to_produced():
 
     assert result.status == ArtifactStatus.APPROVED
     assert stories.find_by_id("s1").status == StoryStatus.PRODUCED
+
+
+def _approved_artifact_and_story():
+    jobs, artifacts, discovery_items, stories = (
+        InMemoryArtifactJobRepo(), InMemoryArtifactRepo(), InMemoryDiscoveryRepo(), InMemoryStoryRepo(),
+    )
+    _seed_story_and_discovery_item(stories, discovery_items)
+    job = TriggerArtifact(jobs, stories).execute(TriggerArtifactInput(story_id="s1"))
+    RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), FakeGenerator(result=_valid_result())) \
+        .execute(RunArtifactJobInput(job_id=job.id))
+    artifact = list(artifacts.items.values())[0]
+    ReviewArtifact(artifacts, stories).execute(ReviewArtifactInput(artifact_id=str(artifact.id), decision="APPROVE"))
+    return artifacts, stories, artifact
+
+
+def test_publish_artifact_writes_real_row_and_advances_story():
+    artifacts, stories, artifact = _approved_artifact_and_story()
+    publisher = FakePublisher(news_id="news-42")
+
+    result = PublishArtifact(artifacts, stories, FakeCategoryRepo(_categories()), publisher) \
+        .execute(PublishArtifactInput(artifact_id=str(artifact.id)))
+
+    assert result.status == ArtifactStatus.PUBLISHED
+    assert result.published_news_id == "news-42"
+    assert stories.find_by_id("s1").status == StoryStatus.PUBLISHED
+    assert len(publisher.calls) == 1
+    published_artifact, category_name = publisher.calls[0]
+    assert published_artifact is result
+    assert category_name == "Fútbol"  # resolved from the real taxonomy, not the raw id
+
+
+def test_publish_artifact_requires_approved_status():
+    artifacts, stories, artifact = _approved_artifact_and_story()
+    publisher = FakePublisher()
+    use_case = PublishArtifact(artifacts, stories, FakeCategoryRepo(_categories()), publisher)
+    use_case.execute(PublishArtifactInput(artifact_id=str(artifact.id)))  # first publish succeeds
+
+    with pytest.raises(InvalidStateTransition):
+        use_case.execute(PublishArtifactInput(artifact_id=str(artifact.id)))  # second publish is rejected
+    assert len(publisher.calls) == 1  # no duplicate external write was attempted
+
+
+def test_publish_artifact_raises_not_found_for_unknown_artifact():
+    artifacts, stories = InMemoryArtifactRepo(), InMemoryStoryRepo()
+    with pytest.raises(NotFoundError):
+        PublishArtifact(artifacts, stories, FakeCategoryRepo(), FakePublisher()) \
+            .execute(PublishArtifactInput(artifact_id="missing"))
 
 
 def test_review_artifact_approve_requires_validated_status():

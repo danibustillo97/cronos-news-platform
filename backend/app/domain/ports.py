@@ -248,6 +248,18 @@ class ArtifactGenerationUnavailableError(Exception):
     honestly with this message."""
 
 
+class ArtifactPublishingPort(Protocol):
+    """PUBLISH: materializes an APPROVED Artifact into the pre-existing
+    public `news` table the live site (nexusnews.info) already reads
+    from directly -- the same table CRONOS' own NEWS bounded context
+    writes ingestion rows into (see news_repository.py's own docstring).
+    Publish adds a genuinely new row of the public-facing kind (real
+    title/content/seo/status='published'); it never touches or replaces
+    an ingestion row. Returns the new row's real id -- never a fabricated
+    one -- and raises on any failure instead of pretending it worked."""
+    def publish(self, artifact: Artifact, category_name: str | None) -> str: ...
+
+
 class DiscoveryContentReaderPort(Protocol):
     """Reads what Automation's real ingestion actually produced for a set
     of item ids -- the raw material IngestDiscoveryResults maps into real

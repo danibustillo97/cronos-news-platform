@@ -57,7 +57,7 @@ const STATUS_OPTIONS = [
   { value: "REJECTED", label: "Rechazado" },
 ];
 
-export default function ReadyPanel() {
+export default function ReadyPanel({ onAdvance }: { onAdvance?: () => void }) {
   const [statusFilter, setStatusFilter] = useState("VALIDATED");
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -109,7 +109,12 @@ export default function ReadyPanel() {
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
       setArtifacts((prev) => prev.filter((a) => a.id !== artifactId));
-      toast.success(decision === "APPROVE" ? "Artifact aprobado -- Story marcada READY" : "Artifact rechazado");
+      if (decision === "APPROVE") {
+        toast.success("Artifact aprobado -- Story marcada READY");
+        onAdvance?.();
+      } else {
+        toast.success("Artifact rechazado");
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo procesar la decisión");
     } finally {

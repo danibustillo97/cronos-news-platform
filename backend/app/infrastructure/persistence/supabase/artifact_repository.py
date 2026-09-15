@@ -81,6 +81,7 @@ class SupabaseArtifactRepository:
             "validation_issues": [{"check": i.check, "detail": i.detail} for i in artifact.validation.issues],
             "editorial_notes": artifact.editorial_notes,
             "created_at": artifact.created_at.isoformat(),
+            "published_news_id": artifact.published_news_id,
         }
         try:
             self._client.table("artifacts").upsert(payload).execute()
@@ -125,6 +126,7 @@ class SupabaseArtifactRepository:
             ),
             created_at=datetime.fromisoformat(row["created_at"]),
             editorial_notes=row.get("editorial_notes"),
+            published_news_id=row.get("published_news_id"),
         )
 
 

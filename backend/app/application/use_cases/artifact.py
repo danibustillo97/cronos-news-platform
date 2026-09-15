@@ -10,16 +10,16 @@ import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
-from app.domain.shared.errors import NotFoundError
+from app.domain.shared.errors import InvalidStateTransition, NotFoundError
 from app.domain.shared.ids import ArtifactId, StoryId
 from app.domain.artifact.entities import (
-    Artifact, ArtifactGenerationRequest, ArtifactJob, ArtifactJobStatus, SeoMetadata, SourceMaterial,
-    SourceReference,
+    Artifact, ArtifactGenerationRequest, ArtifactJob, ArtifactJobStatus, ArtifactStatus, SeoMetadata,
+    SourceMaterial, SourceReference,
 )
 from app.domain.artifact.validation import validate_artifact
 from app.domain.ports import (
-    ArtifactGenerationPort, ArtifactGenerationUnavailableError, ArtifactJobRepository, ArtifactRepository,
-    CategoryRepository, DiscoveryRepository, StoryRepository,
+    ArtifactGenerationPort, ArtifactGenerationUnavailableError, ArtifactJobRepository, ArtifactPublishingPort,
+    ArtifactRepository, CategoryRepository, DiscoveryRepository, StoryRepository,
 )
 
 
@@ -212,3 +212,54 @@ class ReviewArtifact:
 
         self._artifacts.save(artifact)
         return artifact
+
+
+@dataclass
+class PublishArtifactInput:
+    artifact_id: str
+
+
+class PublishArtifact:
+    """READY -> PUBLISH: the only path that puts an Artifact in front of
+    real readers. Only an APPROVED Artifact is eligible (checked before
+    the external write, so a rejected/unapproved Artifact never reaches
+    the public site); the state check happens twice (once here, once
+    inside Artifact.publish()) so the invariant holds even if this use
+    case is ever called incorrectly. Also advances the real Story state
+    machine (PRODUCED -> PUBLISHED, Story.mark_published()) -- reused,
+    not reinvented."""
+
+    def __init__(
+        self, artifacts: ArtifactRepository, stories: StoryRepository, categories: CategoryRepository,
+        publisher: ArtifactPublishingPort,
+    ) -> None:
+        self._artifacts = artifacts
+        self._stories = stories
+        self._categories = categories
+        self._publisher = publisher
+
+    def execute(self, input: PublishArtifactInput) -> Artifact:
+        artifact = self._artifacts.find_by_id(input.artifact_id)
+        if artifact is None:
+            raise NotFoundError("Artifact", input.artifact_id)
+        if artifact.status != ArtifactStatus.APPROVED:
+            raise InvalidStateTransition("Artifact", artifact.status.value, ArtifactStatus.PUBLISHED.value)
+
+        story = self._stories.find_by_id(str(artifact.story_id))
+        if story is None:
+            raise NotFoundError("Story", str(artifact.story_id))
+
+        category_name = self._resolve_category_name(artifact.category_id)
+        news_id = self._publisher.publish(artifact, category_name)
+
+        artifact.publish(news_id)
+        story.mark_published()
+        self._artifacts.save(artifact)
+        self._stories.save(story)
+        return artifact
+
+    def _resolve_category_name(self, category_id: str | None) -> str | None:
+        if category_id is None:
+            return None
+        groups = self._categories.list_tree()
+        return next((c.name for g in groups for c in g.categories if c.id == category_id), None)

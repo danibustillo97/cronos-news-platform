@@ -57,6 +57,25 @@ def test_reject_from_review_required_succeeds():
     assert a.editorial_notes == "bad sourcing"
 
 
+def test_publish_requires_approved():
+    a = _artifact(ArtifactStatus.VALIDATED)
+    with pytest.raises(InvalidStateTransition):
+        a.publish("news-1")
+
+
+def test_publish_from_approved_succeeds():
+    a = _artifact(ArtifactStatus.APPROVED)
+    a.publish("news-1")
+    assert a.status == ArtifactStatus.PUBLISHED
+    assert a.published_news_id == "news-1"
+
+
+def test_publish_twice_raises():
+    a = _artifact(ArtifactStatus.PUBLISHED)
+    with pytest.raises(InvalidStateTransition):
+        a.publish("news-2")
+
+
 def _job(status=ArtifactJobStatus.QUEUED):
     return ArtifactJob(id="j1", story_id=StoryId.new(), status=status, created_at=datetime.now(timezone.utc))
 
