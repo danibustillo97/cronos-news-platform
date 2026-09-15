@@ -1,5 +1,5 @@
 """Shared, low-level reader for a LAB story export directory
-(RPA_NEWS_SCRIPT/lab/workspace/exports/<story_id>/). This is the ONLY place
+(automation/lab/workspace/exports/<story_id>/). This is the ONLY place
 that knows LAB's real export is a directory of JSON files on disk — every
 capability adapter composes this, but the shape-detection for ITS OWN
 capability lives in that adapter, not here (this class only walks files and
@@ -21,9 +21,11 @@ def resolve_workspace_root() -> Path:
     override = os.getenv("LAB_WORKSPACE_PATH")
     if override:
         return Path(override)
-    # This file is at news/backend/app/infrastructure/lab/local/export_reader.py;
-    # parents[6] is Desktop, the sibling directory of both `news` and RPA_NEWS_SCRIPT.
-    return Path(__file__).resolve().parents[6] / "RPA_NEWS_SCRIPT" / "lab" / "workspace" / "exports"
+    # This file is at NEXUS/backend/app/infrastructure/lab/local/export_reader.py;
+    # parents[5] is NEXUS itself -- automation/ (formerly the sibling
+    # RPA_NEWS_SCRIPT/) now lives nested inside it (Nexus workspace
+    # consolidation, see obsidian-vault/Roadmap.md).
+    return Path(__file__).resolve().parents[5] / "automation" / "lab" / "workspace" / "exports"
 
 
 @dataclass(frozen=True)

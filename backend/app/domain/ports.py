@@ -167,7 +167,7 @@ class PublishingAvailabilityPort(Protocol):
 
 
 class RuntimeUnavailableError(Exception):
-    """The Local Runtime (RPA_NEWS_SCRIPT/runtime/) isn't reachable —
+    """The Local Runtime (automation/runtime/) isn't reachable —
     never fabricate a story_id/production when this happens (rule:
     'no fake progress')."""
 

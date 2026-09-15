@@ -8,7 +8,7 @@ solo cambiando de dónde viene `bundle.documents`.
 Por qué esto importa: los adapters existentes leían el export final
 (`lab/workspace/exports/<story_id>/`), que solo existe DESPUÉS de que
 termina el pipeline completo. Este reader ve el progreso en vivo, porque
-el Local Runtime (RPA_NEWS_SCRIPT/runtime/) espeja cada artifact a
+el Local Runtime (automation/runtime/) espeja cada artifact a
 `story_intelligence` apenas la etapa que lo produce termina — no al final.
 """
 

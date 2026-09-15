@@ -5,7 +5,7 @@ backend needs for its own writes (Story/Production/Composition/...).
 
 That key is never hardcoded, never logged, never sent to the frontend —
 only read from the environment, optionally via backend/.env (gitignored,
-same manual-parser pattern as RPA_NEWS_SCRIPT/lab/config/settings.py — no
+same manual-parser pattern as automation/lab/config/settings.py — no
 new dependency). Set it locally:
 
     # news/backend/.env

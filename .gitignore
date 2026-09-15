@@ -42,3 +42,8 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+
+# === Automation is its own nested git repo (its own .git/.claude, on
+# purpose -- see obsidian-vault/Roadmap.md) -- never tracked as regular
+# files by NEXUS's own repo, never merged into it. ===
+automation/

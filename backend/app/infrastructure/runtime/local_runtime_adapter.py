@@ -1,4 +1,4 @@
-"""HTTP client for the Local Runtime (RPA_NEWS_SCRIPT/runtime/). Today it
+"""HTTP client for the Local Runtime (automation/runtime/). Today it
 points at localhost; the day a Cloudflare Tunnel exists in front of it,
 only RUNTIME_BASE_URL changes — this class and everything that depends
 on ExecutionRuntimePort stays untouched.

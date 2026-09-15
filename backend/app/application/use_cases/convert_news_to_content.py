@@ -5,7 +5,7 @@ disparada contra el Local Runtime real.
 
 NEWS NO PRODUCE. LAB PRODUCE. Este caso de uso solo resuelve/crea la
 Story, crea la Production, y le pide al runtime que arranque — el
-pipeline real (editorial..export) lo corre RPA_NEWS_SCRIPT/runtime/, no
+pipeline real (editorial..export) lo corre automation/runtime/, no
 este proceso.
 """
 from __future__ import annotations
