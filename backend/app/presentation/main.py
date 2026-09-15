@@ -12,9 +12,17 @@ from app.presentation.api.stories import productions_router
 
 app = FastAPI(title="CRONOS Backend", version="0.1.0")
 
+# Local dev origins are always allowed; CORS_ALLOWED_ORIGINS (comma-separated)
+# adds real ones on top -- e.g. the Vercel frontend URL in production. Never
+# hardcode a production domain here; it differs per environment (staging vs
+# production, custom domain vs *.vercel.app preview) -- see
+# docs/NEXUS_ENVIRONMENT_MATRIX.md.
+_DEFAULT_ORIGINS = ["http://localhost:3000", "http://nexus.local", "http://localhost"]
+_extra_origins = [o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=_DEFAULT_ORIGINS + _extra_origins,
     allow_methods=["*"],
     allow_headers=["*"],
 )

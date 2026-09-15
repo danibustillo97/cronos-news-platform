@@ -18,6 +18,7 @@ import {
   Play
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { apiUrl } from "@/studio/lab/api-client";
 
 function cap(t?: string) {
   return t ? t.charAt(0).toUpperCase() + t.slice(1) : "";
@@ -370,7 +371,7 @@ export default function PremiumBlackYellowFeed() {
     (async () => {
       try {
         const res = await fetch(
-          "http://localhost:8000/api/news/published",
+          apiUrl("/api/news/published"),
           { cache: "no-store" }
         );
         const data = await res.json();

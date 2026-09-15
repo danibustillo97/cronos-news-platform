@@ -7,6 +7,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 import FloatingEditorDock from "@/components/admin/FloatingEditorDock";
 import { updateCachedItem } from "@/lib/newsCache";
+import { apiUrl } from "@/studio/lab/api-client";
 
 interface News {
   id: string;
@@ -98,7 +99,7 @@ export default function EditorPage({ params }: { params: Promise<{ id: string }>
       // 1. Try API First (Best for business logic)
       let saved = false;
       try {
-        const response = await fetch('http://localhost:8000/api/news', {
+        const response = await fetch(apiUrl('/api/news'), {
           method: isNew ? 'POST' : 'PUT',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newsData)

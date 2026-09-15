@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
+import { apiUrl } from "@/studio/lab/api-client";
 
 interface MatchResult {
   id: string;
@@ -53,7 +54,7 @@ export default function LiveScoresWidget({ horizontal = false }: LiveScoresWidge
   useEffect(() => {
     async function fetchMatches() {
       try {
-        const res = await fetch("http://localhost:8000/api/match-results");
+        const res = await fetch(apiUrl("/api/match-results"));
         const data = await res.json();
         if (data.success) {
           const sorted = data.results.slice().sort(
