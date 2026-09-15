@@ -1,0 +1,37 @@
+# Deployment configuration TEMPLATE -- not read by anything except
+# `nexus production --dry-run`, and even that only prints what it would
+# do. Copy to deployment.yml (gitignored) to customize; deployment.yml
+# is never committed since it may end up encoding real infra decisions
+# per environment. No AWS resource, Vercel project, or CI/CD pipeline is
+# created by the presence of this file alone -- see
+# docs/NEXUS_DEPLOYMENT_ARCHITECTURE.md for what actually exists today
+# (as of 2026-09-15: no IaC, no Dockerfiles, no AWS SDK usage anywhere in
+# this workspace -- this file documents the target shape, not a working
+# system).
+
+environment: production
+
+# AWS is the target for everything except (optionally) the frontend.
+# No other provider is supported for backend/automation/lab today.
+provider: aws
+
+backend:
+  enabled: true
+
+automation:
+  enabled: true
+
+lab:
+  enabled: true
+
+frontend:
+  enabled: true
+  # "vercel" or "aws". Vercel is the only one with any real precedent
+  # here (docs/Master (producción).md documents nexusnews.info as a real
+  # live Vercel deployment on a different branch of this same repo).
+  provider: vercel
+
+# Real secrets never go here -- this file (or its real deployment.yml
+# copy) only says WHERE things deploy and WHICH components are included,
+# never credentials. See docs/NEXUS_ENVIRONMENT_MATRIX.md for where each
+# service's real secrets actually live per environment.

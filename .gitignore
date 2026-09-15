@@ -50,3 +50,7 @@ automation/
 
 # === nexus.ps1 runtime state (logs) -- regenerated every `nexus up` ===
 .nexus/
+
+# === real deployment config (copy of deployment.example.yml) -- may
+# encode real per-environment infra decisions, never committed ===
+infrastructure/deployment/deployment.yml

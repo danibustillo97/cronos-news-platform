@@ -16,11 +16,24 @@
 #>
 param(
     [Parameter(Position = 0)]
-    [ValidateSet("up", "down", "restart", "status", "logs", "doctor", "ps", "help")]
+    [ValidateSet("up", "down", "restart", "status", "logs", "doctor", "ps", "production", "help")]
     [string]$Command = "help",
 
     [Parameter(Position = 1)]
-    [string]$Service
+    [string]$Service,
+
+    # `production` only -- see Cmd-Production. Real deployment is NOT
+    # implemented; omitting -DryRun still only prints a refusal, it never
+    # falls through to doing something real.
+    # (Named IncludeFrontend/ExcludeFrontend, not -Frontend/-NoFrontend,
+    # on purpose: $Frontend and $Lab etc. are already script-scoped path
+    # variables below -- a same-named switch parameter would silently
+    # overwrite them, PowerShell variable names being case/kind-blind.
+    # That exact bug already bit Cmd-Up once with $lab/$Lab; not repeating it.)
+    [switch]$DryRun,
+    [switch]$IncludeFrontend,
+    [switch]$ExcludeFrontend,
+    [string]$Provider
 )
 
 $ErrorActionPreference = "Stop"
@@ -284,9 +297,31 @@ function Cmd-Down {
 
 function Cmd-Status {
     Write-Host ""
-    C-Blue "NEXUS -- service status"
+    C-Blue "LOCAL SERVICES"
     Write-Host ""
     Show-StatusTable (Get-ServiceStatus)
+    Write-Host ""
+
+    C-Blue "DEPLOYMENT INFORMATION"
+    Write-Host ""
+    $cfg = Read-DeploymentConfig
+    if (-not $cfg) {
+        C-Gray "  No infrastructure/deployment/deployment.yml (or .example.yml) found."
+    } else {
+        Write-Host "  Frontend    Provider: $(if ($cfg.FrontendEnabled) { $cfg.FrontendProvider } else { 'not enabled' })"
+        Write-Host "  Backend     Provider: $(if ($cfg.BackendEnabled) { $cfg.Provider } else { 'not enabled' })"
+        Write-Host "  Automation  Provider: $(if ($cfg.AutomationEnabled) { $cfg.Provider } else { 'not enabled' })"
+        Write-Host "  LAB         Provider: $(if ($cfg.LabEnabled) { $cfg.Provider } else { 'not enabled' })"
+        Write-Host ""
+        # REACHABLE is a real HTTP check against a known live URL -- never
+        # DEPLOYED, which would require real Vercel/AWS API credentials
+        # this script does not have. Never conflate the two.
+        $prodUrl = "https://www.nexusnews.info"
+        $reach = Test-Http $prodUrl -TimeoutSec 5
+        if ($reach.Ok) { C-Green "  Frontend (production URL $prodUrl): REACHABLE" }
+        else { C-Yellow "  Frontend (production URL $prodUrl): NOT REACHABLE ($($reach.Body))" }
+        C-Gray "  (REACHABLE = real HTTP check. This is never the same as DEPLOYED -- that would need real Vercel/AWS API credentials this script doesn't have.)"
+    }
     Write-Host ""
 }
 
@@ -414,6 +449,91 @@ function Cmd-Ps {
     Write-Host ""
 }
 
+function Read-DeploymentConfig {
+    # Deliberately not a general YAML parser -- infrastructure/deployment/
+    # deployment.example.yml has a fixed, known, flat-ish shape (see that
+    # file). A regex reader for exactly that shape is honest about what
+    # it supports; pulling in a YAML module for one config file would be
+    # the kind of complexity this project explicitly avoids adding
+    # without a real need.
+    $configPath = Join-Path $Root "infrastructure\deployment\deployment.yml"
+    $usingExample = $false
+    if (-not (Test-Path $configPath)) {
+        $configPath = Join-Path $Root "infrastructure\deployment\deployment.example.yml"
+        $usingExample = $true
+    }
+    if (-not (Test-Path $configPath)) { return $null }
+
+    $text = Get-Content $configPath -Raw
+    function Get-YamlScalar($pattern) {
+        if ($text -match $pattern) { return $Matches[1].Trim() }
+        return $null
+    }
+
+    [PSCustomObject]@{
+        ConfigPath      = $configPath
+        UsingExample    = $usingExample
+        Environment     = Get-YamlScalar '(?m)^environment:\s*(\S+)'
+        Provider        = Get-YamlScalar '(?m)^provider:\s*(\S+)'
+        BackendEnabled     = (Get-YamlScalar '(?ms)^backend:\s*\n\s*enabled:\s*(\S+)') -eq 'true'
+        AutomationEnabled  = (Get-YamlScalar '(?ms)^automation:\s*\n\s*enabled:\s*(\S+)') -eq 'true'
+        LabEnabled         = (Get-YamlScalar '(?ms)^lab:\s*\n\s*enabled:\s*(\S+)') -eq 'true'
+        FrontendEnabled    = (Get-YamlScalar '(?ms)^frontend:\s*\n\s*enabled:\s*(\S+)') -eq 'true'
+        FrontendProvider   = Get-YamlScalar '(?ms)^frontend:\s*\n(?:.*\n)*?\s*provider:\s*(\S+)'
+    }
+}
+
+function Cmd-Production {
+    Write-Host ""
+    C-Blue "===================================================="
+    C-Blue "         NEXUS PRODUCTION DEPLOYMENT"
+    C-Blue "===================================================="
+    Write-Host ""
+
+    $cfg = Read-DeploymentConfig
+    if (-not $cfg) {
+        C-Red "No deployment config found (infrastructure/deployment/deployment.yml or .example.yml)."
+        return
+    }
+    if ($cfg.UsingExample) {
+        C-Yellow "No infrastructure/deployment/deployment.yml found -- showing infrastructure/deployment/deployment.example.yml instead. Copy it to deployment.yml to customize."
+        Write-Host ""
+    }
+
+    $provider = if ($Provider) { $Provider } else { $cfg.Provider }
+    $wantsFrontend = $cfg.FrontendEnabled
+    if ($IncludeFrontend) { $wantsFrontend = $true }
+    if ($ExcludeFrontend) { $wantsFrontend = $false }
+
+    Write-Host "Provider:"
+    Write-Host "  $provider"
+    Write-Host ""
+    Write-Host "Components:"
+    Write-Host "  $(if ($cfg.BackendEnabled) {'[YES]'} else {'[NO]'})  Backend"
+    Write-Host "  $(if ($cfg.AutomationEnabled) {'[YES]'} else {'[NO]'})  Automation"
+    Write-Host "  $(if ($cfg.LabEnabled) {'[YES]'} else {'[NO]'})  LAB"
+    Write-Host "  $(if ($wantsFrontend) {'[YES]'} else {'[NO]'})  Frontend$(if ($wantsFrontend) {" (provider: $($cfg.FrontendProvider))"})"
+    Write-Host ""
+    Write-Host "Environment:"
+    Write-Host "  $($cfg.Environment)"
+    Write-Host ""
+
+    C-Yellow "Risks:"
+    Write-Host "  - No Terraform/CDK/CloudFormation exists in this workspace (verified 2026-09-15) -- 'aws' provider has nothing real to apply yet."
+    Write-Host "  - No Dockerfile exists for backend/automation/lab -- nothing to build an AWS image from yet."
+    Write-Host "  - No CI/CD pipeline deploys this repo anywhere except Vercel's own GitHub integration for frontend/ (unverified from this machine whether it's actually connected)."
+    Write-Host ""
+
+    if (-not $DryRun) {
+        C-Red "Real deployment is NOT implemented. Only 'nexus production -DryRun' is supported today."
+        C-Red "This command has made NO changes and will not proceed further."
+        Write-Host "See docs/NEXUS_DEPLOYMENT_ARCHITECTURE.md for what's missing before this can deploy anything real."
+        return
+    }
+
+    C-Green "DRY RUN complete -- no changes were made."
+}
+
 function Cmd-Help {
     Write-Host @"
 NEXUS -- Content Operating System
@@ -422,12 +542,20 @@ Usage: .\nexus.ps1 <command>
 
 Commands:
   up        Start backend, frontend, automation runtime, LAB check, nginx
+            (LOCAL DEVELOPMENT ONLY -- never deploys anything)
   down      Stop everything (by real port ownership, not a pid file)
   restart   down, then up
   status    Print real health of every service (no starting)
   logs [service]   Tail logs (backend|frontend|runtime), or all if omitted
   doctor    Diagnose ports, Docker, env files, deps, DB, nginx, hosts
   ps        List managed processes with real pid/status
+  production [-DryRun] [-IncludeFrontend|-ExcludeFrontend] [-Provider x]
+            Show the PRODUCTION deployment plan (provider/components/
+            risks) from infrastructure/deployment/deployment.yml.
+            Real deployment is NOT implemented -- only -DryRun is
+            supported; without it, this prints the plan and refuses to
+            proceed. Never confuse this with 'up' -- 'up' starts your
+            local dev environment, 'production' is about deploying.
 "@
 }
 
@@ -439,5 +567,6 @@ switch ($Command) {
     "logs" { Cmd-Logs -Which $Service }
     "doctor" { Cmd-Doctor }
     "ps" { Cmd-Ps }
+    "production" { Cmd-Production }
     default { Cmd-Help }
 }
