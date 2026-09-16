@@ -20,7 +20,7 @@ of a Claude Code skill).
 from __future__ import annotations
 
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from app.domain.shared.errors import InvalidStateTransition
@@ -223,6 +223,7 @@ class ArtifactJob:
         if self.status != ArtifactJobStatus.QUEUED:
             raise InvalidStateTransition("ArtifactJob", self.status.value, ArtifactJobStatus.RUNNING.value)
         self.status = ArtifactJobStatus.RUNNING
+        self.started_at = datetime.now(timezone.utc)
 
     def complete(self, artifact_id: str, review_required: bool, finished_at: datetime) -> None:
         if self.status != ArtifactJobStatus.RUNNING:

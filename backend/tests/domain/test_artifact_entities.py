@@ -112,6 +112,7 @@ def test_job_start_from_queued():
     j = _job()
     j.start()
     assert j.status == ArtifactJobStatus.RUNNING
+    assert j.started_at is not None
 
 
 def test_job_start_twice_raises():

@@ -20,6 +20,7 @@ def test_start_from_queued():
     j = _job()
     j.start()
     assert j.status == MediaGenerationJobStatus.RUNNING
+    assert j.started_at is not None
 
 
 def test_start_twice_raises():

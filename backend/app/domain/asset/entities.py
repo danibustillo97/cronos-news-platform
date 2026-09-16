@@ -6,7 +6,7 @@ to the frontend.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from app.domain.shared.errors import InvalidStateTransition
@@ -78,6 +78,7 @@ class MediaGenerationJob:
         if self.status != MediaGenerationJobStatus.QUEUED:
             raise InvalidStateTransition("MediaGenerationJob", self.status.value, MediaGenerationJobStatus.RUNNING.value)
         self.status = MediaGenerationJobStatus.RUNNING
+        self.started_at = datetime.now(timezone.utc)
 
     def complete(self, asset_id: str, finished_at: datetime) -> None:
         if self.status != MediaGenerationJobStatus.RUNNING:

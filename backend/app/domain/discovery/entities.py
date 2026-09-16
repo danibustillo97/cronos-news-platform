@@ -14,7 +14,7 @@ computation exists yet, never a fabricated number.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 
 from app.domain.shared.errors import InvalidStateTransition
@@ -165,6 +165,7 @@ class DiscoveryJob:
         if self.status != DiscoveryJobStatus.QUEUED:
             raise InvalidStateTransition("DiscoveryJob", self.status.value, DiscoveryJobStatus.RUNNING.value)
         self.status = DiscoveryJobStatus.RUNNING
+        self.started_at = datetime.now(timezone.utc)
 
     def complete(self, items_found: int, finished_at: datetime) -> None:
         if self.status != DiscoveryJobStatus.RUNNING:
