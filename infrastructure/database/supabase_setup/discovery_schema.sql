@@ -63,7 +63,7 @@ create unique index if not exists discovery_items_source_url_key on discovery_it
 create table if not exists discovery_jobs (
   id uuid primary key default gen_random_uuid(),
   status text not null default 'QUEUED'
-    check (status in ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED')),
+    check (status in ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLING', 'CANCELLED')),
   params jsonb not null default '{}',
   created_at timestamptz not null default now(),
   started_at timestamptz,
@@ -72,6 +72,13 @@ create table if not exists discovery_jobs (
   error text
 );
 create index if not exists discovery_jobs_created_at_idx on discovery_jobs(created_at desc);
+
+-- Widens an already-created discovery_jobs.status check constraint to
+-- allow CANCELLING/CANCELLED (real graceful-stop feature) -- idempotent,
+-- only drops/recreates the CHECK, never touches rows.
+alter table discovery_jobs drop constraint if exists discovery_jobs_status_check;
+alter table discovery_jobs add constraint discovery_jobs_status_check
+  check (status in ('QUEUED', 'RUNNING', 'COMPLETED', 'FAILED', 'CANCELLING', 'CANCELLED'));
 
 alter table discovery_items enable row level security;
 alter table discovery_jobs enable row level security;

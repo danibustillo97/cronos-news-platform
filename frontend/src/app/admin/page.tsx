@@ -10,6 +10,7 @@ import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminDashboard from "@/components/admin/AdminDashboard";
 import SmartWorkspace from "@/components/admin/SmartWorkspace";
 import AdminSeoTags from "@/components/admin/AdminSeoTags";
+import AdminProviders from "@/components/admin/AdminProviders";
 import StudioView from "@/components/admin/Studio/StudioView";
 import EditorialView from "@/components/admin/Editorial/EditorialView";
 import { ProductionWorkspace } from "@/components/admin/Production/ProductionWorkspace";
@@ -61,6 +62,7 @@ export default function AdminPage() {
       case "social": return "Studio";
       case "distribution": return "Distribución";
       case "tags_seo": return "SEO Intelligence";
+      case "providers": return "Providers";
       default: return "CRONOS";
     }
   }, [activeView]);
@@ -74,6 +76,7 @@ export default function AdminPage() {
       case "social": return <StudioView />;
       case "distribution": return <DistributionView />;
       case "tags_seo": return <AdminSeoTags />;
+      case "providers": return <AdminProviders />;
       default: return null;
     }
   };

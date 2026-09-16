@@ -92,3 +92,57 @@ def test_adapter_fails_honestly_without_api_key(monkeypatch):
     generator = AnthropicArtifactGenerator(api_key=None)
     with pytest.raises(ArtifactGenerationUnavailableError, match="not configured"):
         generator.generate(_request())
+
+
+# ── check_status(): Provider Control Plane ──────────────────────────────
+
+def test_check_status_not_configured_without_key(monkeypatch):
+    from app.domain.artifact.entities import ProviderStatus
+
+    generator = AnthropicArtifactGenerator(api_key=None)
+    result = generator.check_status()
+    assert result.status == ProviderStatus.NOT_CONFIGURED
+    assert "ANTHROPIC_API_KEY" in (result.detail or "")
+
+
+def test_check_status_connected_on_real_200(monkeypatch):
+    from app.domain.artifact.entities import ProviderStatus
+    import httpx as httpx_module
+
+    class _Resp:
+        status_code = 200
+        text = "{}"
+
+    monkeypatch.setattr(httpx_module, "post", lambda *a, **k: _Resp())
+    generator = AnthropicArtifactGenerator(api_key="sk-real-key-value")
+    result = generator.check_status()
+    assert result.status == ProviderStatus.CONNECTED
+    # the key itself is never echoed back anywhere in the result
+    assert "sk-real-key-value" not in (result.detail or "") and "sk-real-key-value" not in (result.version or "")
+
+
+def test_check_status_auth_error_on_401(monkeypatch):
+    from app.domain.artifact.entities import ProviderStatus
+    import httpx as httpx_module
+
+    class _Resp:
+        status_code = 401
+        text = "unauthorized"
+
+    monkeypatch.setattr(httpx_module, "post", lambda *a, **k: _Resp())
+    generator = AnthropicArtifactGenerator(api_key="sk-invalid")
+    result = generator.check_status()
+    assert result.status == ProviderStatus.AUTH_ERROR
+
+
+def test_check_status_unavailable_on_connection_error(monkeypatch):
+    from app.domain.artifact.entities import ProviderStatus
+    import httpx as httpx_module
+
+    def _raise(*a, **k):
+        raise httpx_module.ConnectError("refused")
+
+    monkeypatch.setattr(httpx_module, "post", _raise)
+    generator = AnthropicArtifactGenerator(api_key="sk-real")
+    result = generator.check_status()
+    assert result.status == ProviderStatus.UNAVAILABLE

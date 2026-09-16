@@ -14,7 +14,8 @@ from app.domain.ports import RuntimeUnavailableError
 from app.domain.shared.errors import InvalidStateTransition, NotFoundError
 from app.application.use_cases.discovery import (
     DecideDiscoveryItem, DecideDiscoveryItemInput, GetDiscoveryJob, ListDiscoveryItems,
-    ReportDiscoveryJobStatus, ReportDiscoveryJobStatusInput, TriggerDiscovery, TriggerDiscoveryInput,
+    ReportDiscoveryJobStatus, ReportDiscoveryJobStatusInput, RequestStopDiscoveryJob, TriggerDiscovery,
+    TriggerDiscoveryInput,
 )
 
 
@@ -69,12 +70,18 @@ class InMemoryStoryRepo:
 class FakeRunner:
     def __init__(self, should_fail=False):
         self.calls = []
+        self.stop_calls = []
         self.should_fail = should_fail
 
     def trigger(self, job_id, params):
         if self.should_fail:
             raise RuntimeUnavailableError("automation/runtime unreachable")
         self.calls.append((job_id, params))
+
+    def request_stop(self, job_id):
+        if self.should_fail:
+            raise RuntimeUnavailableError("automation/runtime unreachable")
+        self.stop_calls.append(job_id)
 
 
 class FakeContentReader:
@@ -99,6 +106,44 @@ def test_trigger_discovery_creates_a_queued_job_and_calls_the_runner():
     assert job.status == DiscoveryJobStatus.QUEUED
     assert jobs.find_by_id(job.id) is job
     assert runner.calls == [(job.id, {"max_sources": 5})]
+
+
+def test_request_stop_marks_cancelling_and_calls_runner():
+    jobs, runner = InMemoryJobRepo(), FakeRunner()
+    job = TriggerDiscovery(jobs, runner).execute(TriggerDiscoveryInput())
+    job.start()
+    jobs.save(job)
+
+    result = RequestStopDiscoveryJob(jobs, runner).execute(job.id)
+
+    assert result.status == DiscoveryJobStatus.CANCELLING
+    assert runner.stop_calls == [job.id]
+
+
+def test_request_stop_raises_not_found_for_unknown_job():
+    with pytest.raises(NotFoundError):
+        RequestStopDiscoveryJob(InMemoryJobRepo(), FakeRunner()).execute("missing")
+
+
+def test_report_cancelled_ingests_real_items_saved_before_stop():
+    jobs, items = InMemoryJobRepo(), InMemoryItemRepo()
+    job = DiscoveryJob(id="job1", status=DiscoveryJobStatus.QUEUED, params={}, created_at=datetime.now(timezone.utc))
+    jobs.save(job)
+    job.start()
+    job.request_cancel()
+    jobs.save(job)
+
+    raw = IngestedContent(
+        id="item-abc", title="Un evento real", source_url="https://example.com/a", source="Example",
+        image_url=None, content="Contenido real", published_at=None,
+        ingested_at=datetime.now(timezone.utc).isoformat(), slug="un-evento",
+    )
+    use_case = ReportDiscoveryJobStatus(jobs, items, FakeContentReader([raw]), FakeCategoryRepo())
+    result = use_case.execute(ReportDiscoveryJobStatusInput(job_id="job1", status="CANCELLED", item_ids=["item-abc"]))
+
+    assert result.status == DiscoveryJobStatus.CANCELLED
+    assert result.items_found == 1
+    assert items.find_by_id("item-abc") is not None
 
 
 def test_trigger_discovery_leaves_job_queued_if_runtime_unreachable():

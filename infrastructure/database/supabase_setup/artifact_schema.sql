@@ -45,9 +45,19 @@ create table if not exists artifact_jobs (
   started_at timestamptz,
   finished_at timestamptz,
   artifact_id uuid references artifacts(id) on delete set null,
-  error text
+  error text,
+  -- Provider Control Plane -- resolved once at trigger time, persisted
+  -- as real provenance, never re-resolved. NULL only for jobs created
+  -- before this column existed.
+  provider text,
+  model text
 );
 create index if not exists artifact_jobs_created_at_idx on artifact_jobs(created_at desc);
+
+-- Idempotent: adds the two columns to an already-created artifact_jobs
+-- table (this project's live table predates the Provider Control Plane).
+alter table artifact_jobs add column if not exists provider text;
+alter table artifact_jobs add column if not exists model text;
 
 alter table artifacts enable row level security;
 alter table artifact_jobs enable row level security;

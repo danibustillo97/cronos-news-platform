@@ -16,7 +16,9 @@ import os
 
 import httpx
 
-from app.domain.artifact.entities import ArtifactGenerationRequest, ArtifactGenerationResult
+from app.domain.artifact.entities import (
+    ArtifactGenerationRequest, ArtifactGenerationResult, ProviderCheckResult, ProviderId, ProviderStatus,
+)
 from app.domain.ports import ArtifactGenerationUnavailableError
 from app.infrastructure.llm.prompts import build_artifact_prompt
 from app.infrastructure.llm.response_parser import parse_artifact_response
@@ -26,6 +28,7 @@ _API_VERSION = "2023-06-01"
 _DEFAULT_MODEL = "claude-sonnet-5"
 _MAX_TOKENS = 8000
 _TIMEOUT_SECONDS = 120.0
+_STATUS_CHECK_TIMEOUT_SECONDS = 15.0
 
 
 class AnthropicArtifactGenerator:
@@ -76,3 +79,27 @@ class AnthropicArtifactGenerator:
             raise ArtifactGenerationUnavailableError("Anthropic response had no text content")
 
         return parse_artifact_response("\n".join(text_blocks))
+
+    def check_status(self) -> ProviderCheckResult:
+        """A REAL check, not just "is the env var set": a minimal (1
+        output token) live Messages API call, so NOT_CONFIGURED vs.
+        AUTH_ERROR vs. actually CONNECTED are never guessed. Costs a
+        fraction of a cent -- acceptable for an explicit "Test
+        connection" or a provider-picker load, never called in a loop."""
+        if not self._api_key:
+            return ProviderCheckResult(ProviderId.ANTHROPIC, ProviderStatus.NOT_CONFIGURED, detail="ANTHROPIC_API_KEY no configurada")
+        try:
+            response = httpx.post(
+                _API_URL,
+                headers={"x-api-key": self._api_key, "anthropic-version": _API_VERSION, "content-type": "application/json"},
+                json={"model": self._model, "max_tokens": 1, "messages": [{"role": "user", "content": "hi"}]},
+                timeout=_STATUS_CHECK_TIMEOUT_SECONDS,
+            )
+        except httpx.HTTPError as exc:
+            return ProviderCheckResult(ProviderId.ANTHROPIC, ProviderStatus.UNAVAILABLE, detail=f"no se pudo contactar la API: {exc}")
+
+        if response.status_code == 200:
+            return ProviderCheckResult(ProviderId.ANTHROPIC, ProviderStatus.CONNECTED, detail=f"modelo: {self._model}", version=self._model)
+        if response.status_code in (401, 403):
+            return ProviderCheckResult(ProviderId.ANTHROPIC, ProviderStatus.AUTH_ERROR, detail=f"API key rechazada ({response.status_code})")
+        return ProviderCheckResult(ProviderId.ANTHROPIC, ProviderStatus.UNAVAILABLE, detail=f"HTTP {response.status_code}: {response.text[:200]}")

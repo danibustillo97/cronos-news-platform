@@ -262,6 +262,7 @@ class DecideDiscoveryItemRequest(CamelModel):
 
 class TriggerArtifactRequest(CamelModel):
     story_id: str
+    provider: str | None = None  # explicit provider choice, or "auto"/omitted
 
 
 class ArtifactJobOut(CamelModel):
@@ -273,6 +274,8 @@ class ArtifactJobOut(CamelModel):
     finished_at: str | None
     artifact_id: str | None
     error: str | None
+    provider: str | None = None
+    model: str | None = None
 
 
 class SeoMetadataOut(CamelModel):
@@ -367,6 +370,30 @@ class PublishedContentOut(CamelModel):
     source_url: str | None
     published_at: str | None
     updated_at: str | None
+
+
+class ProviderOut(CamelModel):
+    """Real, live-checked state -- id/kind/label are static, everything
+    else comes from a real check_status() call. `has_stored_key` is the
+    ONLY signal about a secret -- the raw key is never in this or any
+    other response."""
+    id: str
+    label: str
+    kind: str
+    status: str
+    detail: str | None
+    version: str | None
+    checked_at: str
+    is_default: bool
+    has_stored_key: bool
+
+
+class SetDefaultProviderRequest(CamelModel):
+    provider_id: str
+
+
+class SetProviderApiKeyRequest(CamelModel):
+    api_key: str
 
 
 class ErrorOut(CamelModel):

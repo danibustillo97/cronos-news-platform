@@ -36,7 +36,7 @@ def trigger_artifact(
     """DISCOVERY UP -> ARTIFACT. Returns a QUEUED job immediately; the
     real LLM call (10-60+ seconds) runs as a background task so this
     request never blocks on it -- poll GET /jobs/{id} for real progress."""
-    job = container.trigger_artifact.execute(TriggerArtifactInput(story_id=body.story_id))
+    job = container.trigger_artifact.execute(TriggerArtifactInput(story_id=body.story_id, provider=body.provider))
     background_tasks.add_task(container.run_artifact_job.execute, RunArtifactJobInput(job_id=job.id))
     return artifact_job_out(job)
 
@@ -44,6 +44,23 @@ def trigger_artifact(
 @router.get("/jobs/{job_id}", response_model=ArtifactJobOut)
 def get_artifact_job(job_id: str, container: Container = Depends(get_container)) -> ArtifactJobOut:
     return artifact_job_out(container.get_artifact_job.execute(job_id))
+
+
+@router.get("/jobs/by-story/{story_id}", response_model=ArtifactJobOut)
+def get_latest_artifact_job_for_story(story_id: str, container: Container = Depends(get_container)) -> ArtifactJobOut:
+    """The Artifact drawer's real entry point -- finds the job by the
+    same Story id the Discovery item already shares, no client-side
+    job-id memory required."""
+    return artifact_job_out(container.get_latest_artifact_job_for_story.execute(story_id))
+
+
+@router.get("/{artifact_id}", response_model=ArtifactOut)
+def get_artifact(artifact_id: str, container: Container = Depends(get_container)) -> ArtifactOut:
+    """Single-artifact detail -- the real backing for the Artifact
+    drawer once a job's artifactId is known."""
+    artifact = container.get_artifact.execute(artifact_id)
+    asset_urls = _resolve_asset_urls(container, [artifact])
+    return artifact_out(artifact, asset_urls)
 
 
 class ArtifactsResponse(BaseModel):

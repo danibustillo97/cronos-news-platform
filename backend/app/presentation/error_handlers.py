@@ -9,7 +9,7 @@ from app.domain.shared.errors import (
     SchemaNotProvisionedError, NotFoundError, InvalidStateTransition,
     RowLevelSecurityError, SupabaseAuthenticationError, DatabaseUnavailableError,
 )
-from app.domain.ports import RuntimeUnavailableError
+from app.domain.ports import ProviderUnavailableError, RuntimeUnavailableError
 
 logger = logging.getLogger("cronos.errors")
 
@@ -70,3 +70,7 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(InvalidStateTransition)
     async def _invalid_transition(request: Request, exc: InvalidStateTransition):
         return JSONResponse(status_code=409, content={"error": "INVALID_STATE_TRANSITION", "message": str(exc)})
+
+    @app.exception_handler(ProviderUnavailableError)
+    async def _provider_unavailable(request: Request, exc: ProviderUnavailableError):
+        return JSONResponse(status_code=409, content={"error": "PROVIDER_UNAVAILABLE", "message": str(exc)})

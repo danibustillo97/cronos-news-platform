@@ -142,6 +142,18 @@ class SupabaseArtifactJobRepository:
             raise
         return self._to_entity(res.data) if res and res.data else None
 
+    def find_latest_for_story(self, story_id: str) -> ArtifactJob | None:
+        try:
+            res = (
+                self._client.table("artifact_jobs").select("*").eq("story_id", story_id)
+                .order("created_at", desc=True).limit(1).execute()
+            )
+        except Exception as exc:
+            raise_if_schema_missing(exc, "artifact_jobs")
+            raise
+        rows = res.data or []
+        return self._to_entity(rows[0]) if rows else None
+
     def list_recent(self, limit: int = 20) -> list[ArtifactJob]:
         try:
             res = self._client.table("artifact_jobs").select("*").order("created_at", desc=True).limit(limit).execute()
@@ -160,6 +172,8 @@ class SupabaseArtifactJobRepository:
             "finished_at": job.finished_at.isoformat() if job.finished_at else None,
             "artifact_id": job.artifact_id,
             "error": job.error,
+            "provider": job.provider,
+            "model": job.model,
         }
         try:
             self._client.table("artifact_jobs").upsert(payload).execute()
@@ -175,4 +189,5 @@ class SupabaseArtifactJobRepository:
             started_at=datetime.fromisoformat(row["started_at"]) if row.get("started_at") else None,
             finished_at=datetime.fromisoformat(row["finished_at"]) if row.get("finished_at") else None,
             artifact_id=row.get("artifact_id"), error=row.get("error"),
+            provider=row.get("provider"), model=row.get("model"),
         )

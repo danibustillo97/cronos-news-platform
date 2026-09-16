@@ -3,7 +3,7 @@
 import React, { useState } from "react";
 import {
     LayoutDashboard, Newspaper, Tags, Factory,
-    Clapperboard, Radio, Globe, Zap, Compass,
+    Clapperboard, Radio, Globe, Zap, Compass, Sliders,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -28,6 +28,7 @@ const ITEMS = [
     { id: "social",       label: "Studio",         icon: Clapperboard },
     { id: "distribution", label: "Distribución",   icon: Radio },
     { id: "tags_seo",     label: "SEO",            icon: Tags },
+    { id: "providers",    label: "Providers",      icon: Sliders },
 ];
 
 export default function AdminSidebar({ activeView, setActiveView }: AdminSidebarProps) {

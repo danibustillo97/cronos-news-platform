@@ -59,6 +59,29 @@ class TriggerDiscovery:
         return job
 
 
+class RequestStopDiscoveryJob:
+    """A real, cooperative stop -- never kills the running scrape.
+    Marks the job CANCELLING (visible to the UI immediately) and asks
+    automation/runtime to signal the ingestion loop; the job only
+    reaches CANCELLED once automation/runtime reports back with
+    whatever it actually managed to save (ReportDiscoveryJobStatus)."""
+
+    def __init__(self, jobs: DiscoveryJobRepository, runner: DiscoveryRunnerPort) -> None:
+        self._jobs = jobs
+        self._runner = runner
+
+    def execute(self, job_id: str) -> DiscoveryJob:
+        job = self._jobs.find_by_id(job_id)
+        if job is None:
+            raise NotFoundError("DiscoveryJob", job_id)
+        job.request_cancel()
+        self._jobs.save(job)
+        # If automation/runtime can't be reached, this raises -- the job
+        # stays CANCELLING (real, honest), never silently marked stopped.
+        self._runner.request_stop(job_id)
+        return job
+
+
 class GetDiscoveryJob:
     def __init__(self, jobs: DiscoveryJobRepository) -> None:
         self._jobs = jobs
@@ -117,6 +140,14 @@ class ReportDiscoveryJobStatus:
             item_ids = input.item_ids or []
             saved = self._ingest_items(item_ids, now)
             job.complete(items_found=len(saved), finished_at=now)
+        elif input.status == "CANCELLED":
+            # Stop was requested (RequestStopDiscoveryJob) -- ingest
+            # whatever the loop actually saved before it stopped, same as
+            # COMPLETED. Never discards real, already-saved items just
+            # because the run ended early.
+            item_ids = input.item_ids or []
+            saved = self._ingest_items(item_ids, now)
+            job.cancel(items_found=len(saved), finished_at=now)
         else:
             raise ValueError(f"unknown discovery job status: {input.status!r}")
 

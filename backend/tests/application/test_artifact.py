@@ -13,6 +13,7 @@ import pytest
 
 from app.domain.artifact.entities import (
     ArtifactGenerationResult, ArtifactJobStatus, ArtifactStatus, Claim, EvidenceLabel, MediaKind, MediaRequirement,
+    ProviderCheckResult, ProviderId, ProviderStatus,
 )
 from app.domain.category.entities import Category, CategoryGroup
 from app.domain.discovery.entities import DiscoveryItem
@@ -142,6 +143,30 @@ class FakeGenerator:
             raise self._error
         return self._result
 
+    def check_status(self):
+        return ProviderCheckResult(ProviderId.ANTHROPIC, ProviderStatus.CONNECTED, version="fake-model-1")
+
+
+class FakeProviderResolver:
+    """Always resolves to the one fake generator under test -- provider
+    selection/switching logic itself is covered by
+    test_provider_resolver.py, not here."""
+
+    def __init__(self, generator=None):
+        self._generator = generator or FakeGenerator()
+
+    def resolve(self, requested):
+        return ProviderId.ANTHROPIC
+
+    def get(self, provider_id):
+        return self._generator
+
+    def all_providers(self):
+        return {ProviderId.ANTHROPIC: self._generator}
+
+    def default_provider_id(self):
+        return "anthropic"
+
 
 def _valid_result(category_name="Fútbol"):
     return ArtifactGenerationResult(
@@ -176,14 +201,14 @@ def test_trigger_artifact_creates_queued_job():
     jobs, stories = InMemoryArtifactJobRepo(), InMemoryStoryRepo()
     story = Story.open_from_news(StoryId.of("s1"), "H", StorySource(news_id=None, source_url="u"))
     stories.save(story)
-    job = TriggerArtifact(jobs, stories).execute(TriggerArtifactInput(story_id="s1"))
+    job = TriggerArtifact(jobs, stories, FakeProviderResolver()).execute(TriggerArtifactInput(story_id="s1"))
     assert job.status == ArtifactJobStatus.QUEUED
     assert jobs.find_by_id(job.id) is job
 
 
 def test_trigger_artifact_raises_not_found_for_unknown_story():
     with pytest.raises(NotFoundError):
-        TriggerArtifact(InMemoryArtifactJobRepo(), InMemoryStoryRepo()).execute(TriggerArtifactInput(story_id="missing"))
+        TriggerArtifact(InMemoryArtifactJobRepo(), InMemoryStoryRepo(), FakeProviderResolver()).execute(TriggerArtifactInput(story_id="missing"))
 
 
 def test_get_artifact_job_raises_not_found():
@@ -191,15 +216,78 @@ def test_get_artifact_job_raises_not_found():
         GetArtifactJob(InMemoryArtifactJobRepo()).execute("missing")
 
 
+def test_trigger_artifact_persists_resolved_provider_and_model():
+    jobs, stories = InMemoryArtifactJobRepo(), InMemoryStoryRepo()
+    story = Story.open_from_news(StoryId.of("s1"), "H", StorySource(news_id=None, source_url="u"))
+    stories.save(story)
+    generator = FakeGenerator()  # check_status() returns version="fake-model-1"
+
+    job = TriggerArtifact(jobs, stories, FakeProviderResolver(generator)).execute(
+        TriggerArtifactInput(story_id="s1", provider="anthropic")
+    )
+
+    assert job.provider == "anthropic"
+    assert job.model == "fake-model-1"
+
+
+def test_run_artifact_job_never_reresolves_provider_mid_run():
+    """No silent switch: RunArtifactJob must use job.provider exactly as
+    persisted at trigger time, even if a DIFFERENT resolver/default would
+    pick something else by the time it actually runs."""
+    jobs, artifacts, discovery_items, stories = (
+        InMemoryArtifactJobRepo(), InMemoryArtifactRepo(), InMemoryDiscoveryRepo(), InMemoryStoryRepo(),
+    )
+    _seed_story_and_discovery_item(stories, discovery_items)
+    job = TriggerArtifact(jobs, stories, FakeProviderResolver()).execute(TriggerArtifactInput(story_id="s1"))
+    assert job.provider == "anthropic"  # FakeProviderResolver always resolves to anthropic
+
+    used_provider_ids = []
+
+    class TrackingResolver(FakeProviderResolver):
+        def get(self, provider_id):
+            used_provider_ids.append(provider_id)
+            return super().get(provider_id)
+
+    use_case = RunArtifactJob(
+        jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()),
+        TrackingResolver(FakeGenerator(result=_valid_result())),
+    )
+    use_case.execute(RunArtifactJobInput(job_id=job.id))
+
+    assert used_provider_ids == [ProviderId.ANTHROPIC]  # exactly the persisted choice, resolved once
+
+
+def test_retry_with_a_different_explicit_provider_after_a_failure():
+    jobs, artifacts, discovery_items, stories = (
+        InMemoryArtifactJobRepo(), InMemoryArtifactRepo(), InMemoryDiscoveryRepo(), InMemoryStoryRepo(),
+    )
+    _seed_story_and_discovery_item(stories, discovery_items)
+
+    failing = FakeGenerator(error=ArtifactGenerationUnavailableError("provider A down"))
+    job1 = TriggerArtifact(jobs, stories, FakeProviderResolver(failing)).execute(TriggerArtifactInput(story_id="s1"))
+    RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), FakeProviderResolver(failing)) \
+        .execute(RunArtifactJobInput(job_id=job1.id))
+    assert jobs.find_by_id(job1.id).status == ArtifactJobStatus.FAILED
+
+    # A human explicitly retries with a different provider -- a brand new
+    # job, never the same one silently switched underneath it.
+    working = FakeGenerator(result=_valid_result())
+    job2 = TriggerArtifact(jobs, stories, FakeProviderResolver(working)).execute(TriggerArtifactInput(story_id="s1", provider="claude_code"))
+    assert job2.id != job1.id
+    RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), FakeProviderResolver(working)) \
+        .execute(RunArtifactJobInput(job_id=job2.id))
+    assert jobs.find_by_id(job2.id).status == ArtifactJobStatus.COMPLETED
+
+
 def test_run_artifact_job_produces_validated_artifact_end_to_end():
     jobs, artifacts, discovery_items, stories = (
         InMemoryArtifactJobRepo(), InMemoryArtifactRepo(), InMemoryDiscoveryRepo(), InMemoryStoryRepo(),
     )
     _seed_story_and_discovery_item(stories, discovery_items)
-    job = TriggerArtifact(jobs, stories).execute(TriggerArtifactInput(story_id="s1"))
+    job = TriggerArtifact(jobs, stories, FakeProviderResolver()).execute(TriggerArtifactInput(story_id="s1"))
 
     generator = FakeGenerator(result=_valid_result())
-    use_case = RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), generator)
+    use_case = RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), FakeProviderResolver(generator))
     result_job = use_case.execute(RunArtifactJobInput(job_id=job.id))
 
     assert result_job.status == ArtifactJobStatus.COMPLETED
@@ -215,11 +303,11 @@ def test_run_artifact_job_marks_review_required_when_validation_fails():
         InMemoryArtifactJobRepo(), InMemoryArtifactRepo(), InMemoryDiscoveryRepo(), InMemoryStoryRepo(),
     )
     _seed_story_and_discovery_item(stories, discovery_items)
-    job = TriggerArtifact(jobs, stories).execute(TriggerArtifactInput(story_id="s1"))
+    job = TriggerArtifact(jobs, stories, FakeProviderResolver()).execute(TriggerArtifactInput(story_id="s1"))
 
     bad_result = _valid_result(category_name="No Existe")  # not a real category
     generator = FakeGenerator(result=bad_result)
-    use_case = RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), generator)
+    use_case = RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), FakeProviderResolver(generator))
     result_job = use_case.execute(RunArtifactJobInput(job_id=job.id))
 
     assert result_job.status == ArtifactJobStatus.REVIEW_REQUIRED
@@ -233,10 +321,10 @@ def test_run_artifact_job_fails_honestly_when_generator_unavailable():
         InMemoryArtifactJobRepo(), InMemoryArtifactRepo(), InMemoryDiscoveryRepo(), InMemoryStoryRepo(),
     )
     _seed_story_and_discovery_item(stories, discovery_items)
-    job = TriggerArtifact(jobs, stories).execute(TriggerArtifactInput(story_id="s1"))
+    job = TriggerArtifact(jobs, stories, FakeProviderResolver()).execute(TriggerArtifactInput(story_id="s1"))
 
     generator = FakeGenerator(error=ArtifactGenerationUnavailableError("ANTHROPIC_API_KEY is not configured"))
-    use_case = RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), generator)
+    use_case = RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), FakeProviderResolver(generator))
     result_job = use_case.execute(RunArtifactJobInput(job_id=job.id))
 
     assert result_job.status == ArtifactJobStatus.FAILED
@@ -250,9 +338,9 @@ def test_run_artifact_job_fails_when_no_discovery_item_backs_the_story():
     )
     story = Story.open_from_news(StoryId.of("s1"), "H", StorySource(news_id=None, source_url="u"))
     stories.save(story)  # no matching DiscoveryItem saved
-    job = TriggerArtifact(jobs, stories).execute(TriggerArtifactInput(story_id="s1"))
+    job = TriggerArtifact(jobs, stories, FakeProviderResolver()).execute(TriggerArtifactInput(story_id="s1"))
 
-    use_case = RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(), FakeGenerator())
+    use_case = RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(), FakeProviderResolver(FakeGenerator()))
     result_job = use_case.execute(RunArtifactJobInput(job_id=job.id))
 
     assert result_job.status == ArtifactJobStatus.FAILED
@@ -264,8 +352,8 @@ def test_review_artifact_approve_advances_story_to_produced():
         InMemoryArtifactJobRepo(), InMemoryArtifactRepo(), InMemoryDiscoveryRepo(), InMemoryStoryRepo(),
     )
     _seed_story_and_discovery_item(stories, discovery_items)
-    job = TriggerArtifact(jobs, stories).execute(TriggerArtifactInput(story_id="s1"))
-    RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), FakeGenerator(result=_valid_result())) \
+    job = TriggerArtifact(jobs, stories, FakeProviderResolver()).execute(TriggerArtifactInput(story_id="s1"))
+    RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), FakeProviderResolver(FakeGenerator(result=_valid_result()))) \
         .execute(RunArtifactJobInput(job_id=job.id))
     artifact = list(artifacts.items.values())[0]
 
@@ -280,8 +368,8 @@ def _approved_artifact_and_story():
         InMemoryArtifactJobRepo(), InMemoryArtifactRepo(), InMemoryDiscoveryRepo(), InMemoryStoryRepo(),
     )
     _seed_story_and_discovery_item(stories, discovery_items)
-    job = TriggerArtifact(jobs, stories).execute(TriggerArtifactInput(story_id="s1"))
-    RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), FakeGenerator(result=_valid_result())) \
+    job = TriggerArtifact(jobs, stories, FakeProviderResolver()).execute(TriggerArtifactInput(story_id="s1"))
+    RunArtifactJob(jobs, artifacts, discovery_items, stories, FakeCategoryRepo(_categories()), FakeProviderResolver(FakeGenerator(result=_valid_result()))) \
         .execute(RunArtifactJobInput(job_id=job.id))
     artifact = list(artifacts.items.values())[0]
     ReviewArtifact(artifacts, stories).execute(ReviewArtifactInput(artifact_id=str(artifact.id), decision="APPROVE"))

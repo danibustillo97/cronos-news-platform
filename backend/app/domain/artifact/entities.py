@@ -5,11 +5,18 @@ editorial content -- title, subtitle, excerpt, structured HTML, SEO,
 entities, media requirements -- never a mechanical paraphrase of a single
 source, never an invented fact.
 
-Runtime boundary (deliberate): the actual language generation happens via
-a real LLM API call (ArtifactGenerationPort, see ports.py), never via a
-Claude Code subprocess. Claude Code / its skills remain development and
-inspection tools (see automation/.claude/skills/lab-editorial-*) -- the
-production runtime must work with zero interactive session attached.
+Runtime boundary: the actual language generation happens via
+ArtifactGenerationPort (see ports.py), never by this backend importing an
+SDK/CLI directly. Two real, interchangeable providers implement it --
+AnthropicArtifactGenerator (HTTP API) and ClaudeCodeArtifactGenerator (a
+real, local, non-interactive `claude -p` subprocess call, an explicit
+user-selected choice, never a silently-launched interactive session).
+This is distinct from automation/runtime's own "never launches Claude
+Code" rule for pipeline *orchestration* (automation/.claude/skills/
+lab-editorial-*) -- that's about who drives the Discovery/Production
+control flow, not about which LLM backs one synchronous generation call
+a human explicitly picked in the UI (see app/infrastructure/llm/
+provider_resolver.py).
 
 Reuses LAB Editorial Intelligence's own real evidence taxonomy (see
 automation/docs/LAB_EDITORIAL_INTELLIGENCE.md) rather than inventing a
@@ -218,6 +225,12 @@ class ArtifactJob:
     finished_at: datetime | None = None
     artifact_id: str | None = None
     error: str | None = None
+    # Real provenance of THIS execution -- resolved once at trigger time
+    # (see TriggerArtifact / ArtifactProviderResolver) and never changed
+    # afterward. "auto" is never stored here: by the time the job exists,
+    # a concrete provider has already been picked.
+    provider: str | None = None
+    model: str | None = None
 
     def start(self) -> None:
         if self.status != ArtifactJobStatus.QUEUED:
@@ -279,3 +292,43 @@ class ArtifactGenerationResult:
     slug: str
     claims: list[Claim]
     media_requirements: list[MediaRequirement]
+
+
+class ProviderId(str, Enum):
+    """The only two real Artifact generation providers this codebase
+    implements -- never a placeholder for one that doesn't exist yet."""
+    ANTHROPIC = "anthropic"
+    CLAUDE_CODE = "claude_code"
+
+
+class ProviderKind(str, Enum):
+    API = "API"
+    CLI = "CLI"
+
+
+class ProviderStatus(str, Enum):
+    """Real, distinct states -- never collapsed into a bool. CHECKING is
+    part of the contract for a provider whose real check is inherently
+    async/multi-step; today's two providers both check synchronously, so
+    a backend response never actually rests in CHECKING -- the frontend
+    may show it locally while a check request is in flight."""
+    CONNECTED = "CONNECTED"           # configured AND authentication verified live
+    AVAILABLE = "AVAILABLE"           # installed/reachable but not the one currently in use
+    NOT_CONFIGURED = "NOT_CONFIGURED"  # no credentials/binary at all
+    AUTH_ERROR = "AUTH_ERROR"         # configured, but real auth check failed
+    UNAVAILABLE = "UNAVAILABLE"       # configured but unreachable (network/process error)
+    CHECKING = "CHECKING"
+
+
+@dataclass(frozen=True)
+class ProviderCheckResult:
+    """What a real check_status() call returns -- every field is either a
+    real, just-observed fact or None, never guessed. `detail` is a short
+    human-readable real reason (e.g. "no autenticado", real version
+    string) -- never a secret, never PII (an email/org id is never put
+    here even though the underlying CLI check may see one)."""
+    provider_id: ProviderId
+    status: ProviderStatus
+    detail: str | None = None
+    version: str | None = None
+    checked_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))

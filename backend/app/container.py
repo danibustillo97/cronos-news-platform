@@ -28,6 +28,9 @@ from app.infrastructure.persistence.supabase.published_content_repository import
 from app.infrastructure.lab.local.discovery_reader import LocalDiscoveryContentReader
 from app.infrastructure.runtime.discovery_runner_adapter import DiscoveryRunnerAdapter
 from app.infrastructure.llm.anthropic_adapter import AnthropicArtifactGenerator
+from app.infrastructure.llm.claude_code_adapter import ClaudeCodeArtifactGenerator
+from app.infrastructure.llm.provider_resolver import ArtifactProviderResolver
+from app.infrastructure.config.env_credentials_store import EnvFileCredentialsStore
 from app.infrastructure.publishing.legacy_news_publisher import SupabaseLegacyNewsPublisher
 from app.infrastructure.media.runtime_media_generation_adapter import RuntimeMediaGenerationAdapter
 from app.infrastructure.lab.local.editorial_intelligence_adapter import LocalEditorialIntelligenceAdapter
@@ -58,10 +61,16 @@ from app.application.use_cases.list_active_productions import ListActiveProducti
 from app.application.use_cases.seo_settings import GetSeoSettings, UpdateSeoSettings
 from app.application.use_cases.discovery import (
     DecideDiscoveryItem, GetDiscoveryJob, ListDiscoveryItems, ListDiscoveryJobs,
-    ReportDiscoveryJobStatus, TriggerDiscovery,
+    ReportDiscoveryJobStatus, RequestStopDiscoveryJob, TriggerDiscovery,
 )
 from app.application.use_cases.artifact import (
-    GetArtifactJob, ListArtifactsByStatus, PublishArtifact, ReviewArtifact, RunArtifactJob, TriggerArtifact,
+    GetArtifact, GetArtifactJob, GetLatestArtifactJobForStory, ListArtifactsByStatus, PublishArtifact,
+    ReviewArtifact, RunArtifactJob,
+    TriggerArtifact,
+)
+from app.application.use_cases.artifact_providers import (
+    CheckArtifactProvider, ClearProviderApiKey, ListArtifactProviders, SetDefaultArtifactProvider,
+    SetProviderApiKey,
 )
 from app.application.use_cases.media_generation import (
     GetMediaGenerationJob, RunMediaGenerationJob, TriggerMediaGeneration,
@@ -108,7 +117,10 @@ class Container:
         self.runtime = LocalRuntimeAdapter()
         self.discovery_content_reader = LocalDiscoveryContentReader()
         self.discovery_runner = DiscoveryRunnerAdapter()
-        self.artifact_generator = AnthropicArtifactGenerator()
+        self.anthropic_generator = AnthropicArtifactGenerator()
+        self.claude_code_generator = ClaudeCodeArtifactGenerator()
+        self.artifact_provider_resolver = ArtifactProviderResolver(self.anthropic_generator, self.claude_code_generator)
+        self.artifact_credentials_store = EnvFileCredentialsStore()
         self.artifact_publisher = SupabaseLegacyNewsPublisher(client)
         self.media_generator = RuntimeMediaGenerationAdapter()
 
@@ -132,18 +144,26 @@ class Container:
         self.update_seo_settings = UpdateSeoSettings(self.site_settings_repo)
         self.trigger_discovery = TriggerDiscovery(self.discovery_job_repo, self.discovery_runner)
         self.get_discovery_job = GetDiscoveryJob(self.discovery_job_repo)
+        self.request_stop_discovery_job = RequestStopDiscoveryJob(self.discovery_job_repo, self.discovery_runner)
         self.list_discovery_jobs = ListDiscoveryJobs(self.discovery_job_repo)
         self.report_discovery_job_status = ReportDiscoveryJobStatus(
             self.discovery_job_repo, self.discovery_repo, self.discovery_content_reader, self.category_repo,
         )
         self.list_discovery_items = ListDiscoveryItems(self.discovery_repo)
         self.decide_discovery_item = DecideDiscoveryItem(self.discovery_repo, self.story_repo)
-        self.trigger_artifact = TriggerArtifact(self.artifact_job_repo, self.story_repo)
+        self.trigger_artifact = TriggerArtifact(self.artifact_job_repo, self.story_repo, self.artifact_provider_resolver)
         self.get_artifact_job = GetArtifactJob(self.artifact_job_repo)
+        self.get_artifact = GetArtifact(self.artifact_repo)
+        self.get_latest_artifact_job_for_story = GetLatestArtifactJobForStory(self.artifact_job_repo)
         self.run_artifact_job = RunArtifactJob(
             self.artifact_job_repo, self.artifact_repo, self.discovery_repo, self.story_repo,
-            self.category_repo, self.artifact_generator,
+            self.category_repo, self.artifact_provider_resolver,
         )
+        self.list_artifact_providers = ListArtifactProviders(self.artifact_provider_resolver, self.artifact_credentials_store)
+        self.check_artifact_provider = CheckArtifactProvider(self.artifact_provider_resolver)
+        self.set_default_artifact_provider = SetDefaultArtifactProvider(self.artifact_credentials_store)
+        self.set_provider_api_key = SetProviderApiKey(self.artifact_credentials_store)
+        self.clear_provider_api_key = ClearProviderApiKey(self.artifact_credentials_store)
         self.list_artifacts_by_status = ListArtifactsByStatus(self.artifact_repo)
         self.review_artifact = ReviewArtifact(self.artifact_repo, self.story_repo)
         self.publish_artifact = PublishArtifact(

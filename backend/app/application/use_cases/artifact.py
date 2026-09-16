@@ -13,12 +13,12 @@ from datetime import datetime, timezone
 from app.domain.shared.errors import InvalidStateTransition, NotFoundError
 from app.domain.shared.ids import ArtifactId, StoryId
 from app.domain.artifact.entities import (
-    Artifact, ArtifactGenerationRequest, ArtifactJob, ArtifactJobStatus, ArtifactStatus, MediaKind, SeoMetadata,
-    SourceMaterial, SourceReference,
+    Artifact, ArtifactGenerationRequest, ArtifactJob, ArtifactJobStatus, ArtifactStatus, MediaKind, ProviderId,
+    SeoMetadata, SourceMaterial, SourceReference,
 )
 from app.domain.artifact.validation import validate_artifact
 from app.domain.ports import (
-    ArtifactGenerationPort, ArtifactGenerationUnavailableError, ArtifactJobRepository, ArtifactPublishingPort,
+    ArtifactGenerationUnavailableError, ArtifactJobRepository, ArtifactProviderResolverPort, ArtifactPublishingPort,
     ArtifactRepository, AssetRepository, CategoryRepository, DiscoveryRepository, StoragePort, StoryRepository,
 )
 
@@ -26,27 +26,36 @@ from app.domain.ports import (
 @dataclass
 class TriggerArtifactInput:
     story_id: str
+    provider: str | None = None  # explicit choice from the UI, or "auto"/None
 
 
 class TriggerArtifact:
-    """DISCOVERY UP -> ARTIFACT: creates a real, QUEUED job. Never starts
-    running here -- RunArtifactJob (invoked as a background task by the
-    API layer) is what actually calls the LLM, so the HTTP request that
-    triggers this returns immediately instead of blocking for the
-    10-60+ seconds a real generation call takes."""
+    """DISCOVERY UP -> ARTIFACT: resolves a real, currently-usable
+    provider FIRST (raises ProviderUnavailableError instead of ever
+    creating a job doomed to fail), then creates a real, QUEUED job with
+    that choice already persisted. Never starts running here --
+    RunArtifactJob (invoked as a background task by the API layer) is
+    what actually calls the LLM, so the HTTP request that triggers this
+    returns immediately instead of blocking for the 10-60+ seconds a
+    real generation call takes."""
 
-    def __init__(self, jobs: ArtifactJobRepository, stories: StoryRepository) -> None:
+    def __init__(self, jobs: ArtifactJobRepository, stories: StoryRepository, providers: ArtifactProviderResolverPort) -> None:
         self._jobs = jobs
         self._stories = stories
+        self._providers = providers
 
     def execute(self, input: TriggerArtifactInput) -> ArtifactJob:
         story = self._stories.find_by_id(input.story_id)
         if story is None:
             raise NotFoundError("Story", input.story_id)
 
+        provider_id = self._providers.resolve(input.provider)
+        model = self._providers.get(provider_id).check_status().version
+
         job = ArtifactJob(
             id=str(uuid.uuid4()), story_id=StoryId.of(input.story_id),
             status=ArtifactJobStatus.QUEUED, created_at=datetime.now(timezone.utc),
+            provider=provider_id.value, model=model,
         )
         self._jobs.save(job)
         return job
@@ -61,6 +70,37 @@ class GetArtifactJob:
         if job is None:
             raise NotFoundError("ArtifactJob", job_id)
         return job
+
+
+class GetLatestArtifactJobForStory:
+    """What the Artifact drawer uses to find its job after a page reload
+    -- the frontend only remembers a job id in-memory (from the trigger
+    response), which is lost on refresh. Real state lives here, keyed by
+    the same Story id the Discovery item already shares."""
+
+    def __init__(self, jobs: ArtifactJobRepository) -> None:
+        self._jobs = jobs
+
+    def execute(self, story_id: str) -> ArtifactJob:
+        job = self._jobs.find_latest_for_story(story_id)
+        if job is None:
+            raise NotFoundError("ArtifactJob", f"for story {story_id}")
+        return job
+
+
+class GetArtifact:
+    """Single-artifact read -- the Artifact drawer's real detail view
+    (validation issues, media requirements, content) needs more than a
+    job's bare status/artifactId string."""
+
+    def __init__(self, artifacts: ArtifactRepository) -> None:
+        self._artifacts = artifacts
+
+    def execute(self, artifact_id: str) -> Artifact:
+        artifact = self._artifacts.find_by_id(artifact_id)
+        if artifact is None:
+            raise NotFoundError("Artifact", artifact_id)
+        return artifact
 
 
 @dataclass
@@ -78,14 +118,14 @@ class RunArtifactJob:
 
     def __init__(
         self, jobs: ArtifactJobRepository, artifacts: ArtifactRepository, discovery_items: DiscoveryRepository,
-        stories: StoryRepository, categories: CategoryRepository, generator: ArtifactGenerationPort,
+        stories: StoryRepository, categories: CategoryRepository, providers: ArtifactProviderResolverPort,
     ) -> None:
         self._jobs = jobs
         self._artifacts = artifacts
         self._discovery_items = discovery_items
         self._stories = stories
         self._categories = categories
-        self._generator = generator
+        self._providers = providers
 
     def execute(self, input: RunArtifactJobInput) -> ArtifactJob:
         job = self._jobs.find_by_id(input.job_id)
@@ -139,8 +179,14 @@ class RunArtifactJob:
             available_category_names=category_names,
         )
 
+        # The provider was already resolved and persisted at trigger time
+        # (TriggerArtifact) -- reused as-is here, never re-resolved. If
+        # this specific provider fails now, the job goes FAILED; there is
+        # no silent fallback to a different provider mid-run.
+        provider_id = ProviderId(job.provider) if job.provider else self._providers.resolve(None)
+        generator = self._providers.get(provider_id)
         try:
-            result = self._generator.generate(request)
+            result = generator.generate(request)
         except ArtifactGenerationUnavailableError:
             raise  # already a real, specific error -- pass through unchanged
 

@@ -8,6 +8,7 @@ from app.domain.discovery.entities import DiscoveryFilters, DiscoveryStatus
 from app.application.use_cases.discovery import (
     DecideDiscoveryItemInput, ReportDiscoveryJobStatusInput, TriggerDiscoveryInput,
 )
+
 from app.presentation.schemas import (
     NewsRankingItemOut, DiscoveryJobOut, DiscoveryItemOut,
     TriggerDiscoveryRequest, ReportDiscoveryJobStatusRequest, DecideDiscoveryItemRequest,
@@ -44,6 +45,15 @@ def trigger_discovery(body: TriggerDiscoveryRequest, container: Container = Depe
 @router.get("/jobs/{job_id}", response_model=DiscoveryJobOut)
 def get_discovery_job(job_id: str, container: Container = Depends(get_container)) -> DiscoveryJobOut:
     return discovery_job_out(container.get_discovery_job.execute(job_id))
+
+
+@router.post("/jobs/{job_id}/stop", response_model=DiscoveryJobOut)
+def stop_discovery_job(job_id: str, container: Container = Depends(get_container)) -> DiscoveryJobOut:
+    """A real, cooperative stop -- marks CANCELLING immediately and asks
+    automation/runtime to signal the ingestion loop. Never kills a
+    process; the job only reaches CANCELLED once automation/runtime
+    reports back with whatever it actually saved."""
+    return discovery_job_out(container.request_stop_discovery_job.execute(job_id))
 
 
 class DiscoveryJobsResponse(BaseModel):

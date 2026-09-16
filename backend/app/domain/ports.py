@@ -24,7 +24,9 @@ from app.domain.intelligence.entities import (
     MediaPlan, SequencePlan, AnimationPlan, RenderResult, AssemblyResult,
 )
 from app.domain.discovery.entities import DiscoveryFilters, DiscoveryItem, DiscoveryJob, IngestedContent
-from app.domain.artifact.entities import Artifact, ArtifactGenerationRequest, ArtifactGenerationResult, ArtifactJob
+from app.domain.artifact.entities import (
+    Artifact, ArtifactGenerationRequest, ArtifactGenerationResult, ArtifactJob, ProviderCheckResult, ProviderId,
+)
 from app.domain.publication.entities import PublishedContent
 
 
@@ -122,6 +124,7 @@ class ArtifactRepository(Protocol):
 
 class ArtifactJobRepository(Protocol):
     def find_by_id(self, job_id: str) -> ArtifactJob | None: ...
+    def find_latest_for_story(self, story_id: str) -> ArtifactJob | None: ...
     def list_recent(self, limit: int = 20) -> list[ArtifactJob]: ...
     def save(self, job: ArtifactJob) -> None: ...
 
@@ -243,20 +246,56 @@ class ExecutionRuntimePort(Protocol):
 class ArtifactGenerationPort(Protocol):
     """The one real LLM call in the whole editorial pipeline -- deliberately
     provider-agnostic (see app/infrastructure/llm/ for the concrete
-    adapter). NEXUS's domain/application code never knows which vendor
+    adapters). NEXUS's domain/application code never knows which vendor
     answers this; swapping providers means writing a new adapter, never
     touching Artifact/TriggerArtifact.
-
-    Never invoked from within a Claude Code session's own reasoning --
-    this is a real outbound API call the production runtime makes on its
-    own, autonomously. Claude Code and its skills (automation/.claude/
-    skills/lab-editorial-*) remain development/inspection tools, not part
-    of this call path.
 
     Raises a real, specific exception (never returns fabricated content)
     when the provider isn't configured or the call fails -- see
     ArtifactGenerationUnavailableError."""
     def generate(self, request: ArtifactGenerationRequest) -> ArtifactGenerationResult: ...
+
+
+class ArtifactProviderPort(ArtifactGenerationPort, Protocol):
+    """An ArtifactGenerationPort that can also report its own real,
+    live status -- the Provider Control Plane's unit of selection. Every
+    concrete provider (AnthropicArtifactGenerator, ClaudeCodeArtifact
+    Generator) implements both generate() and check_status(); nothing
+    downstream (the resolver, the use cases) ever special-cases one
+    provider over another."""
+    def check_status(self) -> ProviderCheckResult: ...
+
+
+class ArtifactProviderResolverPort(Protocol):
+    """Turns a requested provider name ("anthropic", "claude_code",
+    "auto", or None) into a real, currently-usable ProviderId -- see
+    app/infrastructure/llm/provider_resolver.py for the concrete,
+    real-status-checking implementation. Application code depends on
+    this Protocol only, never the concrete resolver class."""
+    def resolve(self, requested: str | None) -> ProviderId: ...
+    def get(self, provider_id: ProviderId) -> ArtifactProviderPort: ...
+    def all_providers(self) -> dict[ProviderId, ArtifactProviderPort]: ...
+    def default_provider_id(self) -> str: ...
+
+
+class ArtifactCredentialsStorePort(Protocol):
+    """Where a provider's secret actually lives. Local/dev: backend/.env
+    (same file every other secret in this codebase already uses). A real
+    production deployment needs a different adapter (e.g. AWS Secrets
+    Manager) -- swapping it never touches domain/application code, same
+    seam as every other port here. NEVER returns the raw secret to a
+    caller outside this process -- only whether one is set."""
+    def set_key(self, provider_id: ProviderId, value: str) -> None: ...
+    def clear_key(self, provider_id: ProviderId) -> None: ...
+    def has_key(self, provider_id: ProviderId) -> bool: ...
+    def set_default_provider(self, provider_id: ProviderId) -> None: ...
+
+
+class ProviderUnavailableError(Exception):
+    """Raised by TriggerArtifact when the requested (or auto-resolved)
+    provider is not actually usable right now -- never creates a job
+    doomed to fail. Distinct from ArtifactGenerationUnavailableError,
+    which is raised mid-generation by a provider that WAS selected."""
 
 
 class ArtifactGenerationUnavailableError(Exception):
@@ -318,4 +357,13 @@ class DiscoveryRunnerPort(Protocol):
         and reports completion back via PATCH /api/discovery/jobs/{id}.
         Raises RuntimeUnavailableError if automation/runtime can't be
         reached at all -- never silently queues nothing."""
+        ...
+
+    def request_stop(self, job_id: str) -> None:
+        """A real, cooperative stop request -- never kills the running
+        scrape. automation/runtime writes a stop signal the ingestion loop
+        checks between sources; whatever was already saved stays saved.
+        Raises RuntimeUnavailableError if automation/runtime can't be
+        reached -- the job stays CANCELLING, never silently assumed
+        stopped."""
         ...

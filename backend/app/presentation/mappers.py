@@ -8,7 +8,7 @@ from app.domain.distribution.entities import DistributionPlan
 from app.domain.category.entities import CategoryGroup
 from app.domain.settings.entities import SiteSeoSettings
 from app.domain.discovery.entities import DiscoveryItem, DiscoveryJob
-from app.domain.artifact.entities import Artifact, ArtifactJob
+from app.domain.artifact.entities import Artifact, ArtifactJob, ProviderId
 from app.domain.asset.entities import MediaGenerationJob
 from app.domain.publication.entities import PublishedContent
 from app.application.use_cases.get_discovery_today import NewsRankingItem
@@ -21,7 +21,7 @@ from app.presentation.schemas import (
     ActiveProductionItemOut, SeoSettingsOut,
     DiscoveryJobOut, DiscoveryItemOut, MaterialReferenceOut, DiscoveryScoresOut,
     ArtifactJobOut, ArtifactOut, SeoMetadataOut, SourceReferenceOut, ClaimOut, MediaRequirementOut, ValidationIssueOut,
-    MediaGenerationJobOut, PublishedContentOut,
+    MediaGenerationJobOut, PublishedContentOut, ProviderOut,
 )
 
 
@@ -172,7 +172,20 @@ def artifact_job_out(job: ArtifactJob) -> ArtifactJobOut:
         id=job.id, story_id=str(job.story_id), status=job.status.value, created_at=job.created_at.isoformat(),
         started_at=job.started_at.isoformat() if job.started_at else None,
         finished_at=job.finished_at.isoformat() if job.finished_at else None,
-        artifact_id=job.artifact_id, error=job.error,
+        artifact_id=job.artifact_id, error=job.error, provider=job.provider, model=job.model,
+    )
+
+
+_PROVIDER_LABELS = {ProviderId.ANTHROPIC: "Anthropic", ProviderId.CLAUDE_CODE: "Claude Code"}
+_PROVIDER_KINDS = {ProviderId.ANTHROPIC: "API", ProviderId.CLAUDE_CODE: "CLI"}
+
+
+def provider_out(summary) -> ProviderOut:
+    check = summary.check
+    return ProviderOut(
+        id=check.provider_id.value, label=_PROVIDER_LABELS[check.provider_id], kind=_PROVIDER_KINDS[check.provider_id],
+        status=check.status.value, detail=check.detail, version=check.version, checked_at=check.checked_at.isoformat(),
+        is_default=summary.is_default, has_stored_key=summary.has_stored_key,
     )
 
 

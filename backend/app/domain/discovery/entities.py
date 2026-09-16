@@ -144,6 +144,8 @@ class DiscoveryJobStatus(str, Enum):
     RUNNING = "RUNNING"
     COMPLETED = "COMPLETED"
     FAILED = "FAILED"
+    CANCELLING = "CANCELLING"  # stop requested, waiting for the current source to finish
+    CANCELLED = "CANCELLED"
 
 
 @dataclass
@@ -179,6 +181,24 @@ class DiscoveryJob:
             raise InvalidStateTransition("DiscoveryJob", self.status.value, DiscoveryJobStatus.FAILED.value)
         self.status = DiscoveryJobStatus.FAILED
         self.error = error
+        self.finished_at = finished_at
+
+    def request_cancel(self) -> None:
+        """A real, cooperative stop request -- never kills anything by
+        itself. The actual ingestion loop (automation/lab/ingestion/run.py)
+        checks for this between sources and finishes cleanly, keeping
+        whatever it already saved; this only marks the intent so the UI
+        can show "Deteniendo..." honestly instead of pretending Stop is
+        instant."""
+        if self.status not in (DiscoveryJobStatus.QUEUED, DiscoveryJobStatus.RUNNING):
+            raise InvalidStateTransition("DiscoveryJob", self.status.value, DiscoveryJobStatus.CANCELLING.value)
+        self.status = DiscoveryJobStatus.CANCELLING
+
+    def cancel(self, items_found: int, finished_at: datetime) -> None:
+        if self.status not in (DiscoveryJobStatus.CANCELLING, DiscoveryJobStatus.RUNNING):
+            raise InvalidStateTransition("DiscoveryJob", self.status.value, DiscoveryJobStatus.CANCELLED.value)
+        self.status = DiscoveryJobStatus.CANCELLED
+        self.items_found = items_found
         self.finished_at = finished_at
 
 

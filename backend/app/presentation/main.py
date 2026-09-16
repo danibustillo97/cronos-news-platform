@@ -9,6 +9,7 @@ from app.infrastructure.persistence.supabase import client as supabase_client_mo
 from app.presentation.error_handlers import register_error_handlers
 from app.presentation.api import (
     news, stories, compositions, discovery, categories, assets, runtime, settings, artifacts, published_content,
+    artifact_providers,
 )
 from app.presentation.api.stories import productions_router
 
@@ -40,6 +41,7 @@ app.include_router(assets.router)
 app.include_router(runtime.router)
 app.include_router(settings.router)
 app.include_router(artifacts.router)
+app.include_router(artifact_providers.router)
 app.include_router(published_content.router)
 app.include_router(productions_router)
 

@@ -7,9 +7,11 @@
 // for where that real work happens.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Compass, RefreshCw, Clock, Tag, Image as ImageIcon, ExternalLink, Check, X, Archive, ArrowRight } from "lucide-react";
+import { Compass, RefreshCw, Clock, Tag, Image as ImageIcon, ExternalLink, Check, X, Archive, ArrowRight, Eye } from "lucide-react";
 import { toast } from "sonner";
 import { apiUrl } from "@/studio/lab/api-client";
+import ProviderPickerModal from "./ProviderPickerModal";
+import ArtifactDrawer from "./ArtifactDrawer";
 
 interface MaterialReference {
   kind: string;
@@ -128,6 +130,10 @@ export default function DiscoveryPanel({ onAdvance }: { onAdvance?: () => void }
   const [triggering, setTriggering] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  const [pickerForItem, setPickerForItem] = useState<string | null>(null);
+  const [retryStoryId, setRetryStoryId] = useState<string | null>(null);
+  const [drawer, setDrawer] = useState<{ storyId: string; title: string } | null>(null);
+
   const fetchItems = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -224,35 +230,70 @@ export default function DiscoveryPanel({ onAdvance }: { onAdvance?: () => void }
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
-      const updated: DiscoveryItem = await res.json();
       setItems((prev) => prev.filter((i) => i.id !== itemId)); // moved out of the current status filter
-      if (decision === "SEND_TO_EDITORIAL") {
-        if (updated.storyId) {
-          // Artifact runs as a real async job (LLM call, 10-60+s) --
-          // trigger it now and let the Ready tab poll/show its result.
-          try {
-            const jobRes = await fetch(apiUrl("/api/artifacts/jobs"), {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ storyId: updated.storyId }),
-            });
-            if (!jobRes.ok) {
-              const jobBody = await jobRes.json().catch(() => null);
-              throw new Error(jobBody?.message || `HTTP ${jobRes.status}`);
-            }
-            toast.success("Story creada -- Artifact generando el editorial");
-          } catch (err) {
-            toast.error(err instanceof Error ? `Artifact no se pudo iniciar: ${err.message}` : "Artifact no se pudo iniciar");
-          }
-        } else {
-          toast.success("Story creada -- lista para Artifact");
-        }
-        onAdvance?.();
-      } else {
-        toast.success("Actualizado");
-      }
+      toast.success("Actualizado");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo actualizar el item");
+    }
+  };
+
+  const confirmSendToEditorial = async (itemId: string, providerId: string) => {
+    setPickerForItem(null);
+    try {
+      const res = await fetch(apiUrl(`/api/discovery/items/${itemId}/decide`), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "SEND_TO_EDITORIAL" }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || `HTTP ${res.status}`);
+      }
+      const updated: DiscoveryItem = await res.json();
+      setItems((prev) => prev.filter((i) => i.id !== itemId));
+
+      if (updated.storyId) {
+        // Artifact runs as a real async job (LLM call, 10-60+s) --
+        // trigger it now with the explicitly chosen provider.
+        try {
+          const jobRes = await fetch(apiUrl("/api/artifacts/jobs"), {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ storyId: updated.storyId, provider: providerId }),
+          });
+          if (!jobRes.ok) {
+            const jobBody = await jobRes.json().catch(() => null);
+            throw new Error(jobBody?.message || `HTTP ${jobRes.status}`);
+          }
+          toast.success("Story creada -- Artifact generando el editorial");
+        } catch (err) {
+          toast.error(err instanceof Error ? `Artifact no se pudo iniciar: ${err.message}` : "Artifact no se pudo iniciar");
+        }
+      } else {
+        toast.success("Story creada -- lista para Artifact");
+      }
+      onAdvance?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo actualizar el item");
+    }
+  };
+
+  const confirmRetry = async (storyId: string, providerId: string) => {
+    setRetryStoryId(null);
+    try {
+      const res = await fetch(apiUrl("/api/artifacts/jobs"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ storyId, provider: providerId }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || `HTTP ${res.status}`);
+      }
+      toast.success("Reintentando Artifact");
+      setDrawer({ storyId, title: drawer?.title ?? "" });
+    } catch (err) {
+      toast.error(err instanceof Error ? `No se pudo reintentar: ${err.message}` : "No se pudo reintentar");
     }
   };
 
@@ -366,7 +407,7 @@ export default function DiscoveryPanel({ onAdvance }: { onAdvance?: () => void }
                     </button>
                   )}
                   {item.status === "SELECTED" && (
-                    <button onClick={() => decide(item.id, "SEND_TO_EDITORIAL")}
+                    <button onClick={() => setPickerForItem(item.id)}
                       className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-red-500/10 text-red-400 hover:bg-red-500/20">
                       <ArrowRight size={13} /> Procesar en Artifact
                     </button>
@@ -381,9 +422,45 @@ export default function DiscoveryPanel({ onAdvance }: { onAdvance?: () => void }
                   </button>
                 </div>
               )}
+              {item.status === "SENT_TO_EDITORIAL" && item.storyId && (
+                <div className="flex items-center gap-2 mt-4 pt-4 border-t border-white/5">
+                  <button
+                    onClick={() => setDrawer({ storyId: item.storyId!, title: item.originalTitle })}
+                    className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10"
+                  >
+                    <Eye size={13} /> Ver progreso de Artifact
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>
+      )}
+
+      {pickerForItem && (
+        <ProviderPickerModal
+          onCancel={() => setPickerForItem(null)}
+          onConfirm={(providerId) => confirmSendToEditorial(pickerForItem, providerId)}
+        />
+      )}
+
+      {retryStoryId && (
+        <ProviderPickerModal
+          onCancel={() => setRetryStoryId(null)}
+          onConfirm={(providerId) => confirmRetry(retryStoryId, providerId)}
+        />
+      )}
+
+      {drawer && (
+        <ArtifactDrawer
+          storyId={drawer.storyId}
+          title={drawer.title}
+          onClose={() => setDrawer(null)}
+          onRetry={() => {
+            setRetryStoryId(drawer.storyId);
+            setDrawer(null);
+          }}
+        />
       )}
     </div>
   );

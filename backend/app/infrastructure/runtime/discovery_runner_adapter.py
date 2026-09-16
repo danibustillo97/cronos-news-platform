@@ -32,3 +32,11 @@ class DiscoveryRunnerAdapter:
             raise RuntimeUnavailableError(f"Local Runtime no disponible en {self._base_url}: {exc}") from exc
         if resp.status_code != 202:
             raise RuntimeUnavailableError(f"Local Runtime rechazó el discovery job: {resp.status_code} {resp.text}")
+
+    def request_stop(self, job_id: str) -> None:
+        try:
+            resp = httpx.post(f"{self._base_url}/discovery/jobs/{job_id}/stop", timeout=CONNECT_TIMEOUT)
+        except httpx.HTTPError as exc:
+            raise RuntimeUnavailableError(f"Local Runtime no disponible en {self._base_url}: {exc}") from exc
+        if resp.status_code >= 300:
+            raise RuntimeUnavailableError(f"Local Runtime rechazó el stop: {resp.status_code} {resp.text}")

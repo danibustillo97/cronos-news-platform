@@ -5,7 +5,8 @@ export type View =
     | "production"
     | "social"
     | "distribution"
-    | "tags_seo";
+    | "tags_seo"
+    | "providers";
 
 export type AnalysisMode =
     | "noris"
