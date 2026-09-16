@@ -7,7 +7,7 @@
 // for where that real work happens.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Compass, RefreshCw, Clock, Tag, Image as ImageIcon, ExternalLink, Check, X, Archive, ArrowRight, Eye } from "lucide-react";
+import { Compass, RefreshCw, Clock, Tag, Image as ImageIcon, ExternalLink, Check, X, Archive, ArrowRight, Eye, Square } from "lucide-react";
 import { toast } from "sonner";
 import { apiUrl } from "@/studio/lab/api-client";
 import ProviderPickerModal from "./ProviderPickerModal";
@@ -52,7 +52,7 @@ interface DiscoveryItem {
 
 interface DiscoveryJob {
   id: string;
-  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED";
+  status: "QUEUED" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLING" | "CANCELLED";
   params: Record<string, unknown>;
   createdAt: string;
   startedAt: string | null;
@@ -128,6 +128,7 @@ export default function DiscoveryPanel({ onAdvance }: { onAdvance?: () => void }
 
   const [job, setJob] = useState<DiscoveryJob | null>(null);
   const [triggering, setTriggering] = useState(false);
+  const [stopping, setStopping] = useState(false);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [pickerForItem, setPickerForItem] = useState<string | null>(null);
@@ -202,11 +203,15 @@ export default function DiscoveryPanel({ onAdvance }: { onAdvance?: () => void }
         if (!r.ok) return;
         const updated: DiscoveryJob = await r.json();
         setJob(updated);
-        if (updated.status === "COMPLETED" || updated.status === "FAILED") {
+        if (updated.status === "COMPLETED" || updated.status === "FAILED" || updated.status === "CANCELLED") {
           stopPolling();
           setTriggering(false);
+          setStopping(false);
           if (updated.status === "COMPLETED") {
             toast.success(`Discovery completado -- ${updated.itemsFound ?? 0} items nuevos`);
+            fetchItems();
+          } else if (updated.status === "CANCELLED") {
+            toast.success(`Discovery detenido -- ${updated.itemsFound ?? 0} items nuevos`);
             fetchItems();
           } else {
             toast.error(`Discovery falló: ${updated.error}`);
@@ -216,6 +221,24 @@ export default function DiscoveryPanel({ onAdvance }: { onAdvance?: () => void }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo iniciar Discovery");
       setTriggering(false);
+    }
+  };
+
+  const handleStopDiscovery = async () => {
+    if (!job) return;
+    setStopping(true);
+    try {
+      const res = await fetch(apiUrl(`/api/discovery/jobs/${job.id}/stop`), { method: "POST" });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.message || `HTTP ${res.status}`);
+      }
+      const updated: DiscoveryJob = await res.json();
+      setJob(updated);
+      toast.success("Deteniendo Discovery -- terminará el ítem en curso");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo detener Discovery");
+      setStopping(false);
     }
   };
 
@@ -312,14 +335,31 @@ export default function DiscoveryPanel({ onAdvance }: { onAdvance?: () => void }
             <p className="text-sm text-neutral-400">Buscar → Descubrir → Evaluar → Seleccionar</p>
           </div>
         </div>
-        <button
-          onClick={handleDiscoveryUp}
-          disabled={triggering}
-          className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-xl font-bold hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          {triggering ? <RefreshCw className="animate-spin" size={18} /> : <Compass size={18} />}
-          {triggering ? `Discovery ${job?.status ?? "..."}` : "Discovery Up"}
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleDiscoveryUp}
+            disabled={triggering}
+            className="flex items-center gap-2 bg-white text-black px-6 py-3 rounded-xl font-bold hover:bg-neutral-200 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            {triggering ? <RefreshCw className="animate-spin" size={18} /> : <Compass size={18} />}
+            {triggering
+              ? job?.status === "CANCELLING"
+                ? "Deteniendo..."
+                : `Discovery ${job?.status ?? "..."}`
+              : "Discovery Up"}
+          </button>
+          {triggering && (job?.status === "QUEUED" || job?.status === "RUNNING") && (
+            <button
+              onClick={handleStopDiscovery}
+              disabled={stopping}
+              title="Detener Discovery -- termina el ítem en curso y conserva lo ya encontrado"
+              className="flex items-center gap-2 bg-white/10 text-white px-4 py-3 rounded-xl font-bold hover:bg-red-500/20 hover:text-red-400 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Square size={16} className={stopping ? "animate-pulse" : ""} />
+              {stopping ? "Deteniendo..." : "Detener"}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Filters */}
