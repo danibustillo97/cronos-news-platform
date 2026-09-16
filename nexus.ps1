@@ -79,6 +79,30 @@ function Test-DockerRunning {
     } catch { return $false }
 }
 
+function Test-BackendFresh {
+    # A backend process can pass /health while still running code from
+    # BEFORE a route was ever written to disk -- uvicorn --reload's file
+    # watcher can die while the worker keeps the socket open and keeps
+    # answering with its old, in-memory route table (real, observed case:
+    # PID 5288, 2026-09-15/16 -- unkillable via Get-Process/WMI/taskkill/
+    # a direct Win32 TerminateProcess call, all ACCESS_DENIED, yet still
+    # the LISTEN owner of :8000 and still answering /health 200). A 200 on
+    # /health alone cannot tell OK-and-current apart from OK-but-stale;
+    # comparing the live process's own OpenAPI route table can.
+    param([string]$Url = "http://127.0.0.1:8000/openapi.json")
+    try {
+        $r = Invoke-WebRequest -Uri $Url -UseBasicParsing -TimeoutSec 5 -ErrorAction Stop
+        $paths = (ConvertFrom-Json $r.Content).paths.PSObject.Properties.Name
+        # The newest route added this session -- absent means the running
+        # process predates it, and with it Discovery's real items/jobs
+        # endpoints and the whole Artifact domain (all older additions).
+        if ($paths -contains "/api/published-content") { return @{ Ok = $true } }
+        return @{ Ok = $false; Detail = "running an OLDER build (missing /api/published-content) -- health-check passing does not mean current code; needs a real process restart" }
+    } catch {
+        return @{ Ok = $false; Detail = "could not read /openapi.json: $($_.Exception.Message)" }
+    }
+}
+
 function Test-LabReady {
     # lab.cli is invoked as `python -m lab.cli` from automation/ (the repo
     # root that contains the `lab` package) -- see lab/cli.py's own
@@ -112,7 +136,11 @@ function Get-ServiceStatus {
 
     $backendPids = Get-PortOwner 8000
     $backendHttp = if ($backendPids.Count -gt 0) { Test-Http "http://127.0.0.1:8000/health" } else { @{ Ok = $false; Body = "port 8000 not listening" } }
-    $result["Backend"] = @{ Ok = $backendHttp.Ok; Detail = if ($backendHttp.Ok) { "pid $($backendPids -join ',')" } else { $backendHttp.Body } }
+    $backendFresh = if ($backendHttp.Ok) { Test-BackendFresh } else { @{ Ok = $true } } # not up at all is its own failure below, don't double-report
+    $result["Backend"] = @{
+        Ok = $backendHttp.Ok -and $backendFresh.Ok
+        Detail = if (-not $backendHttp.Ok) { $backendHttp.Body } elseif (-not $backendFresh.Ok) { "pid $($backendPids -join ',') -- $($backendFresh.Detail)" } else { "pid $($backendPids -join ',')" }
+    }
 
     $frontendPids = Get-PortOwner 3000
     $frontendHttp = if ($frontendPids.Count -gt 0) { Test-Http "http://127.0.0.1:3000/" } else { @{ Ok = $false; Body = "port 3000 not listening" } }
