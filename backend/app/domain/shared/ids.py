@@ -59,3 +59,9 @@ class DiscoveryItemId(EntityId):
 
 class ArtifactId(EntityId):
     pass
+
+
+class PublishedContentId(EntityId):
+    """The `news` row's own real id, once status='published' -- the
+    stable identity Editorial's Publish stage hands downstream consumers
+    (Studio, eventually), see app/domain/publication/entities.py."""

@@ -25,6 +25,7 @@ from app.domain.intelligence.entities import (
 )
 from app.domain.discovery.entities import DiscoveryFilters, DiscoveryItem, DiscoveryJob, IngestedContent
 from app.domain.artifact.entities import Artifact, ArtifactGenerationRequest, ArtifactGenerationResult, ArtifactJob
+from app.domain.publication.entities import PublishedContent
 
 
 # ── repository ports ─────────────────────────────────────────────────────
@@ -202,6 +203,17 @@ class StoragePort(Protocol):
 
 class SearchPort(Protocol):
     def search(self, query: str, limit: int = 20) -> list[News]: ...
+
+
+class PublishedContentRepository(Protocol):
+    """Read-only: the PUBLICATION boundary (see app/domain/publication/
+    entities.py). Nothing in Editorial (Discovery/Artifact/Ready/Publish)
+    depends on this -- it exists for a downstream consumer (Studio,
+    eventually) to read what Editorial has actually published, through a
+    stable id, without ever touching Story/Artifact/DiscoveryItem."""
+    def find_by_id(self, content_id: str) -> PublishedContent | None: ...
+    def find_by_slug(self, slug: str) -> PublishedContent | None: ...
+    def list_recent(self, limit: int = 20, category: str | None = None) -> list[PublishedContent]: ...
 
 
 class PublishingAvailabilityPort(Protocol):

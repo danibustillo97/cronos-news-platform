@@ -10,6 +10,7 @@ from app.domain.settings.entities import SiteSeoSettings
 from app.domain.discovery.entities import DiscoveryItem, DiscoveryJob
 from app.domain.artifact.entities import Artifact, ArtifactJob
 from app.domain.asset.entities import MediaGenerationJob
+from app.domain.publication.entities import PublishedContent
 from app.application.use_cases.get_discovery_today import NewsRankingItem
 from app.application.use_cases.list_news import NewsWorkspace, NewsWorkspaceItem
 from app.application.use_cases.get_story_workspace import StoryWorkspace
@@ -20,7 +21,7 @@ from app.presentation.schemas import (
     ActiveProductionItemOut, SeoSettingsOut,
     DiscoveryJobOut, DiscoveryItemOut, MaterialReferenceOut, DiscoveryScoresOut,
     ArtifactJobOut, ArtifactOut, SeoMetadataOut, SourceReferenceOut, ClaimOut, MediaRequirementOut, ValidationIssueOut,
-    MediaGenerationJobOut,
+    MediaGenerationJobOut, PublishedContentOut,
 )
 
 
@@ -213,4 +214,15 @@ def media_generation_job_out(job: MediaGenerationJob) -> MediaGenerationJobOut:
         id=job.id, artifact_id=str(job.artifact_id), placeholder_id=job.placeholder_id, status=job.status.value,
         created_at=job.created_at.isoformat(), started_at=job.started_at.isoformat() if job.started_at else None,
         finished_at=job.finished_at.isoformat() if job.finished_at else None, asset_id=job.asset_id, error=job.error,
+    )
+
+
+def published_content_out(content: PublishedContent) -> PublishedContentOut:
+    return PublishedContentOut(
+        id=str(content.id), title=content.title, subtitle=content.subtitle, slug=content.slug,
+        excerpt=content.excerpt, summary=content.summary, content=content.content, category=content.category,
+        tags=content.tags, image_url=content.image_url, author=content.author, source_name=content.source_name,
+        source_url=content.source_url,
+        published_at=content.published_at.isoformat() if content.published_at else None,
+        updated_at=content.updated_at.isoformat() if content.updated_at else None,
     )

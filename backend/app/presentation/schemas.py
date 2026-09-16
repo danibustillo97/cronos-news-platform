@@ -351,6 +351,24 @@ class MediaGenerationJobOut(CamelModel):
     error: str | None
 
 
+class PublishedContentOut(CamelModel):
+    id: str
+    title: str
+    subtitle: str | None
+    slug: str
+    excerpt: str | None
+    summary: str | None
+    content: str
+    category: str | None
+    tags: list[str]
+    image_url: str | None
+    author: str | None
+    source_name: str | None
+    source_url: str | None
+    published_at: str | None
+    updated_at: str | None
+
+
 class ErrorOut(CamelModel):
     error: str
     message: str

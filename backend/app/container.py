@@ -24,6 +24,7 @@ from app.infrastructure.persistence.supabase.artifact_repository import (
 from app.infrastructure.persistence.supabase.asset_repository import (
     SupabaseAssetRepository, SupabaseMediaGenerationJobRepository,
 )
+from app.infrastructure.persistence.supabase.published_content_repository import SupabasePublishedContentRepository
 from app.infrastructure.lab.local.discovery_reader import LocalDiscoveryContentReader
 from app.infrastructure.runtime.discovery_runner_adapter import DiscoveryRunnerAdapter
 from app.infrastructure.llm.anthropic_adapter import AnthropicArtifactGenerator
@@ -65,6 +66,9 @@ from app.application.use_cases.artifact import (
 from app.application.use_cases.media_generation import (
     GetMediaGenerationJob, RunMediaGenerationJob, TriggerMediaGeneration,
 )
+from app.application.use_cases.published_content import (
+    GetPublishedContent, GetPublishedContentBySlug, ListPublishedContent,
+)
 
 
 class Container:
@@ -85,6 +89,7 @@ class Container:
         self.artifact_job_repo = SupabaseArtifactJobRepository(client)
         self.asset_repo = SupabaseAssetRepository(client)
         self.media_generation_job_repo = SupabaseMediaGenerationJobRepository(client)
+        self.published_content_repo = SupabasePublishedContentRepository(client)
 
         reader = default_reader()
         self.lab_editorial = LocalEditorialIntelligenceAdapter(reader)
@@ -150,6 +155,9 @@ class Container:
         self.run_media_generation_job = RunMediaGenerationJob(
             self.media_generation_job_repo, self.artifact_repo, self.asset_repo, self.media_generator,
         )
+        self.get_published_content = GetPublishedContent(self.published_content_repo)
+        self.get_published_content_by_slug = GetPublishedContentBySlug(self.published_content_repo)
+        self.list_published_content = ListPublishedContent(self.published_content_repo)
 
 
 @lru_cache(maxsize=1)
