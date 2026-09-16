@@ -89,7 +89,8 @@ const SORT_OPTIONS = [
 // "SENT_TO_EDITORIAL" is the real backend status name (kept as-is, tests
 // already cover it) -- labeled "En Artifact" here since, inside this
 // single Editorial space, that's what actually happens next: it becomes
-// the seed of a Story that Artifact (Phase 4, not built yet) will process.
+// the seed of a Story that Artifact processes for real (see
+// POST /api/artifacts/jobs, triggered right after this decision below).
 const STATUS_LABEL: Record<string, string> = {
   DISCOVERED: "Descubierto", SELECTED: "Seleccionado", IGNORED: "Ignorado",
   ARCHIVED: "Archivado", SENT_TO_EDITORIAL: "En Artifact",
