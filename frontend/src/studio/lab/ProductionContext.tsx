@@ -216,6 +216,13 @@ export function ProductionProvider({ children }: { children: React.ReactNode }) 
 
     fetch(apiUrl('/api/productions')).then(readJson).then((body) => {
       if (!cancelled && body?.items) setActiveProductions(body.items as ActiveProductionItemDTO[]);
+    }).catch((e) => {
+      // Same fix as reviewComposition below (ERROR 3): an unhandled
+      // rejection here is exactly what shows up as an opaque
+      // "Failed to fetch" with zero application-level context.
+      if (!cancelled) {
+        setLastError({ error: 'NETWORK_ERROR', message: e instanceof Error ? e.message : 'fetch failed — is the FastAPI backend running on :8000?' });
+      }
     });
 
     const channel = supabase
