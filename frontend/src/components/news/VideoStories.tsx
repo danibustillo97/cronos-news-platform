@@ -3,6 +3,7 @@ import { Play, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import TikTokEmbed from '@/components/social/TikTokEmbed';
 import { supabase } from '@/lib/supabaseClient';
+import { usePortalTheme } from '@/context/ThemeContext';
 
 interface Story {
   id: string;
@@ -13,6 +14,7 @@ interface Story {
 }
 
 export default function VideoStories() {
+  const { theme } = usePortalTheme();
   const [stories, setStories] = useState<Story[]>([]);
   const [selectedStory, setSelectedStory] = useState<string | null>(null);
 
@@ -51,8 +53,12 @@ export default function VideoStories() {
     <div className="w-full mb-8">
       <div className="flex items-center gap-2 mb-4">
         <div className="w-2 h-8 bg-red-600 rounded-full" />
-        <h2 className="text-xl font-bold text-neutral-800">Nexus Stories</h2>
-        <span className="text-xs font-bold text-red-600 bg-red-100 px-2 py-1 rounded-full animate-pulse">
+        <h2 className={`text-xl font-bold ${theme === 'dark' ? 'text-white' : 'text-neutral-900'}`}>Nexus Stories</h2>
+        <span className={`text-[10px] font-bold uppercase tracking-[0.2em] px-2 py-1 rounded-full animate-pulse border ${
+          theme === 'dark'
+            ? 'text-red-200 bg-red-500/15 border-red-500/30'
+            : 'text-red-700 bg-red-100 border-red-200'
+        }`}>
           LIVE
         </span>
       </div>
@@ -64,14 +70,14 @@ export default function VideoStories() {
             whileHover={{ scale: 1.05 }}
             whileTap={{ scale: 0.95 }}
             onClick={() => setSelectedStory(story.id)}
-            className="flex-shrink-0 relative w-32 h-48 md:w-40 md:h-64 rounded-xl overflow-hidden cursor-pointer group shadow-md"
+            className="flex-shrink-0 relative w-32 h-48 md:w-40 md:h-64 rounded-2xl overflow-hidden cursor-pointer group shadow-[0_20px_40px_rgba(0,0,0,0.35)] border border-white/10 bg-neutral-900"
           >
             <img
               src={story.thumbnail_url}
               alt={story.title}
-              className="w-full h-full object-cover"
+              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
             />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent flex flex-col justify-end p-3">
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-transparent flex flex-col justify-end p-3">
               <div className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md flex items-center justify-center mb-2 group-hover:bg-red-600 transition-colors">
                 <Play size={12} className="text-white fill-current" />
               </div>

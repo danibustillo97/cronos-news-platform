@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 :root {
-  --background: #0a0a0a;
+  --background: #ffffff;
   --foreground: #ffffff;
   --primary: #fbbf24;
   --primary-dark: #f59e0b;
@@ -48,6 +48,136 @@ body {
   line-height: 1.6;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Note: @tailwindcss/typography is NOT installed in this project -- the
+   prose/prose-* classNames on .article-content elsewhere are inert (an
+   unregistered utility generates no CSS). All real article typography
+   lives here instead, in plain CSS, not in those classNames. */
+.article-content {
+  color: #111827;
+  font-size: 1.15rem;
+}
+
+.article-content > *:first-child {
+  margin-top: 0;
+}
+
+.article-content p,
+.article-content li,
+.article-content blockquote,
+.article-content td,
+.article-content th {
+  color: #1f2937;
+  font-size: 1.15rem;
+  line-height: 1.9;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.article-content figcaption {
+  color: #6b7280;
+  font-size: 0.9rem;
+  font-family: 'Inter', -apple-system, sans-serif;
+}
+
+.article-content p,
+.article-content ul,
+.article-content ol,
+.article-content blockquote,
+.article-content figure,
+.article-content pre,
+.article-content table {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.article-content img,
+.article-content iframe,
+.article-content video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 1.1rem;
+  margin: 2rem auto;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
+  background: #f3f4f6;
+}
+
+.article-content figure {
+  margin: 2rem 0;
+}
+
+.article-content figure img {
+  margin-bottom: 0.75rem;
+}
+
+.article-content a {
+  color: #dc2626;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.article-content strong,
+.article-content b {
+  color: #111827;
+}
+
+.article-content h1,
+.article-content h2,
+.article-content h3,
+.article-content h4,
+.article-content h5,
+.article-content h6 {
+  color: #111827;
+  font-weight: 900;
+  font-family: 'Inter', -apple-system, sans-serif;
+  margin-top: 2.25rem;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.article-content h2 { font-size: 1.75rem; }
+.article-content h3 { font-size: 1.4rem; }
+
+.article-content blockquote {
+  border-left: 4px solid #dc2626;
+  background: linear-gradient(90deg, #fff5f5 0%, #ffffff 100%);
+  padding: 1rem 1.25rem;
+  border-radius: 0 0.8rem 0.8rem 0;
+  margin: 2rem 0;
+  font-style: italic;
+}
+
+.article-content hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 2rem 0;
+}
+
+.article-content ul,
+.article-content ol {
+  padding-left: 1.5rem;
+}
+
+.article-content table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+}
+
+.article-content th,
+.article-content td {
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.article-content th {
+  background: #f9fafb;
+  font-weight: 700;
 }
 
 /* Premium Scrollbar */
