@@ -31,7 +31,14 @@ def raise_if_schema_missing(exc: Exception, relation: str) -> None:
     message = str(exc)
     lower = message.lower()
 
-    if code in ("42P01", "42703", "PGRST204", "PGRST205") or "schema cache" in lower or "does not exist" in lower:
+    # PostgREST returns this exact shape (code 404, "JSON could not be
+    # generated") for a table it has never seen in its schema cache -- a
+    # real, observed symptom of "not provisioned yet", distinct from the
+    # Postgres-level 42P01/PGRST20x codes above but the same root cause.
+    if (
+        code in ("42P01", "42703", "PGRST204", "PGRST205") or "schema cache" in lower or "does not exist" in lower
+        or "json could not be generated" in lower
+    ):
         raise SchemaNotProvisionedError(relation) from exc
     if code == "42501" or "row-level security" in lower:
         raise RowLevelSecurityError(relation) from exc

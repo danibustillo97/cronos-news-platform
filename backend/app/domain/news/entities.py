@@ -42,8 +42,8 @@ class News:
     processed_at: datetime | None = None
     # Read-only projection field from the pre-existing Editorial Desk `news`
     # table (draft/published/enhanced) — belongs to the PUBLICATION
-    # bounded context, not NEWS's own lifecycle. Carried here only so
-    # projections (ListNews) can group without a second round-trip.
+    # bounded context, not NEWS's own lifecycle. Exposed via NewsOut for
+    # the Discover Today ranking without a second round-trip.
     legacy_web_status: str | None = None
 
     @staticmethod

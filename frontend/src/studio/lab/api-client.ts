@@ -9,13 +9,16 @@
 //     Browser -> http://nexus.local -> Nginx :80 -> Backend :8000
 //   (see infrastructure/docker/nginx/nginx.conf's `location /api/` ->
 //   proxy_pass to the backend). A RELATIVE path keeps the browser on
-//   whatever origin actually served the page (nexus.local, localhost:3000,
-//   the real production domain) so Nginx (or the real prod reverse proxy)
+//   whatever origin actually served the page (nexus.local or the real
+//   production domain) so Nginx (or the real prod reverse proxy)
 //   routes it -- a hardcoded absolute `http://localhost:8000` here made
 //   the browser treat it as a cross-origin request and hit CORS the
 //   moment the page was served from anything other than that literal
-//   host:port (e.g. nexus.local). CORS is not the fix for that -- the
-//   request should never have been cross-origin in the first place.
+//   host:port (e.g. nexus.local). The Next dev server on localhost:3000
+//   has no /api proxy, though, so in that specific local setup the browser
+//   must call the backend directly. CORS allows localhost:3000 by default.
+//   CORS is not the fix for production -- there, configure the explicit
+//   backend URL below rather than relying on a cross-origin fallback.
 // - Server (Node -- generateMetadata, route handlers under src/app/api/):
 //   there is no browser origin to stay same-origin with, and no CORS
 //   involved at all (CORS is a browser-only concept) -- this needs a
@@ -29,8 +32,12 @@
 // explicit backend URL (with the backend's CORS_ALLOWED_ORIGINS including
 // the frontend's real domain) is the correct, intended setup, not a bug.
 const isBrowser = typeof window !== 'undefined';
+const isLocalNextDev = isBrowser
+  && window.location.hostname === 'localhost'
+  && window.location.port === '3000';
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? (isBrowser ? '' : 'http://localhost:8000');
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
+  || (isBrowser ? (isLocalNextDev ? 'http://localhost:8000' : '') : 'http://localhost:8000');
 
 export function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;

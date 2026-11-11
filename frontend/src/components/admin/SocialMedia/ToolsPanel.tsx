@@ -216,35 +216,17 @@ function TikTokPanel() {
         refreshTikTokAccount,
         debugTikTokConfig,
     } = useStudioContext();
-    const [debugInfo, setDebugInfo] = useState<any>(null);
     const [isCheckingConfig, setIsCheckingConfig] = useState(false);
     const [testAuthInfo, setTestAuthInfo] = useState<any>(null);
-    const [isTestingAuth, setIsTestingAuth] = useState(false);
     const [showDiagnostics, setShowDiagnostics] = useState(false);
-
-    const testAuth = async () => {
-        setIsTestingAuth(true);
-        try {
-            const response = await fetch('/api/tiktok/test-auth');
-            const data = await response.json();
-            setTestAuthInfo(data);
-            console.log('[TikTok Test]', data);
-        } catch (error) {
-            console.error('Test failed:', error);
-            setTestAuthInfo({ error: 'Failed to test auth' });
-        }
-        setIsTestingAuth(false);
-    };
 
     const isConfigPending = tiktokAccount?.display_name === 'Configuración pendiente';
 
     const checkConfig = async () => {
         setIsCheckingConfig(true);
         const info = await debugTikTokConfig();
-        setDebugInfo(info);
+        setTestAuthInfo(info);
         setIsCheckingConfig(false);
-        // Also run test auth
-        await testAuth();
         setShowDiagnostics(true);
     };
 
@@ -315,65 +297,36 @@ function TikTokPanel() {
                                         style={{ background: DS.bg, border: `1px solid ${DS.border}` }}
                                     >
                                         <div className="flex items-center gap-2">
-                                            <strong style={{
-                                                color: testAuthInfo.likelyValidKey && testAuthInfo.processed?.redirectUri?.isHttps
-                                                    ? '#22c55e' : '#ef4444'
-                                            }}>
-                                                {testAuthInfo.likelyValidKey && testAuthInfo.processed?.redirectUri?.isHttps
-                                                    ? '✓ Parece válido' : '✗ Problemas detectados'}
+                                            <strong style={{ color: testAuthInfo.configured ? '#22c55e' : '#ef4444' }}>
+                                                {testAuthInfo.configured ? '✓ Configuración válida' : '✗ Problemas detectados'}
                                             </strong>
-                                            <span style={{ color: DS.sub }}>({testAuthInfo.timestamp})</span>
+                                            <span style={{ color: DS.sub }}>({new Date().toLocaleTimeString()})</span>
                                         </div>
 
-                                        {testAuthInfo.issues?.length > 0 && (
+                                        {testAuthInfo.checks && (
+                                            <ul className="space-y-0.5" style={{ color: DS.sub }}>
+                                                <li>Client key: {testAuthInfo.checks.clientKey.valid ? 'válida' : 'ausente o inválida'}</li>
+                                                <li>Client secret: {testAuthInfo.checks.clientSecret.valid ? 'válido' : 'ausente o inválido'}</li>
+                                                <li>Redirect URI: {testAuthInfo.checks.redirectUri.valid ? 'válida' : 'ausente o inválida'}</li>
+                                            </ul>
+                                        )}
+
+                                        {testAuthInfo.recommendations?.length > 0 && (
                                             <div style={{ color: '#ef4444' }}>
-                                                <strong>Problemas:</strong>
+                                                <strong>Recomendaciones:</strong>
                                                 <ul className="mt-1 ml-3 space-y-0.5">
-                                                    {testAuthInfo.issues.map((issue: string, i: number) => (
-                                                        <li key={i}>• {issue}</li>
+                                                    {testAuthInfo.recommendations.slice(0, 4).map((recommendation: string, i: number) => (
+                                                        <li key={i}>• {recommendation}</li>
                                                     ))}
                                                 </ul>
                                             </div>
                                         )}
 
-                                        {testAuthInfo.processed?.clientKey && (
-                                            <div style={{ color: DS.sub }}>
-                                                <strong>Client Key:</strong><br />
-                                                Valor: {testAuthInfo.processed.clientKey.value}<br />
-                                                Longitud: {testAuthInfo.processed.clientKey.length} chars<br />
-                                                Formato válido: {testAuthInfo.processed.clientKey.isValidFormat ? '✓' : '✗'}<br />
-                                                Empieza con letra: {testAuthInfo.processed.clientKey.startsWithLetter ? '✓' : '✗'}
-                                            </div>
-                                        )}
-
-                                        {testAuthInfo.processed?.redirectUri && (
-                                            <div style={{ color: DS.sub }}>
-                                                <strong>Redirect URI:</strong><br />
-                                                Valor: {testAuthInfo.processed.redirectUri.value}<br />
-                                                HTTPS: {testAuthInfo.processed.redirectUri.isHttps ? '✓' : '✗'}<br />
-                                                Incluye /callback: {testAuthInfo.processed.redirectUri.includesCallback ? '✓' : '✗'}
-                                            </div>
-                                        )}
-
-                                        {testAuthInfo.builtUrl && (
-                                            <div style={{ color: DS.sub }}>
-                                                <strong>URL Generada:</strong><br />
-                                                <code style={{
-                                                    display: 'block',
-                                                    wordBreak: 'break-all',
-                                                    color: '#888',
-                                                    fontSize: '9px'
-                                                }}>
-                                                    {testAuthInfo.builtUrl}
-                                                </code>
-                                            </div>
-                                        )}
-
-                                        {testAuthInfo.nextSteps && (
+                                        {testAuthInfo.tips?.length > 0 && (
                                             <div style={{ color: '#f59e0b' }}>
                                                 <strong>Siguientes pasos:</strong>
                                                 <ol className="mt-1 ml-3 space-y-0.5">
-                                                    {testAuthInfo.nextSteps.slice(0, 4).map((step: string, i: number) => (
+                                                    {testAuthInfo.tips.slice(0, 4).map((step: string, i: number) => (
                                                         <li key={i}>{step}</li>
                                                     ))}
                                                 </ol>

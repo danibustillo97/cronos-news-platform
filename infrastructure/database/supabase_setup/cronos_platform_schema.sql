@@ -126,11 +126,27 @@ create table if not exists assets (
   composition_id uuid references compositions(id) on delete set null,
   type text not null,
   provenance text,
-  storage_path text not null, -- backend-served path or Supabase Storage key — never a raw local filesystem path
+  storage_ref text not null, -- opaque ref resolved by StoragePort — never a raw local filesystem path
   metadata jsonb not null default '{}',
   created_at timestamptz not null default now()
 );
 create index if not exists assets_story_id_idx on assets(story_id);
+
+-- The table predates the storage_ref rename (it originally shipped as
+-- storage_path) -- create table if not exists won't rename an existing
+-- column, so this ALTER is what actually fixes an already-provisioned DB.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'assets' and column_name = 'storage_path'
+  ) and not exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'assets' and column_name = 'storage_ref'
+  ) then
+    alter table assets rename column storage_path to storage_ref;
+  end if;
+end $$;
 
 -- ============================================================
 -- DISTRIBUTION (rule #16)

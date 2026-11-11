@@ -3,6 +3,8 @@
 import { usePathname } from "next/navigation"
 import { ProductionProvider } from "@/studio/lab/ProductionContext"
 import { ThemeProvider } from "@/context/ThemeContext"
+import { MediaPlayerProvider } from "@/context/MediaPlayerContext"
+import MediaPlayerBar from "@/components/platform/MediaPlayerBar"
 import { Toaster } from 'sonner'
 
 function AdminOnlyProviders({ isAdmin, children }: { isAdmin: boolean; children: React.ReactNode }) {
@@ -24,7 +26,18 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
     </AdminOnlyProviders>
   )
 
-  // The light/dark toggle is a public-portal concept only -- the admin
-  // app has its own fixed dark design system, untouched here.
-  return isAdmin ? body : <ThemeProvider>{body}</ThemeProvider>
+  // The light/dark toggle AND the persistent media player are
+  // public-portal concepts only -- the admin app has its own fixed dark
+  // design system, untouched here. MediaPlayerProvider lives above
+  // ThemeProvider so the bar survives route changes across the whole
+  // public site, not just within one page.
+  if (isAdmin) return body
+  return (
+    <ThemeProvider>
+      <MediaPlayerProvider>
+        {body}
+        <MediaPlayerBar />
+      </MediaPlayerProvider>
+    </ThemeProvider>
+  )
 }

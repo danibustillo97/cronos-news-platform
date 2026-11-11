@@ -57,7 +57,7 @@ export default function NewsCard({ news, onClick, showStatus = false, darkMode =
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-800 to-neutral-950">
-            <span className="text-red-500/80 font-black text-sm tracking-tight">Nexus News</span>
+            <span className="text-[#E30613]/80 font-black text-sm tracking-tight">Nexus News</span>
           </div>
         )}
         <div className="absolute top-0 left-0 w-full h-full bg-gradient-to-t from-black/60 to-transparent opacity-60" />
@@ -76,10 +76,10 @@ export default function NewsCard({ news, onClick, showStatus = false, darkMode =
       </div>
       <div className={`p-5 flex flex-col flex-1 relative`}>
         {/* Subtle decorative gradient at bottom */}
-        <div className={`absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-red-600 to-red-800 transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left`} />
+        <div className={`absolute bottom-0 left-0 w-full h-1 bg-gradient-to-r from-[#E30613] to-[#B30410] transform scale-x-0 group-hover:scale-x-100 transition-transform duration-300 origin-left`} />
         
         <div className="mb-3">
-            <h3 className={`text-xl font-bold leading-tight group-hover:text-red-600 transition-colors line-clamp-2 ${darkMode ? 'text-white' : 'text-neutral-900'}`}>
+            <h3 className={`text-xl font-bold leading-tight group-hover:text-[#E30613] transition-colors line-clamp-2 ${darkMode ? 'text-white' : 'text-neutral-900'}`}>
             {news.title}
             </h3>
             {news.subtitle && (
@@ -96,7 +96,7 @@ export default function NewsCard({ news, onClick, showStatus = false, darkMode =
              <Clock size={12} />
              {formatDate(news.published_at)}
           </span>
-          <button className="text-red-600 hover:text-red-700 text-xs font-bold flex items-center gap-1 uppercase tracking-wide">
+          <button className="text-[#E30613] hover:text-red-700 text-xs font-bold flex items-center gap-1 uppercase tracking-wide">
             Leer más <ChevronRight size={14} />
           </button>
         </div>

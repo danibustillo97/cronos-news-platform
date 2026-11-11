@@ -31,8 +31,8 @@ function StatusIcon({ status }: { status: ProviderInfo["status"] }) {
 }
 
 const STATUS_LABEL: Record<ProviderInfo["status"], string> = {
-  CONNECTED: "Connected", AVAILABLE: "Available", NOT_CONFIGURED: "Not configured",
-  AUTH_ERROR: "Auth error", UNAVAILABLE: "Unavailable", CHECKING: "Checking...",
+  CONNECTED: "Conectado", AVAILABLE: "Disponible", NOT_CONFIGURED: "Sin configurar",
+  AUTH_ERROR: "Error de autenticación", UNAVAILABLE: "No disponible", CHECKING: "Comprobando...",
 };
 
 export default function ProviderPickerModal({
@@ -72,11 +72,11 @@ export default function ProviderPickerModal({
           </button>
         </div>
 
-        <div className="text-[11px] text-neutral-500 uppercase tracking-wider">Provider</div>
+        <div className="text-[11px] text-neutral-500 uppercase tracking-wider">Proveedor</div>
 
         {loading ? (
           <div className="flex items-center gap-2 text-neutral-400 text-sm py-4 justify-center">
-            <RefreshCw className="animate-spin" size={16} /> Comprobando providers...
+            <RefreshCw className="animate-spin" size={16} /> Comprobando proveedores...
           </div>
         ) : (
           <div className="space-y-2">
@@ -107,7 +107,7 @@ export default function ProviderPickerModal({
                       onClick={(e) => { e.stopPropagation(); onOpenSettings(); }}
                       className="text-[10px] px-2 py-1 rounded bg-white/5 text-neutral-300 hover:bg-white/10 flex items-center gap-1 flex-shrink-0"
                     >
-                      <Settings size={10} /> Configure
+                      <Settings size={10} /> Configurar
                     </button>
                   )}
                 </button>

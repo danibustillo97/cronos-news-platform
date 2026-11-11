@@ -100,6 +100,7 @@ class DiscoveryItem:
     scores: DiscoveryScores
     status: DiscoveryStatus
     story_id: StoryId | None = None
+    assigned_to: str | None = None
 
     @staticmethod
     def discover(
@@ -137,6 +138,12 @@ class DiscoveryItem:
             raise InvalidStateTransition("DiscoveryItem", self.status.value, DiscoveryStatus.SENT_TO_EDITORIAL.value)
         self.status = DiscoveryStatus.SENT_TO_EDITORIAL
         self.story_id = story_id
+
+    def assign_to(self, assignee: str | None) -> None:
+        if self.status not in (DiscoveryStatus.SELECTED, DiscoveryStatus.SENT_TO_EDITORIAL):
+            raise InvalidStateTransition("DiscoveryItem", self.status.value, "ASSIGNED")
+        value = assignee.strip() if assignee else None
+        self.assigned_to = value or None
 
 
 class DiscoveryJobStatus(str, Enum):

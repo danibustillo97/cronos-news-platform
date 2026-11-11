@@ -1,4 +1,5 @@
 fastapi>=0.110
+python-multipart>=0.0.9
 uvicorn[standard]>=0.29
 pydantic>=2.6
 supabase>=2.4

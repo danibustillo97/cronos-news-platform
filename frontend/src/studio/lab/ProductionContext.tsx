@@ -21,7 +21,7 @@ export interface ActiveStory {
   storyId?: string | null; // LAB item_id, real once convert-to-content ran
 }
 
-export type AdminView = 'dashboard' | 'editorial' | 'news' | 'production' | 'social' | 'distribution' | 'tags_seo' | 'providers';
+export type AdminView = 'dashboard' | 'editorial' | 'news' | 'production' | 'social' | 'nexus_studio' | 'distribution' | 'tags_seo' | 'providers' | 'ads';
 
 interface ProductionState {
   activeView: AdminView;

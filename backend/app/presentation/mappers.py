@@ -11,17 +11,22 @@ from app.domain.discovery.entities import DiscoveryItem, DiscoveryJob
 from app.domain.artifact.entities import Artifact, ArtifactJob, ProviderId
 from app.domain.asset.entities import MediaGenerationJob
 from app.domain.publication.entities import PublishedContent
+from app.domain.ads.entities import AdBanner
+from app.domain.studio.entities import StudioProject
+from app.domain.studio.templates import TemplatePreset
+from app.application.use_cases.studio import SafeAreaResult
 from app.application.use_cases.get_discovery_today import NewsRankingItem
-from app.application.use_cases.list_news import NewsWorkspace, NewsWorkspaceItem
 from app.application.use_cases.get_story_workspace import StoryWorkspace
 from app.presentation.schemas import (
-    NewsOut, NewsWorkspaceItemOut, NewsWorkspaceOut, NewsRankingItemOut, DiscoveryReasonOut,
+    NewsOut, NewsRankingItemOut, DiscoveryReasonOut,
     StoryOut, ProductionOut, ProductionStageOut, CompositionOut, CompositionContentOut, CompositionShotOut,
     DistributionPlanOut, StoryWorkspaceOut, CategoryGroupOut, CategoryOut, TopicOut,
     ActiveProductionItemOut, SeoSettingsOut,
     DiscoveryJobOut, DiscoveryItemOut, MaterialReferenceOut, DiscoveryScoresOut,
     ArtifactJobOut, ArtifactOut, SeoMetadataOut, SourceReferenceOut, ClaimOut, MediaRequirementOut, ValidationIssueOut,
-    MediaGenerationJobOut, PublishedContentOut, ProviderOut,
+    MediaGenerationJobOut, PublishedContentOut, ProviderOut, AdBannerOut,
+    StudioProjectOut, StudioSceneOut, StudioClipOut, ClipTransformOut,
+    TemplateOut, TemplateVersionOut, TemplateElementOut, TemplateSafeAreaOut, SafeAreaOut, EdgeInsetsOut,
 )
 
 
@@ -31,16 +36,6 @@ def news_out(news: News) -> NewsOut:
         source=news.provenance.source_name, source_url=news.provenance.source_url,
         ingested_at=news.ingested_at.isoformat(), legacy_web_status=news.legacy_web_status,
     )
-
-
-def news_workspace_item_out(item: NewsWorkspaceItem) -> NewsWorkspaceItemOut:
-    return NewsWorkspaceItemOut(
-        news=news_out(item.news), bucket=item.bucket.value, story_id=item.story_id, story_status=item.story_status,
-    )
-
-
-def news_workspace_out(workspace: NewsWorkspace) -> NewsWorkspaceOut:
-    return NewsWorkspaceOut(items=[news_workspace_item_out(i) for i in workspace.items], counts=workspace.counts)
 
 
 def news_ranking_item_out(item: NewsRankingItem) -> NewsRankingItemOut:
@@ -133,6 +128,14 @@ def seo_settings_out(settings: SiteSeoSettings) -> SeoSettingsOut:
     )
 
 
+def ad_banner_out(banner: AdBanner) -> AdBannerOut:
+    return AdBannerOut(
+        id=banner.id, position=banner.position, image_url=banner.image_url, link_url=banner.link_url,
+        alt_text=banner.alt_text, width=banner.width, height=banner.height, active=banner.active,
+        created_at=banner.created_at.isoformat(),
+    )
+
+
 def discovery_job_out(job: DiscoveryJob) -> DiscoveryJobOut:
     return DiscoveryJobOut(
         id=job.id, status=job.status.value, params=job.params, created_at=job.created_at.isoformat(),
@@ -163,7 +166,8 @@ def discovery_item_out(item: DiscoveryItem) -> DiscoveryItemOut:
             completeness_score=item.scores.completeness_score, material_score=item.scores.material_score,
             duplicate_of=item.scores.duplicate_of,
         ),
-        status=item.status.value, story_id=str(item.story_id) if item.story_id else None,
+        status=item.status.value,         story_id=str(item.story_id) if item.story_id else None,
+        assigned_to=item.assigned_to,
     )
 
 
@@ -173,6 +177,7 @@ def artifact_job_out(job: ArtifactJob) -> ArtifactJobOut:
         started_at=job.started_at.isoformat() if job.started_at else None,
         finished_at=job.finished_at.isoformat() if job.finished_at else None,
         artifact_id=job.artifact_id, error=job.error, provider=job.provider, model=job.model,
+        validation_ok=job.validation_ok, validation_issue_count=job.validation_issue_count,
     )
 
 
@@ -189,7 +194,7 @@ def provider_out(summary) -> ProviderOut:
     )
 
 
-def artifact_out(artifact: Artifact, asset_urls: dict[str, str] | None = None) -> ArtifactOut:
+def artifact_out(artifact: Artifact, asset_urls: dict[str, dict[str, str]] | None = None) -> ArtifactOut:
     asset_urls = asset_urls or {}
     return ArtifactOut(
         id=str(artifact.id), story_id=str(artifact.story_id), version=artifact.version, status=artifact.status.value,
@@ -204,21 +209,32 @@ def artifact_out(artifact: Artifact, asset_urls: dict[str, str] | None = None) -
             SourceReferenceOut(
                 source_url=s.source_url, source_name=s.source_name, source_domain=s.source_domain,
                 author=s.author, published_at=s.published_at.isoformat() if s.published_at else None,
-                retrieved_at=s.retrieved_at.isoformat(), license_info=s.license_info,
+                retrieved_at=s.retrieved_at.isoformat(), license_info=s.license_info, role=s.role.value,
             )
             for s in artifact.sources
         ],
-        claims=[ClaimOut(text=c.text, label=c.label.value, source_urls=c.source_urls) for c in artifact.claims],
+        claims=[
+            ClaimOut(id=c.id, text=c.text, label=c.label.value, source_urls=c.source_urls, reviewed=c.reviewed)
+            for c in artifact.claims
+        ],
         media_requirements=[
             MediaRequirementOut(
                 placeholder_id=m.placeholder_id, kind=m.kind.value, prompt=m.prompt, asset_id=m.asset_id,
-                asset_url=asset_urls.get(m.asset_id) if m.asset_id else None,
+                asset_url=(asset_urls.get(m.asset_id) or {}).get("url") if m.asset_id else m.external_url,
+                external_url=m.external_url,
+                caption=m.caption, alt_text=m.alt_text,
+                asset_provenance=(asset_urls.get(m.asset_id) or {}).get("provenance") if m.asset_id else None,
             )
             for m in artifact.media_requirements
         ],
-        validation_issues=[ValidationIssueOut(check=i.check, detail=i.detail) for i in artifact.validation.issues],
+        validation_issues=[
+            ValidationIssueOut(check=i.check, detail=i.detail, severity=i.severity.value)
+            for i in artifact.validation.issues
+        ],
         editorial_notes=artifact.editorial_notes, created_at=artifact.created_at.isoformat(),
         published_news_id=artifact.published_news_id,
+        published_at=artifact.published_at.isoformat() if artifact.published_at else None,
+        scheduled_at=artifact.scheduled_at.isoformat() if artifact.scheduled_at else None,
     )
 
 
@@ -238,4 +254,66 @@ def published_content_out(content: PublishedContent) -> PublishedContentOut:
         source_url=content.source_url,
         published_at=content.published_at.isoformat() if content.published_at else None,
         updated_at=content.updated_at.isoformat() if content.updated_at else None,
+    )
+
+
+def studio_project_out(project: StudioProject, asset_urls: dict[str, str] | None = None) -> StudioProjectOut:
+    asset_urls = asset_urls or {}
+    return StudioProjectOut(
+        id=str(project.id), source_artifact_id=project.source_artifact_id, mode=project.mode.value,
+        template_id=project.template_id, format=project.format.value, status=project.status.value,
+        version=project.version, parent_project_id=project.parent_project_id, title=project.title,
+        scenes=[
+            StudioSceneOut(
+                id=scene.id, order=scene.order, duration_ms=scene.duration_ms,
+                clips=[
+                    StudioClipOut(
+                        id=clip.id, track=clip.track.value, start_ms=clip.start_ms, duration_ms=clip.duration_ms,
+                        source_placeholder_id=clip.source_placeholder_id, asset_id=clip.asset_id,
+                        asset_url=asset_urls.get(clip.asset_id) if clip.asset_id else None, text=clip.text,
+                        transform=ClipTransformOut(
+                            x=clip.transform.x, y=clip.transform.y, scale=clip.transform.scale,
+                            rotation=clip.transform.rotation, opacity=clip.transform.opacity,
+                            focal_x=clip.transform.focal_x, focal_y=clip.transform.focal_y,
+                        ),
+                        locked=clip.locked, muted=clip.muted, hidden=clip.hidden,
+                    )
+                    for clip in scene.clips
+                ],
+            )
+            for scene in project.scenes
+        ],
+        total_duration_ms=project.total_duration_ms(),
+        created_at=project.created_at.isoformat(), updated_at=project.updated_at.isoformat(),
+    )
+
+
+def template_out(template: TemplatePreset) -> TemplateOut:
+    version = template.latest_version
+    return TemplateOut(
+        id=template.id, name=template.name, description=template.description, accent_color=template.accent_color,
+        latest_version=TemplateVersionOut(
+            version=version.version,
+            elements=[
+                TemplateElementOut(
+                    id=e.id, kind=e.kind.value, track=e.track.value, x=e.x, y=e.y, width=e.width, height=e.height,
+                    font_role=e.font_role, color_role=e.color_role, z_index=e.z_index,
+                )
+                for e in version.elements
+            ],
+            safe_area=TemplateSafeAreaOut(
+                top=version.safe_area.top, right=version.safe_area.right,
+                bottom=version.safe_area.bottom, left=version.safe_area.left,
+            ),
+        ),
+    )
+
+
+def safe_area_out(result: SafeAreaResult) -> SafeAreaOut:
+    return SafeAreaOut(
+        format=result.format.value, canvas_width=result.canvas_width, canvas_height=result.canvas_height,
+        insets=EdgeInsetsOut(
+            top=result.insets.top, right=result.insets.right, bottom=result.insets.bottom, left=result.insets.left,
+        ),
+        source=result.source,
     )

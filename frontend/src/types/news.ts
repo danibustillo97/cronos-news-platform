@@ -52,5 +52,11 @@ export interface NewsView {
   published_at: string;
   category?: string;
   author?: string;
+  tags?: string[];
   slug: string;
+  // Editorial FORMAT (analysis/explainer/perspective), distinct from
+  // category (topic). Nullable -- see infrastructure/database/supabase_setup/add_content_format.sql.
+  // Powers "En Contexto"; absent until that migration runs and something
+  // populates it.
+  content_format?: string | null;
 }

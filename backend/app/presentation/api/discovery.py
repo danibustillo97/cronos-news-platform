@@ -5,15 +5,15 @@ from pydantic import BaseModel
 
 from app.container import Container, get_container
 from app.domain.discovery.entities import DiscoveryFilters, DiscoveryStatus
+from app.application.use_cases.artifact import OpenManualDiscoveryEditorInput
 from app.application.use_cases.discovery import (
-    DecideDiscoveryItemInput, ReportDiscoveryJobStatusInput, TriggerDiscoveryInput,
+    AssignDiscoveryItemInput, DecideDiscoveryItemInput, ReportDiscoveryJobStatusInput, TriggerDiscoveryInput,
 )
-
+from app.presentation.mappers import artifact_out, discovery_item_out, discovery_job_out, news_ranking_item_out
 from app.presentation.schemas import (
-    NewsRankingItemOut, DiscoveryJobOut, DiscoveryItemOut,
+    ArtifactOut, AssignDiscoveryItemRequest, NewsRankingItemOut, DiscoveryJobOut, DiscoveryItemOut,
     TriggerDiscoveryRequest, ReportDiscoveryJobStatusRequest, DecideDiscoveryItemRequest,
 )
-from app.presentation.mappers import news_ranking_item_out, discovery_job_out, discovery_item_out
 
 router = APIRouter(prefix="/api/discovery", tags=["discovery"])
 
@@ -109,3 +109,20 @@ def decide_discovery_item(
 ) -> DiscoveryItemOut:
     item = container.decide_discovery_item.execute(DecideDiscoveryItemInput(item_id=item_id, decision=body.decision))
     return discovery_item_out(item)
+
+
+@router.patch("/items/{item_id}/assignment", response_model=DiscoveryItemOut)
+def assign_discovery_item(
+    item_id: str, body: AssignDiscoveryItemRequest, container: Container = Depends(get_container),
+) -> DiscoveryItemOut:
+    item = container.assign_discovery_item.execute(
+        AssignDiscoveryItemInput(item_id=item_id, assignee=body.assignee),
+    )
+    return discovery_item_out(item)
+
+
+@router.post("/items/{item_id}/manual-editor", response_model=ArtifactOut)
+def open_manual_discovery_editor(item_id: str, container: Container = Depends(get_container)) -> ArtifactOut:
+    """Creates or returns the existing manual Artifact for this exact
+    Discovery item. This path never resolves or calls an AI provider."""
+    return artifact_out(container.open_manual_discovery_editor.execute(OpenManualDiscoveryEditorInput(item_id)))

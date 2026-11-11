@@ -181,11 +181,11 @@ export default function AdminDashboard() {
           <div className="p-6 text-center">
             <p className="text-[12px]" style={{ color: DS.sub }}>No hay ninguna historia en producción.</p>
             <button
-              onClick={() => setActiveView('news')}
+              onClick={() => setActiveView('editorial')}
               className="mt-3 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold transition-all"
               style={{ background: DS.accentDim, color: DS.accent }}
             >
-              Ir a News <ArrowRight size={12} />
+              Ir a Editorial <ArrowRight size={12} />
             </button>
           </div>
         )}

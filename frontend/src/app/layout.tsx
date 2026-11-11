@@ -1,10 +1,15 @@
 import './globals.css'
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, Source_Serif_4 } from 'next/font/google'
 import AppLayoutClient from './AppLayoutClient'
 import { apiUrl } from '@/studio/lab/api-client'
 
 const inter = Inter({ subsets: ['latin'] })
+
+// Editorial display serif -- headlines only (lead story, section leads).
+// Never replaces Inter for nav/metadata/UI, per the homepage redesign's
+// typographic hierarchy: serif for editorial voice, sans for chrome.
+const sourceSerif = Source_Serif_4({ subsets: ['latin'], variable: '--font-serif', weight: ['600', '700', '900'] })
 
 // Site title/description/keywords are editable from /admin (AdminSeoTags,
 // backed by GET/PUT /api/settings/seo) -- these constants are ONLY the
@@ -92,7 +97,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           crossOrigin="anonymous"
         ></script>
       </head>
-      <body className={`${inter.className} bg-neutral-950 text-white selection:bg-yellow-400 selection:text-black overflow-x-hidden max-w-full`}>
+      <body className={`${inter.className} ${sourceSerif.variable} bg-neutral-950 text-white selection:bg-yellow-400 selection:text-black overflow-x-hidden max-w-full`}>
         <AppLayoutClient>{children}</AppLayoutClient>
       </body>
     </html>

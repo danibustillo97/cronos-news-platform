@@ -97,6 +97,7 @@ class SupabaseDiscoveryRepository:
             },
             "status": item.status.value,
             "story_id": str(item.story_id) if item.story_id else None,
+            "assigned_to": item.assigned_to,
         }
         try:
             self._client.table("discovery_items").upsert(payload).execute()
@@ -130,6 +131,7 @@ class SupabaseDiscoveryRepository:
             ),
             status=DiscoveryStatus(row["status"]),
             story_id=StoryId.of(row["story_id"]) if row.get("story_id") else None,
+            assigned_to=row.get("assigned_to"),
         )
 
 

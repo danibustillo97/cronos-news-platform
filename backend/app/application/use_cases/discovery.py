@@ -242,6 +242,25 @@ class DecideDiscoveryItem:
         return item
 
 
+@dataclass
+class AssignDiscoveryItemInput:
+    item_id: str
+    assignee: str | None
+
+
+class AssignDiscoveryItem:
+    def __init__(self, items: DiscoveryRepository) -> None:
+        self._items = items
+
+    def execute(self, input: AssignDiscoveryItemInput) -> DiscoveryItem:
+        item = self._items.find_by_id(input.item_id)
+        if item is None:
+            raise NotFoundError("DiscoveryItem", input.item_id)
+        item.assign_to(input.assignee)
+        self._items.save(item)
+        return item
+
+
 def _domain_of(url: str) -> str:
     from urllib.parse import urlparse
     return urlparse(url).netloc or url

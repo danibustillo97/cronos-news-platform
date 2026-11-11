@@ -8,7 +8,7 @@ create table if not exists artifacts (
   story_id text not null references cronos_stories(id) on delete cascade,
   version int not null default 1,
   status text not null default 'DRAFT'
-    check (status in ('DRAFT', 'REVIEW_REQUIRED', 'VALIDATED', 'APPROVED', 'REJECTED', 'PUBLISHED')),
+    check (status in ('DRAFT', 'REVIEW_REQUIRED', 'VALIDATED', 'APPROVED', 'REJECTED', 'PUBLISHED', 'ARCHIVED', 'SCHEDULED', 'PUBLISHING')),
   title text not null,
   subtitle text,
   excerpt text not null,
@@ -25,13 +25,16 @@ create table if not exists artifacts (
   claims jsonb not null default '[]',
   -- [{placeholder_id, kind, prompt, asset_id}]
   media_requirements jsonb not null default '[]',
-  -- [{check, detail}] -- the real ValidationResult.issues, empty when VALIDATED
+  -- [{check, detail, severity}] -- the real ValidationResult.issues (severity:
+  -- BLOCKING|WARNING, section 7) -- empty (or WARNING-only) when VALIDATED
   validation_issues jsonb not null default '[]',
   editorial_notes text,
   created_at timestamptz not null default now(),
   -- real id of the row this produced in the pre-existing public `news`
   -- table once PUBLISHED -- null until then, never a placeholder value
-  published_news_id text
+  published_news_id text,
+  scheduled_at timestamptz,
+  publishing_started_at timestamptz
 );
 create index if not exists artifacts_story_id_idx on artifacts(story_id);
 create index if not exists artifacts_status_idx on artifacts(status);
@@ -50,14 +53,40 @@ create table if not exists artifact_jobs (
   -- as real provenance, never re-resolved. NULL only for jobs created
   -- before this column existed.
   provider text,
-  model text
+  model text,
+  -- Section 1's real per-attempt validation snapshot (retry history) --
+  -- null for jobs that never reached a real Artifact (still QUEUED/
+  -- RUNNING, or FAILED before generation produced anything to validate).
+  validation_ok boolean,
+  validation_issue_count int
 );
 create index if not exists artifact_jobs_created_at_idx on artifact_jobs(created_at desc);
+create index if not exists artifact_jobs_story_id_idx on artifact_jobs(story_id);
 
--- Idempotent: adds the two columns to an already-created artifact_jobs
--- table (this project's live table predates the Provider Control Plane).
+-- Idempotent: adds columns to an already-created artifact_jobs table
+-- (this project's live table predates the Provider Control Plane and,
+-- later, the validation snapshot).
 alter table artifact_jobs add column if not exists provider text;
 alter table artifact_jobs add column if not exists model text;
+alter table artifact_jobs add column if not exists validation_ok boolean;
+alter table artifact_jobs add column if not exists validation_issue_count int;
+
+-- Idempotent: widens an already-created artifacts.status check to allow
+-- ARCHIVED (section 2's real "Eliminar") without dropping/recreating the
+-- table. Postgres auto-names an inline column CHECK as
+-- "<table>_<column>_check" when the table was created without an
+-- explicit constraint name -- exactly how this one was declared above.
+alter table artifacts drop constraint if exists artifacts_status_check;
+alter table artifacts add constraint artifacts_status_check
+  check (status in ('DRAFT', 'REVIEW_REQUIRED', 'VALIDATED', 'APPROVED', 'REJECTED', 'PUBLISHED', 'ARCHIVED', 'SCHEDULED', 'PUBLISHING'));
+
+alter table artifacts add column if not exists scheduled_at timestamptz;
+alter table artifacts add column if not exists publishing_started_at timestamptz;
+
+-- Stable publication identity makes retries safe after a worker restart.
+alter table news add column if not exists artifact_id uuid references artifacts(id) on delete set null;
+create unique index if not exists news_artifact_id_key
+  on news(artifact_id) where artifact_id is not null;
 
 alter table artifacts enable row level security;
 alter table artifact_jobs enable row level security;

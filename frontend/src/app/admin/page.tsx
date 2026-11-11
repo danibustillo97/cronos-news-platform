@@ -8,20 +8,20 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminDashboard from "@/components/admin/AdminDashboard";
-import SmartWorkspace from "@/components/admin/SmartWorkspace";
 import AdminSeoTags from "@/components/admin/AdminSeoTags";
 import AdminProviders from "@/components/admin/AdminProviders";
+import AdminAds from "@/components/admin/AdminAds";
 import StudioView from "@/components/admin/Studio/StudioView";
+import NexusStudioView from "@/components/admin/NexusStudio/NexusStudioView";
 import EditorialView from "@/components/admin/Editorial/EditorialView";
 import { ProductionWorkspace } from "@/components/admin/Production/ProductionWorkspace";
 import { DistributionView } from "@/components/admin/Distribution/DistributionView";
 import { useProduction } from "@/studio/lab/ProductionContext";
 
-import { View, AnalysisMode } from "@/types/admin";
+import { View } from "@/types/admin";
 
 export default function AdminPage() {
   const { activeView, setActiveView, activeStory } = useProduction();
-  const [analysisMode, setAnalysisMode] = useState<AnalysisMode>("noris");
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<any>(null);
 
@@ -57,12 +57,13 @@ export default function AdminPage() {
     switch (activeView) {
       case "dashboard": return "Command Center";
       case "editorial": return "Editorial";
-      case "news": return "News";
       case "production": return "Producción";
-      case "social": return "Studio";
+      case "social": return "Studio (legacy)";
+      case "nexus_studio": return "NEXUS Studio";
       case "distribution": return "Distribución";
       case "tags_seo": return "SEO Intelligence";
       case "providers": return "Providers";
+      case "ads": return "Publicidad";
       default: return "CRONOS";
     }
   }, [activeView]);
@@ -71,12 +72,13 @@ export default function AdminPage() {
     switch (activeView) {
       case "dashboard": return <AdminDashboard />;
       case "editorial": return <EditorialView />;
-      case "news": return <SmartWorkspace />;
       case "production": return <ProductionWorkspace />;
       case "social": return <StudioView />;
+      case "nexus_studio": return <NexusStudioView />;
       case "distribution": return <DistributionView />;
       case "tags_seo": return <AdminSeoTags />;
       case "providers": return <AdminProviders />;
+      case "ads": return <AdminAds />;
       default: return null;
     }
   };
@@ -89,7 +91,10 @@ export default function AdminPage() {
     );
   }
 
-  const fullBleed = activeView === 'social' || activeView === 'production' || activeView === 'distribution';
+  // 'editorial' needs it too now: Revisión is a real 3-column workspace
+  // with its own independent per-column scroll (section 20) -- it can't
+  // sit inside <main>'s page-level overflow-y-auto.
+  const fullBleed = activeView === 'social' || activeView === 'nexus_studio' || activeView === 'production' || activeView === 'distribution' || activeView === 'editorial';
 
   return (
     <div className="bg-[#050505] h-screen text-white overflow-hidden">
@@ -99,7 +104,7 @@ export default function AdminPage() {
       />
 
       <div className="flex flex-col h-screen overflow-hidden" style={{ marginLeft: 48, width: 'calc(100vw - 48px)' }}>
-        <header className={`border-b border-white/10 px-6 flex items-center justify-between bg-black/60 backdrop-blur flex-shrink-0 ${activeView === 'social' ? 'hidden' : 'h-14'}`}>
+        <header className={`border-b border-white/10 px-6 flex items-center justify-between bg-black/60 backdrop-blur flex-shrink-0 ${activeView === 'social' || activeView === 'nexus_studio' ? 'hidden' : 'h-14'}`}>
           <div className="flex items-center gap-4 min-w-0">
             <h1 className="text-[15px] font-bold tracking-tight">
               {pageTitle}
@@ -110,25 +115,6 @@ export default function AdminPage() {
                 <span className="text-neutral-700">/</span>
                 <span className="text-[12px] text-neutral-400 truncate max-w-[360px]">{activeStory.title}</span>
               </>
-            )}
-
-            {activeView === "news" && (
-              <div className="flex gap-2 ml-2">
-                {(["noris", "breaking", "opinion", "data"] as AnalysisMode[]).map(
-                  (mode) => (
-                    <button
-                      key={mode}
-                      onClick={() => setAnalysisMode(mode)}
-                      className={`px-3 py-1 rounded-full text-[10px] uppercase tracking-widest ${analysisMode === mode
-                        ? "bg-red-500/10 text-red-500 border border-red-500/30"
-                        : "text-neutral-400 border border-white/10 hover:text-white"
-                        }`}
-                    >
-                      {mode}
-                    </button>
-                  )
-                )}
-              </div>
             )}
           </div>
 

@@ -2,8 +2,8 @@
 
 import React, { useState } from "react";
 import {
-    LayoutDashboard, Newspaper, Tags, Factory,
-    Clapperboard, Radio, Globe, Zap, Compass, Sliders,
+    LayoutDashboard, Tags, Factory,
+    Clapperboard, Film, Radio, Globe, Zap, Compass, Sliders, Megaphone,
 } from "lucide-react";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
@@ -16,19 +16,21 @@ interface AdminSidebarProps {
 // "editorial" is the ONE editorial space (Discovery/Ready/Publish live
 // as internal tabs of EditorialView, never as separate sidebar entries --
 // Discovery is the first phase of Editorial, not a module outside it).
-// News/Producción/Studio/Distribución stay as their own items for now:
-// no real replacement exists yet for what they do (see
-// docs/NEXUS_ROADMAP.md) -- removing them would break working
-// functionality with nothing real to take its place.
+// News (manual article CRUD) was removed -- Editorial fully replaced it.
+// Producción/Studio/Distribución stay as their own items for now: no real
+// replacement exists yet for what they do (see docs/NEXUS_ROADMAP.md) --
+// removing them would break working functionality with nothing real to
+// take its place.
 const ITEMS = [
     { id: "dashboard",    label: "Command Center", icon: LayoutDashboard },
     { id: "editorial",    label: "Editorial",      icon: Compass },
-    { id: "news",         label: "News",           icon: Newspaper },
     { id: "production",   label: "Producción",     icon: Factory },
-    { id: "social",       label: "Studio",         icon: Clapperboard },
+    { id: "social",       label: "Studio (legacy)", icon: Clapperboard },
+    { id: "nexus_studio", label: "NEXUS Studio",   icon: Film },
     { id: "distribution", label: "Distribución",   icon: Radio },
     { id: "tags_seo",     label: "SEO",            icon: Tags },
     { id: "providers",    label: "Providers",      icon: Sliders },
+    { id: "ads",          label: "Publicidad",     icon: Megaphone },
 ];
 
 export default function AdminSidebar({ activeView, setActiveView }: AdminSidebarProps) {

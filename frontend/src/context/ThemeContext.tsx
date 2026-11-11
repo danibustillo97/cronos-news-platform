@@ -1,10 +1,11 @@
 'use client'
 
 // Real light/dark toggle for the public portal's browsing chrome (navbar,
-// feed, cards) -- persisted per-visitor, defaults to dark (today's real
-// look, unchanged unless a visitor actually switches). The article
-// reading experience (ArticleContent.tsx / the "floating window") stays
-// deliberately theme-independent -- explicitly asked to stay unchanged.
+// feed, cards) -- defaults to dark (the "dark editorial" identity:
+// #0B0B0B background, premium-magazine feel) per the 2026-09 redesign
+// brief, persisted per-visitor from there. The article reading experience
+// (ArticleContent.tsx / the "floating window") stays deliberately
+// theme-independent -- explicitly asked to stay unchanged.
 
 import { createContext, useContext, useEffect, useState } from 'react'
 

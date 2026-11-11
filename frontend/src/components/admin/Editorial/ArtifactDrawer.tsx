@@ -12,8 +12,10 @@
 // exists.
 
 import { useEffect, useRef, useState } from "react";
-import { X, RefreshCw, CheckCircle2, XCircle, Clock, AlertTriangle, RotateCcw, Sliders } from "lucide-react";
+import { X, RefreshCw, Clock, AlertTriangle, RotateCcw, Sliders } from "lucide-react";
 import { apiUrl } from "@/studio/lab/api-client";
+import StatusPill from "./StatusPill";
+import { ARTIFACT_JOB_STATUS } from "./statusMeta";
 
 interface ArtifactJob {
   id: string;
@@ -41,14 +43,6 @@ interface Artifact {
 }
 
 const PROVIDER_LABELS: Record<string, string> = { anthropic: "Anthropic", claude_code: "Claude Code" };
-
-const STATUS_META: Record<ArtifactJob["status"], { label: string; color: string; icon: typeof Clock }> = {
-  QUEUED: { label: "En cola", color: "text-neutral-400", icon: Clock },
-  RUNNING: { label: "Generando", color: "text-blue-400", icon: RefreshCw },
-  COMPLETED: { label: "Completado", color: "text-green-400", icon: CheckCircle2 },
-  REVIEW_REQUIRED: { label: "Requiere revisión", color: "text-yellow-400", icon: AlertTriangle },
-  FAILED: { label: "Falló", color: "text-red-400", icon: XCircle },
-};
 
 function duration(startedAt: string | null, finishedAt: string | null): string | null {
   if (!startedAt) return null;
@@ -107,12 +101,14 @@ export default function ArtifactDrawer({
     };
   }, [storyId]);
 
-  const meta = job ? STATUS_META[job.status] : null;
-  const Icon = meta?.icon ?? Clock;
+  const meta = job ? ARTIFACT_JOB_STATUS[job.status] : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-black/50 backdrop-blur-sm">
-      <div className="w-full max-w-md h-full bg-neutral-950 border-l border-white/10 p-5 space-y-5 overflow-y-auto">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-stretch sm:justify-end bg-black/50 backdrop-blur-sm" onClick={onClose}>
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="w-full sm:max-w-md max-h-[85vh] sm:max-h-none sm:h-full bg-neutral-950 border-t sm:border-t-0 sm:border-l border-white/10 rounded-t-2xl sm:rounded-none p-5 space-y-5 overflow-y-auto"
+      >
         <div className="flex items-start justify-between gap-3">
           <h3 className="text-sm font-semibold text-white leading-snug">{title}</h3>
           <button onClick={onClose} className="text-neutral-500 hover:text-white flex-shrink-0">
@@ -132,33 +128,36 @@ export default function ArtifactDrawer({
           <div className="space-y-4">
             <div className="bg-white/5 rounded-xl p-4 space-y-2 border border-white/10">
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-500">Provider</span>
+                <span className="text-neutral-500">Proveedor</span>
                 <span className="text-white font-medium">{job.provider ? PROVIDER_LABELS[job.provider] ?? job.provider : "—"}</span>
               </div>
               {job.model && (
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-neutral-500">Model</span>
+                  <span className="text-neutral-500">Modelo</span>
                   <span className="text-neutral-300">{job.model}</span>
                 </div>
               )}
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-500">Status</span>
-                <span className={`flex items-center gap-1.5 font-medium ${meta?.color}`}>
-                  <Icon size={12} className={job.status === "RUNNING" ? "animate-spin" : ""} /> {meta?.label}
-                </span>
+                <span className="text-neutral-500">Estado</span>
+                {meta && (
+                  <span className="flex items-center gap-1.5">
+                    {job.status === "RUNNING" && <RefreshCw size={10} className="animate-spin text-blue-400" />}
+                    <StatusPill meta={meta} />
+                  </span>
+                )}
               </div>
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-500">Started</span>
+                <span className="text-neutral-500">Iniciado</span>
                 <span className="text-neutral-300">{job.startedAt ? new Date(job.startedAt).toLocaleTimeString() : "—"}</span>
               </div>
               {job.finishedAt && (
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-neutral-500">Finished</span>
+                  <span className="text-neutral-500">Finalizado</span>
                   <span className="text-neutral-300">{new Date(job.finishedAt).toLocaleTimeString()}</span>
                 </div>
               )}
               <div className="flex items-center justify-between text-xs">
-                <span className="text-neutral-500">Duration</span>
+                <span className="text-neutral-500">Duración</span>
                 <span className="text-neutral-300">{duration(job.startedAt, job.finishedAt) ?? "—"}</span>
               </div>
             </div>
@@ -184,7 +183,7 @@ export default function ArtifactDrawer({
 
             {artifact && job.status === "COMPLETED" && (
               <div className="text-xs text-green-400 bg-green-500/10 border border-green-500/20 rounded-xl p-3">
-                Artifact creado -- &quot;{artifact.title}&quot;. Revisalo en la pestaña Ready.
+                Artifact creado -- &quot;{artifact.title}&quot;. Revisalo en la pestaña Revisión.
               </div>
             )}
 
@@ -194,13 +193,13 @@ export default function ArtifactDrawer({
                   onClick={onRetry}
                   className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20"
                 >
-                  <RotateCcw size={13} /> Retry
+                  <RotateCcw size={13} /> Reintentar
                 </button>
                 <button
                   onClick={onRetry}
                   className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10"
                 >
-                  <Sliders size={13} /> Choose provider
+                  <Sliders size={13} /> Elegir proveedor
                 </button>
               </div>
             )}

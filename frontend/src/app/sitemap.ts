@@ -23,13 +23,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.8,
     }));
 
-  return [
-    {
-      url: baseUrl,
-      lastModified: new Date(),
-      changeFrequency: 'hourly',
-      priority: 1,
-    },
-    ...newsUrls,
+  const staticUrls: MetadataRoute.Sitemap = [
+    { url: baseUrl, lastModified: new Date(), changeFrequency: 'hourly', priority: 1 },
+    { url: `${baseUrl}/deportes`, lastModified: new Date(), changeFrequency: 'hourly', priority: 0.9 },
+    { url: `${baseUrl}/deportes/futbol`, lastModified: new Date(), changeFrequency: 'hourly', priority: 0.9 },
+    { url: `${baseUrl}/deportes/futbol/tabla`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.6 },
+    { url: `${baseUrl}/explorar`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.5 },
   ];
+
+  return [...staticUrls, ...newsUrls];
 }

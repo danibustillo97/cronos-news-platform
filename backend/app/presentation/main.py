@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import asyncio
+import logging
 import os
+from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -8,12 +11,37 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.infrastructure.persistence.supabase import client as supabase_client_module
 from app.presentation.error_handlers import register_error_handlers
 from app.presentation.api import (
-    news, stories, compositions, discovery, categories, assets, runtime, settings, artifacts, published_content,
-    artifact_providers,
+    stories, compositions, discovery, categories, assets, runtime, settings, artifacts, published_content,
+    artifact_providers, ads, sports, location, studio,
 )
 from app.presentation.api.stories import productions_router
 
-app = FastAPI(title="CRONOS Backend", version="0.1.0")
+logger = logging.getLogger("cronos.scheduled_publications")
+
+
+async def _scheduled_publication_loop() -> None:
+    from app.container import get_container
+
+    while True:
+        try:
+            await asyncio.to_thread(get_container().run_due_scheduled_artifact_publications.execute)
+        except Exception:
+            logger.exception("scheduled_publication_worker_failed")
+        await asyncio.sleep(15)
+
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    worker = asyncio.create_task(_scheduled_publication_loop())
+    try:
+        yield
+    finally:
+        worker.cancel()
+        with suppress(asyncio.CancelledError):
+            await worker
+
+
+app = FastAPI(title="CRONOS Backend", version="0.1.0", lifespan=lifespan)
 
 # Local dev origins are always allowed; CORS_ALLOWED_ORIGINS (comma-separated)
 # adds real ones on top -- e.g. the Vercel frontend URL in production. Never
@@ -32,7 +60,6 @@ app.add_middleware(
 
 register_error_handlers(app)
 
-app.include_router(news.router)
 app.include_router(stories.router)
 app.include_router(compositions.router)
 app.include_router(discovery.router)
@@ -43,6 +70,10 @@ app.include_router(settings.router)
 app.include_router(artifacts.router)
 app.include_router(artifact_providers.router)
 app.include_router(published_content.router)
+app.include_router(ads.router)
+app.include_router(sports.router)
+app.include_router(location.router)
+app.include_router(studio.router)
 app.include_router(productions_router)
 
 

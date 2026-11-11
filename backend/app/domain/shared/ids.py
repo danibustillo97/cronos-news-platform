@@ -65,3 +65,9 @@ class PublishedContentId(EntityId):
     """The `news` row's own real id, once status='published' -- the
     stable identity Editorial's Publish stage hands downstream consumers
     (Studio, eventually), see app/domain/publication/entities.py."""
+
+
+class StudioProjectId(EntityId):
+    """NEXUS Studio's own project id -- distinct from CompositionId (the
+    older, TikTok-canvas-flow concept in app/domain/composition/), which
+    this does not extend or share identity with."""

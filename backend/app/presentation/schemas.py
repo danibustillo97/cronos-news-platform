@@ -2,6 +2,8 @@
 boundary directly — every response is built through one of these."""
 from __future__ import annotations
 
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict
 from pydantic.alias_generators import to_camel
 
@@ -21,18 +23,6 @@ class NewsOut(CamelModel):
     source_url: str | None
     ingested_at: str
     legacy_web_status: str | None
-
-
-class NewsWorkspaceItemOut(CamelModel):
-    news: NewsOut
-    bucket: str
-    story_id: str | None
-    story_status: str | None
-
-
-class NewsWorkspaceOut(CamelModel):
-    items: list[NewsWorkspaceItemOut]
-    counts: dict[str, int]
 
 
 class DiscoveryReasonOut(CamelModel):
@@ -60,12 +50,6 @@ class StoryOut(CamelModel):
     status: str
     category_ids: list[str]
     source_count: int
-
-
-class ConvertToContentOut(CamelModel):
-    story_id: str
-    production_id: str
-    already_existed: bool
 
 
 class ProductionStageOut(CamelModel):
@@ -146,10 +130,6 @@ class ProduceStoryRequest(CamelModel):
     news_id: str | None = None
 
 
-class PrepareContentRequest(CamelModel):
-    pass
-
-
 class ReviewCompositionRequest(CamelModel):
     decision: str
     reason: str | None = None
@@ -194,6 +174,24 @@ class UpdateSeoSettingsRequest(CamelModel):
     site_title: str
     meta_description: str
     keywords: list[str]
+
+
+class AdBannerOut(CamelModel):
+    id: str
+    position: str
+    image_url: str
+    link_url: str
+    alt_text: str
+    width: int
+    height: int
+    active: bool
+    created_at: str
+
+
+class UpdateAdBannerRequest(CamelModel):
+    link_url: str | None = None
+    alt_text: str | None = None
+    active: bool | None = None
 
 
 class TriggerDiscoveryRequest(CamelModel):
@@ -254,10 +252,15 @@ class DiscoveryItemOut(CamelModel):
     scores: DiscoveryScoresOut
     status: str
     story_id: str | None
+    assigned_to: str | None = None
 
 
 class DecideDiscoveryItemRequest(CamelModel):
     decision: str
+
+
+class AssignDiscoveryItemRequest(CamelModel):
+    assignee: str | None
 
 
 class TriggerArtifactRequest(CamelModel):
@@ -276,6 +279,8 @@ class ArtifactJobOut(CamelModel):
     error: str | None
     provider: str | None = None
     model: str | None = None
+    validation_ok: bool | None = None
+    validation_issue_count: int | None = None
 
 
 class SeoMetadataOut(CamelModel):
@@ -293,12 +298,15 @@ class SourceReferenceOut(CamelModel):
     published_at: str | None
     retrieved_at: str
     license_info: str | None
+    role: str = "PRIMARY"
 
 
 class ClaimOut(CamelModel):
+    id: str
     text: str
     label: str
     source_urls: list[str]
+    reviewed: bool = False
 
 
 class MediaRequirementOut(CamelModel):
@@ -307,11 +315,19 @@ class MediaRequirementOut(CamelModel):
     prompt: str
     asset_id: str | None
     asset_url: str | None = None
+    external_url: str | None = None
+    caption: str | None = None
+    alt_text: str | None = None
+    # Real provenance surfaced from the Asset row this requirement points
+    # at (see mappers.artifact_out) -- "AI_GENERATED:<provider>:<model>" or
+    # "HUMAN_UPLOADED", never invented when there's no asset yet.
+    asset_provenance: str | None = None
 
 
 class ValidationIssueOut(CamelModel):
     check: str
     detail: str
+    severity: str = "BLOCKING"
 
 
 class ArtifactOut(CamelModel):
@@ -335,11 +351,90 @@ class ArtifactOut(CamelModel):
     editorial_notes: str | None
     created_at: str
     published_news_id: str | None = None
+    published_at: str | None = None
+    scheduled_at: str | None = None
 
 
 class ReviewArtifactRequest(CamelModel):
     decision: str
     reason: str | None = None
+
+
+class UpdateArtifactRequest(CamelModel):
+    """Partial patch -- the Revisión workspace's real autosave body. Only
+    fields actually present in the JSON are applied (see
+    exclude_unset=True in the route). `entities` remain generation-derived;
+    editorial summary is editable and persists through the same patch."""
+    title: str | None = None
+    subtitle: str | None = None
+    excerpt: str | None = None
+    summary: str | None = None
+    content_html: str | None = None
+    category_id: str | None = None
+    tags: list[str] | None = None
+    seo_title: str | None = None
+    seo_description: str | None = None
+    slug: str | None = None
+    canonical_url: str | None = None
+    save_as_draft: bool = False
+
+
+class ScheduleArtifactRequest(CamelModel):
+    scheduled_at: datetime
+
+
+class MarkClaimReviewedRequest(CamelModel):
+    reviewed: bool = True
+    # Set only when accepting a real ProposeClaimResolution proposal.
+    label: str | None = None
+    source_urls: list[str] | None = None
+
+
+class UpdateMediaPromptRequest(CamelModel):
+    prompt: str | None = None
+    caption: str | None = None
+    alt_text: str | None = None
+    # Explicit flags -- distinguishes "field not sent" from "sent as
+    # null/empty" for caption/alt_text, the same real tri-state concern
+    # Artifact.update_media_prompt's own sentinel handles domain-side.
+    clear_caption: bool = False
+    clear_alt_text: bool = False
+
+
+class AddMediaRequirementRequest(CamelModel):
+    kind: str  # "BODY_IMAGE" | "VIDEO" -- never FEATURE_IMAGE (see Artifact.add_media_requirement)
+
+
+class ProposeSeoFixRequest(CamelModel):
+    field: str  # "title" | "seo_title" | "seo_description"
+    provider: str | None = None
+    instruction: str | None = None
+
+
+class ProposeSeoFixResponseOut(CamelModel):
+    """A real PROPOSAL -- never persisted by this response. See
+    ProposeSeoFixOutput/ProposeSeoFix for the real, single Provider
+    Control Plane call this comes from."""
+    field: str
+    value: str
+    reason: str
+    character_count: int
+    min_length: int | None
+    max_length: int
+    provider: str
+    model: str | None
+
+
+class ProposeClaimResolutionResponseOut(CamelModel):
+    """A real PROPOSAL -- never persisted by this response. Accepting it
+    reuses POST .../claims/{id}/review (MarkClaimReviewedRequest's
+    label/sourceUrls) -- no parallel write path."""
+    claim_id: str
+    label: str
+    reason: str
+    source_urls: list[str]
+    provider: str
+    model: str | None
 
 
 class MediaGenerationJobOut(CamelModel):
@@ -400,3 +495,156 @@ class ErrorOut(CamelModel):
     error: str
     message: str
     relation: str | None = None
+
+
+# ── NEXUS Studio ──────────────────────────────────────────────────────────
+
+class ClipTransformOut(CamelModel):
+    x: float
+    y: float
+    scale: float
+    rotation: float
+    opacity: float
+    focal_x: float
+    focal_y: float
+
+
+class StudioClipOut(CamelModel):
+    id: str
+    track: str
+    start_ms: int
+    duration_ms: int
+    source_placeholder_id: str | None
+    asset_id: str | None
+    asset_url: str | None = None
+    text: str | None
+    transform: ClipTransformOut
+    locked: bool
+    muted: bool
+    hidden: bool
+
+
+class StudioSceneOut(CamelModel):
+    id: str
+    order: int
+    duration_ms: int
+    clips: list[StudioClipOut]
+
+
+class StudioProjectOut(CamelModel):
+    id: str
+    source_artifact_id: str
+    mode: str
+    template_id: str
+    format: str
+    status: str
+    version: int
+    parent_project_id: str | None
+    title: str
+    scenes: list[StudioSceneOut]
+    total_duration_ms: int
+    created_at: str
+    updated_at: str
+
+
+class CreateStudioProjectRequest(CamelModel):
+    source_artifact_id: str
+    mode: str
+    template_id: str | None = None
+    format: str = "REEL_9X16"
+
+
+class ClipTransformIn(CamelModel):
+    x: float = 0.0
+    y: float = 0.0
+    scale: float = 1.0
+    rotation: float = 0.0
+    opacity: float = 1.0
+    focal_x: float = 0.5
+    focal_y: float = 0.5
+
+
+class StudioClipIn(CamelModel):
+    id: str
+    track: str
+    start_ms: int
+    duration_ms: int
+    source_placeholder_id: str | None = None
+    asset_id: str | None = None
+    text: str | None = None
+    transform: ClipTransformIn = ClipTransformIn()
+    locked: bool = False
+    muted: bool = False
+    hidden: bool = False
+
+
+class StudioSceneIn(CamelModel):
+    id: str
+    order: int
+    duration_ms: int
+    clips: list[StudioClipIn]
+
+
+class UpdateStudioProjectRequest(CamelModel):
+    title: str | None = None
+    template_id: str | None = None
+    format: str | None = None
+    status: str | None = None
+    scenes: list[StudioSceneIn] | None = None
+
+
+class StudioProjectVersionsResponse(CamelModel):
+    versions: list[StudioProjectOut]
+
+
+class TemplateElementOut(CamelModel):
+    id: str
+    kind: str
+    track: str
+    x: float
+    y: float
+    width: float
+    height: float
+    font_role: str | None
+    color_role: str | None
+    z_index: int
+
+
+class TemplateSafeAreaOut(CamelModel):
+    top: float
+    right: float
+    bottom: float
+    left: float
+
+
+class TemplateVersionOut(CamelModel):
+    version: int
+    elements: list[TemplateElementOut]
+    safe_area: TemplateSafeAreaOut
+
+
+class TemplateOut(CamelModel):
+    id: str
+    name: str
+    description: str
+    accent_color: str
+    latest_version: TemplateVersionOut
+
+
+class TemplatesResponse(CamelModel):
+    templates: list[TemplateOut]
+
+
+class EdgeInsetsOut(CamelModel):
+    top: float
+    right: float
+    bottom: float
+    left: float
+
+
+class SafeAreaOut(CamelModel):
+    format: str
+    canvas_width: int
+    canvas_height: int
+    insets: EdgeInsetsOut  # pixels, not a fraction of canvas (unlike TemplateSafeAreaOut)
+    source: str

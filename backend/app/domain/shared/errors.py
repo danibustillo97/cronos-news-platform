@@ -69,12 +69,19 @@ class QuickReelNotEligible(Exception):
 
 
 class SchemaNotProvisionedError(Exception):
-    """Raised by a Supabase repository when the CRONOS schema
-    (supabase_setup/cronos_platform_schema.sql) has not been applied yet."""
+    """Raised by a Supabase repository when its required table is missing."""
 
     def __init__(self, relation: str) -> None:
+        setup = (
+            "Run supabase_setup/cronos_platform_schema.sql first, then "
+            "supabase_setup/discovery_schema.sql"
+            if relation in {"discovery_items", "discovery_jobs"}
+            else "Run supabase_setup/artifact_schema.sql"
+            if relation in {"artifacts", "artifact_jobs"}
+            else "Run supabase_setup/cronos_platform_schema.sql"
+        )
         super().__init__(
-            f'Table "{relation}" does not exist yet — run supabase_setup/cronos_platform_schema.sql'
+            f'Table "{relation}" does not exist yet — {setup}'
         )
         self.relation = relation
 

@@ -29,14 +29,19 @@ import subprocess
 import tempfile
 
 from app.domain.artifact.entities import (
-    ArtifactGenerationRequest, ArtifactGenerationResult, ProviderCheckResult, ProviderId, ProviderStatus,
+    ArtifactGenerationRequest, ArtifactGenerationResult, ClaimResolutionRequest, ClaimResolutionResult,
+    ProviderCheckResult, ProviderId, ProviderStatus, SeoFixRequest, SeoFixResult,
 )
 from app.domain.ports import ArtifactGenerationUnavailableError
-from app.infrastructure.llm.prompts import build_artifact_prompt
-from app.infrastructure.llm.response_parser import parse_artifact_response
+from app.infrastructure.llm.prompts import build_artifact_prompt, build_claim_resolution_prompt, build_seo_fix_prompt
+from app.infrastructure.llm.response_parser import (
+    parse_artifact_response, parse_claim_resolution_response, parse_seo_fix_response,
+)
 
 _DEFAULT_MODEL = "claude-sonnet-5"
 _GENERATE_TIMEOUT_SECONDS = 300.0
+_SEO_FIX_TIMEOUT_SECONDS = 90.0
+_CLAIM_RESOLUTION_TIMEOUT_SECONDS = 90.0
 _STATUS_CHECK_TIMEOUT_SECONDS = 15.0
 
 
@@ -91,6 +96,85 @@ class ClaudeCodeArtifactGenerator:
             raise ArtifactGenerationUnavailableError("la respuesta del CLI de Claude Code no trae 'result'")
 
         return parse_artifact_response(text)
+
+    def suggest_seo_fix(self, request: SeoFixRequest) -> SeoFixResult:
+        """Section 5's real "Corregir con IA" -- same real CLI call, same
+        error boundary as generate(), just a smaller targeted prompt for
+        a one-field fix."""
+        binary = _binary_path()
+        if not binary:
+            raise ArtifactGenerationUnavailableError(
+                "El CLI de Claude Code no está instalado en esta máquina (comando 'claude' no encontrado en PATH)."
+            )
+
+        prompt = build_seo_fix_prompt(request)
+        try:
+            proc = subprocess.run(
+                [binary, "-p", prompt, "--output-format", "json", "--model", self._model],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=_SEO_FIX_TIMEOUT_SECONDS, cwd=tempfile.gettempdir(),
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ArtifactGenerationUnavailableError(f"Claude Code CLI no respondió en {_SEO_FIX_TIMEOUT_SECONDS:.0f}s") from exc
+        except OSError as exc:
+            raise ArtifactGenerationUnavailableError(f"no se pudo ejecutar el CLI de Claude Code: {exc}") from exc
+
+        if proc.returncode != 0:
+            raise ArtifactGenerationUnavailableError(
+                f"Claude Code CLI terminó con código {proc.returncode}: {(proc.stderr or '').strip()[:500]}"
+            )
+
+        try:
+            body = json.loads(proc.stdout)
+        except json.JSONDecodeError as exc:
+            raise ArtifactGenerationUnavailableError(f"salida no-JSON del CLI de Claude Code: {exc}") from exc
+
+        if body.get("is_error"):
+            raise ArtifactGenerationUnavailableError(f"Claude Code CLI reportó un error: {body.get('result') or body}")
+        text = body.get("result")
+        if not text:
+            raise ArtifactGenerationUnavailableError("la respuesta del CLI de Claude Code no trae 'result'")
+
+        return parse_seo_fix_response(text)
+
+    def resolve_claim(self, request: ClaimResolutionRequest) -> ClaimResolutionResult:
+        """Revisión 2.0 section 2/4's real "Resolver con IA" for a claim
+        -- same real CLI call, same error boundary as generate()."""
+        binary = _binary_path()
+        if not binary:
+            raise ArtifactGenerationUnavailableError(
+                "El CLI de Claude Code no está instalado en esta máquina (comando 'claude' no encontrado en PATH)."
+            )
+
+        prompt = build_claim_resolution_prompt(request)
+        try:
+            proc = subprocess.run(
+                [binary, "-p", prompt, "--output-format", "json", "--model", self._model],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=_CLAIM_RESOLUTION_TIMEOUT_SECONDS, cwd=tempfile.gettempdir(),
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ArtifactGenerationUnavailableError(f"Claude Code CLI no respondió en {_CLAIM_RESOLUTION_TIMEOUT_SECONDS:.0f}s") from exc
+        except OSError as exc:
+            raise ArtifactGenerationUnavailableError(f"no se pudo ejecutar el CLI de Claude Code: {exc}") from exc
+
+        if proc.returncode != 0:
+            raise ArtifactGenerationUnavailableError(
+                f"Claude Code CLI terminó con código {proc.returncode}: {(proc.stderr or '').strip()[:500]}"
+            )
+
+        try:
+            body = json.loads(proc.stdout)
+        except json.JSONDecodeError as exc:
+            raise ArtifactGenerationUnavailableError(f"salida no-JSON del CLI de Claude Code: {exc}") from exc
+
+        if body.get("is_error"):
+            raise ArtifactGenerationUnavailableError(f"Claude Code CLI reportó un error: {body.get('result') or body}")
+        text = body.get("result")
+        if not text:
+            raise ArtifactGenerationUnavailableError("la respuesta del CLI de Claude Code no trae 'result'")
+
+        return parse_claim_resolution_response(text)
 
     def check_status(self) -> ProviderCheckResult:
         binary = _binary_path()

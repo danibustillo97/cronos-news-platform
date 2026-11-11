@@ -4,7 +4,7 @@ from datetime import datetime
 
 from app.domain.artifact.entities import (
     Artifact, ArtifactJob, ArtifactJobStatus, ArtifactStatus, Claim, EvidenceLabel, MediaKind,
-    MediaRequirement, SeoMetadata, SourceReference, ValidationIssue, ValidationResult,
+    MediaRequirement, SeoMetadata, SourceReference, SourceRole, ValidationIssue, ValidationResult, ValidationSeverity,
 )
 from app.domain.shared.ids import ArtifactId, StoryId
 from app.infrastructure.persistence.supabase.guard import raise_if_schema_missing
@@ -45,6 +45,49 @@ class SupabaseArtifactRepository:
             raise
         return [self._to_entity(row) for row in (res.data or [])]
 
+    def list_due_for_publication(self, now: datetime, limit: int = 20) -> list[str]:
+        try:
+            res = (
+                self._client.table("artifacts").select("id").eq("status", "SCHEDULED")
+                .lte("scheduled_at", now.isoformat()).order("scheduled_at").limit(limit).execute()
+            )
+        except Exception as exc:
+            raise_if_schema_missing(exc, "artifacts")
+            raise
+        return [row["id"] for row in (res.data or [])]
+
+    def claim_scheduled_publication(self, artifact_id: str, now: datetime) -> Artifact | None:
+        try:
+            res = (
+                self._client.table("artifacts").update({
+                    "status": "PUBLISHING", "publishing_started_at": now.isoformat(),
+                }).eq("id", artifact_id).eq("status", "SCHEDULED")
+                .lte("scheduled_at", now.isoformat()).select("*").execute()
+            )
+        except Exception as exc:
+            raise_if_schema_missing(exc, "artifacts")
+            raise
+        rows = res.data or []
+        return self._to_entity(rows[0]) if rows else None
+
+    def recover_stale_scheduled_publications(self, stale_before: datetime) -> None:
+        try:
+            self._client.table("artifacts").update({
+                "status": "SCHEDULED", "publishing_started_at": None,
+            }).eq("status", "PUBLISHING").lt("publishing_started_at", stale_before.isoformat()).execute()
+        except Exception as exc:
+            raise_if_schema_missing(exc, "artifacts")
+            raise
+
+    def release_scheduled_publication(self, artifact_id: str) -> None:
+        try:
+            self._client.table("artifacts").update({
+                "status": "SCHEDULED", "publishing_started_at": None,
+            }).eq("id", artifact_id).eq("status", "PUBLISHING").execute()
+        except Exception as exc:
+            raise_if_schema_missing(exc, "artifacts")
+            raise
+
     def save(self, artifact: Artifact) -> None:
         payload = {
             "id": str(artifact.id),
@@ -68,20 +111,30 @@ class SupabaseArtifactRepository:
                     "source_url": s.source_url, "source_name": s.source_name, "source_domain": s.source_domain,
                     "author": s.author, "published_at": s.published_at.isoformat() if s.published_at else None,
                     "retrieved_at": s.retrieved_at.isoformat(), "license_info": s.license_info,
+                    "role": s.role.value,
                 }
                 for s in artifact.sources
             ],
             "claims": [
-                {"text": c.text, "label": c.label.value, "source_urls": c.source_urls} for c in artifact.claims
+                {"id": c.id, "text": c.text, "label": c.label.value, "source_urls": c.source_urls, "reviewed": c.reviewed}
+                for c in artifact.claims
             ],
             "media_requirements": [
-                {"placeholder_id": m.placeholder_id, "kind": m.kind.value, "prompt": m.prompt, "asset_id": m.asset_id}
+                {
+                    "placeholder_id": m.placeholder_id, "kind": m.kind.value, "prompt": m.prompt, "asset_id": m.asset_id,
+                    "caption": m.caption, "alt_text": m.alt_text, "external_url": m.external_url,
+                }
                 for m in artifact.media_requirements
             ],
-            "validation_issues": [{"check": i.check, "detail": i.detail} for i in artifact.validation.issues],
+            "validation_issues": [
+                {"check": i.check, "detail": i.detail, "severity": i.severity.value} for i in artifact.validation.issues
+            ],
             "editorial_notes": artifact.editorial_notes,
             "created_at": artifact.created_at.isoformat(),
             "published_news_id": artifact.published_news_id,
+            "published_at": artifact.published_at.isoformat() if artifact.published_at else None,
+            "scheduled_at": artifact.scheduled_at.isoformat() if artifact.scheduled_at else None,
+            "publishing_started_at": artifact.publishing_started_at.isoformat() if artifact.publishing_started_at else None,
         }
         try:
             self._client.table("artifacts").upsert(payload).execute()
@@ -107,26 +160,46 @@ class SupabaseArtifactRepository:
                     author=s.get("author"),
                     published_at=datetime.fromisoformat(s["published_at"]) if s.get("published_at") else None,
                     retrieved_at=datetime.fromisoformat(s["retrieved_at"]), license_info=s.get("license_info"),
+                    # Rows saved before section 3's role field default to
+                    # PRIMARY -- the honest read for every source this
+                    # codebase has ever actually recorded so far.
+                    role=SourceRole(s.get("role", "PRIMARY")),
                 )
                 for s in (row.get("sources") or [])
             ],
             claims=[
-                Claim(text=c["text"], label=EvidenceLabel(c["label"]), source_urls=c.get("source_urls", []))
-                for c in (row.get("claims") or [])
+                Claim(
+                    id=c.get("id", f"claim-{idx}"), text=c["text"], label=EvidenceLabel(c["label"]),
+                    source_urls=c.get("source_urls", []), reviewed=c.get("reviewed", False),
+                )
+                for idx, c in enumerate(row.get("claims") or [])
             ],
             media_requirements=[
                 MediaRequirement(
                     placeholder_id=m["placeholder_id"], kind=MediaKind(m["kind"]), prompt=m["prompt"],
-                    asset_id=m.get("asset_id"),
+                    asset_id=m.get("asset_id"), caption=m.get("caption"), alt_text=m.get("alt_text"),
+                    external_url=m.get("external_url"),
                 )
                 for m in (row.get("media_requirements") or [])
             ],
             validation=ValidationResult(
-                issues=[ValidationIssue(i["check"], i["detail"]) for i in (row.get("validation_issues") or [])]
+                issues=[
+                    # Rows saved before the BLOCKING/WARNING split (section 7)
+                    # have no "severity" key -- defaulting them to BLOCKING is
+                    # the safe, conservative read: never silently promote an
+                    # old, never-reviewed issue to non-blocking.
+                    ValidationIssue(i["check"], i["detail"], ValidationSeverity(i.get("severity", "BLOCKING")))
+                    for i in (row.get("validation_issues") or [])
+                ]
             ),
             created_at=datetime.fromisoformat(row["created_at"]),
             editorial_notes=row.get("editorial_notes"),
             published_news_id=row.get("published_news_id"),
+            published_at=datetime.fromisoformat(row["published_at"]) if row.get("published_at") else None,
+            scheduled_at=datetime.fromisoformat(row["scheduled_at"]) if row.get("scheduled_at") else None,
+            publishing_started_at=(
+                datetime.fromisoformat(row["publishing_started_at"]) if row.get("publishing_started_at") else None
+            ),
         )
 
 
@@ -154,6 +227,17 @@ class SupabaseArtifactJobRepository:
         rows = res.data or []
         return self._to_entity(rows[0]) if rows else None
 
+    def list_for_story(self, story_id: str, limit: int = 20) -> list[ArtifactJob]:
+        try:
+            res = (
+                self._client.table("artifact_jobs").select("*").eq("story_id", story_id)
+                .order("created_at", desc=True).limit(limit).execute()
+            )
+        except Exception as exc:
+            raise_if_schema_missing(exc, "artifact_jobs")
+            raise
+        return [self._to_entity(row) for row in (res.data or [])]
+
     def list_recent(self, limit: int = 20) -> list[ArtifactJob]:
         try:
             res = self._client.table("artifact_jobs").select("*").order("created_at", desc=True).limit(limit).execute()
@@ -174,6 +258,8 @@ class SupabaseArtifactJobRepository:
             "error": job.error,
             "provider": job.provider,
             "model": job.model,
+            "validation_ok": job.validation_ok,
+            "validation_issue_count": job.validation_issue_count,
         }
         try:
             self._client.table("artifact_jobs").upsert(payload).execute()
@@ -190,4 +276,5 @@ class SupabaseArtifactJobRepository:
             finished_at=datetime.fromisoformat(row["finished_at"]) if row.get("finished_at") else None,
             artifact_id=row.get("artifact_id"), error=row.get("error"),
             provider=row.get("provider"), model=row.get("model"),
+            validation_ok=row.get("validation_ok"), validation_issue_count=row.get("validation_issue_count"),
         )

@@ -34,8 +34,10 @@ create table if not exists discovery_items (
   status text not null default 'DISCOVERED'
     check (status in ('DISCOVERED', 'SELECTED', 'IGNORED', 'ARCHIVED', 'SENT_TO_EDITORIAL')),
   story_id text references cronos_stories(id) on delete set null,
+  assigned_to text,
   created_at timestamptz not null default now()
 );
+alter table discovery_items add column if not exists assigned_to text;
 -- Migrates an already-created discovery_items.id from uuid to text (real
 -- bug: LAB's natural keys like "df7b48a34390" are not uuids, so every
 -- real ingestion failed with "invalid input syntax for type uuid").

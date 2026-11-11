@@ -16,9 +16,20 @@
   --text-primary: #ffffff;
   --text-secondary: #9ca3af;
   --text-muted: #6b7280;
+
+  /* Paleta editorial NEXUS (portal público) -- ver components/news/*,
+     ModernNavbar, Footer. No reemplaza los tokens genéricos de arriba
+     (usados por el admin/studio); estos son los que usa el front page. */
+  --editorial-bg: #0B0B0B;
+  --editorial-surface: #151515;
+  --editorial-surface-2: #1D1D1D;
+  --editorial-white: #F5F5F3;
+  --editorial-muted: #999999;
+  --editorial-accent: #E30613;
 }
 
 @theme inline {
+  --font-serif: var(--font-serif);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);
@@ -178,6 +189,49 @@ body {
 .article-content th {
   background: #f9fafb;
   font-weight: 700;
+}
+
+.ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid #525252;
+  padding: 0.5rem 0.75rem;
+  min-width: 5rem;
+  vertical-align: top;
+}
+
+.ProseMirror th {
+  background: #262626;
+  font-weight: 700;
+}
+
+.ProseMirror figure[data-image-gallery] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem;
+}
+
+.ProseMirror figure[data-image-gallery] img {
+  width: 100%;
+  height: auto;
+  margin: 0;
+}
+
+.ProseMirror [data-youtube-video] iframe,
+.article-content [data-youtube-video] iframe,
+.ProseMirror video,
+.article-content video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  margin: 1.5rem 0;
 }
 
 /* Premium Scrollbar */

@@ -37,6 +37,16 @@ def test_postgrest_schema_cache_miss_is_schema_not_provisioned():
         raise_if_schema_missing(exc, "production_jobs")
 
 
+def test_postgrest_json_could_not_be_generated_is_schema_not_provisioned():
+    """Real, observed shape for a table PostgREST has never seen in its
+    schema cache (e.g. studio_projects before add_studio_projects.sql
+    runs) -- code 404, not one of the PGRST20x codes, but the same root
+    cause."""
+    exc = _api_error(404, "JSON could not be generated")
+    with pytest.raises(SchemaNotProvisionedError):
+        raise_if_schema_missing(exc, "studio_projects")
+
+
 def test_rls_denial_is_rls_error_not_schema_not_provisioned():
     exc = _api_error("42501", 'new row violates row-level security policy for table "cronos_stories"')
     with pytest.raises(RowLevelSecurityError):

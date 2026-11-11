@@ -17,17 +17,24 @@ import os
 import httpx
 
 from app.domain.artifact.entities import (
-    ArtifactGenerationRequest, ArtifactGenerationResult, ProviderCheckResult, ProviderId, ProviderStatus,
+    ArtifactGenerationRequest, ArtifactGenerationResult, ClaimResolutionRequest, ClaimResolutionResult,
+    ProviderCheckResult, ProviderId, ProviderStatus, SeoFixRequest, SeoFixResult,
 )
 from app.domain.ports import ArtifactGenerationUnavailableError
-from app.infrastructure.llm.prompts import build_artifact_prompt
-from app.infrastructure.llm.response_parser import parse_artifact_response
+from app.infrastructure.llm.prompts import build_artifact_prompt, build_claim_resolution_prompt, build_seo_fix_prompt
+from app.infrastructure.llm.response_parser import (
+    parse_artifact_response, parse_claim_resolution_response, parse_seo_fix_response,
+)
 
 _API_URL = "https://api.anthropic.com/v1/messages"
 _API_VERSION = "2023-06-01"
 _DEFAULT_MODEL = "claude-sonnet-5"
 _MAX_TOKENS = 8000
+_SEO_FIX_MAX_TOKENS = 500  # a one-field fix never needs the full generation budget
+_CLAIM_RESOLUTION_MAX_TOKENS = 500
 _TIMEOUT_SECONDS = 120.0
+_SEO_FIX_TIMEOUT_SECONDS = 60.0
+_CLAIM_RESOLUTION_TIMEOUT_SECONDS = 60.0
 _STATUS_CHECK_TIMEOUT_SECONDS = 15.0
 
 
@@ -79,6 +86,91 @@ class AnthropicArtifactGenerator:
             raise ArtifactGenerationUnavailableError("Anthropic response had no text content")
 
         return parse_artifact_response("\n".join(text_blocks))
+
+    def suggest_seo_fix(self, request: SeoFixRequest) -> SeoFixResult:
+        """Section 5's real "Corregir con IA" -- same real API, same
+        error boundary as generate(), just a smaller targeted prompt/
+        token budget for a one-field fix."""
+        if not self._api_key:
+            raise ArtifactGenerationUnavailableError(
+                "ANTHROPIC_API_KEY is not configured -- cannot request a real SEO fix without it."
+            )
+
+        prompt = build_seo_fix_prompt(request)
+        try:
+            response = httpx.post(
+                _API_URL,
+                headers={
+                    "x-api-key": self._api_key,
+                    "anthropic-version": _API_VERSION,
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": self._model,
+                    "max_tokens": _SEO_FIX_MAX_TOKENS,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+                timeout=_SEO_FIX_TIMEOUT_SECONDS,
+            )
+        except httpx.HTTPError as exc:
+            raise ArtifactGenerationUnavailableError(f"could not reach Anthropic API: {exc}") from exc
+
+        if response.status_code != 200:
+            raise ArtifactGenerationUnavailableError(
+                f"Anthropic API returned {response.status_code}: {response.text[:500]}"
+            )
+
+        body = response.json()
+        try:
+            text_blocks = [b["text"] for b in body["content"] if b.get("type") == "text"]
+        except (KeyError, TypeError) as exc:
+            raise ArtifactGenerationUnavailableError(f"unexpected Anthropic response shape: {exc}") from exc
+        if not text_blocks:
+            raise ArtifactGenerationUnavailableError("Anthropic response had no text content")
+
+        return parse_seo_fix_response("\n".join(text_blocks))
+
+    def resolve_claim(self, request: ClaimResolutionRequest) -> ClaimResolutionResult:
+        """Revisión 2.0 section 2/4's real "Resolver con IA" for a claim
+        -- same real API, same error boundary, smaller targeted prompt."""
+        if not self._api_key:
+            raise ArtifactGenerationUnavailableError(
+                "ANTHROPIC_API_KEY is not configured -- cannot request a real claim resolution without it."
+            )
+
+        prompt = build_claim_resolution_prompt(request)
+        try:
+            response = httpx.post(
+                _API_URL,
+                headers={
+                    "x-api-key": self._api_key,
+                    "anthropic-version": _API_VERSION,
+                    "content-type": "application/json",
+                },
+                json={
+                    "model": self._model,
+                    "max_tokens": _CLAIM_RESOLUTION_MAX_TOKENS,
+                    "messages": [{"role": "user", "content": prompt}],
+                },
+                timeout=_CLAIM_RESOLUTION_TIMEOUT_SECONDS,
+            )
+        except httpx.HTTPError as exc:
+            raise ArtifactGenerationUnavailableError(f"could not reach Anthropic API: {exc}") from exc
+
+        if response.status_code != 200:
+            raise ArtifactGenerationUnavailableError(
+                f"Anthropic API returned {response.status_code}: {response.text[:500]}"
+            )
+
+        body = response.json()
+        try:
+            text_blocks = [b["text"] for b in body["content"] if b.get("type") == "text"]
+        except (KeyError, TypeError) as exc:
+            raise ArtifactGenerationUnavailableError(f"unexpected Anthropic response shape: {exc}") from exc
+        if not text_blocks:
+            raise ArtifactGenerationUnavailableError("Anthropic response had no text content")
+
+        return parse_claim_resolution_response("\n".join(text_blocks))
 
     def check_status(self) -> ProviderCheckResult:
         """A REAL check, not just "is the env var set": a minimal (1

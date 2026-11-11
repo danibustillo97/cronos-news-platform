@@ -3,6 +3,7 @@
 import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
+import ModernNavbar from '@/components/ui/ModernNavbar'
 import ArticleContent from './ArticleContent'
 import type { NewsView } from '@/types/news'
 
@@ -40,41 +41,40 @@ export default function NewsModal({ news, onClose, onNewsClick }: NewsModalProps
   return (
     <AnimatePresence>
       {currentNews && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex justify-center items-end md:items-center p-0 md:p-4"
-          >
-            {/* Modal Content */}
-            <motion.div
-              initial={{ y: '100%' }}
-              animate={{ y: 0 }}
-              exit={{ y: '100%' }}
-              transition={{ type: 'spring', damping: 25, stiffness: 300 }}
-              onClick={(e) => e.stopPropagation()} // Prevent closing when clicking inside
-              className="bg-white text-neutral-900 w-full max-w-5xl max-h-[95vh] md:max-h-[90vh] md:rounded-[28px] rounded-t-[28px] shadow-[0_35px_100px_rgba(15,23,42,0.35)] overflow-hidden flex flex-col relative mx-auto border border-neutral-200"
-            >
-              {/* Close Button */}
-              <button
-                onClick={onClose}
-                className="absolute top-4 right-4 z-20 bg-neutral-900/80 hover:bg-neutral-950 text-white p-2.5 rounded-full backdrop-blur-md transition-all duration-200 shadow-lg"
-              >
-                <X size={22} />
-              </button>
+        // Full-screen window, not a centered card -- the reading measure
+        // (max-w-5xl) lives inside ArticleContent itself now, so it stays
+        // comfortable to read without capping how much of the screen the
+        // window itself uses.
+        <motion.div
+          initial={{ y: '100%' }}
+          animate={{ y: 0 }}
+          exit={{ y: '100%' }}
+          transition={{ type: 'spring', damping: 28, stiffness: 300 }}
+          className="fixed inset-0 z-50 bg-white text-neutral-900 flex flex-col"
+        >
+          {/* The real site navbar -- the window is a full page now, not a
+              card floating over a backdrop, so it gets the same chrome
+              every other page has. */}
+          <ModernNavbar />
 
-              {/* Scrollable Content -- same real ArticleContent the
-                  standalone page renders, so the "floating window" design
-                  is the ONE reading experience everywhere. */}
-              <div className="overflow-y-auto custom-scroll flex-1">
-                <ArticleContent news={currentNews} onRelatedClick={handleRelatedClick} />
-              </div>
-            </motion.div>
-          </motion.div>
-        </>
+          {/* Close Button -- there's no "back" affordance in the navbar
+              itself (it's built for real pages, not this modal-over-feed
+              UX), so a floating close stays, just moved below the bar. */}
+          <button
+            onClick={onClose}
+            className="fixed top-20 right-4 z-[60] bg-neutral-900/80 hover:bg-neutral-950 text-white p-2.5 rounded-full backdrop-blur-md transition-all duration-200 shadow-lg"
+            aria-label="Cerrar"
+          >
+            <X size={22} />
+          </button>
+
+          {/* Scrollable Content -- same real ArticleContent the
+              standalone page renders, so the "floating window" design
+              is the ONE reading experience everywhere. */}
+          <div className="overflow-y-auto custom-scroll flex-1 pt-16">
+            <ArticleContent news={currentNews} onRelatedClick={handleRelatedClick} />
+          </div>
+        </motion.div>
       )}
     </AnimatePresence>
   )

@@ -1,70 +1,46 @@
 'use client'
 
+// Arquitectura de navegación híbrida (ver brief 2026-09): rutas reales
+// fijas para las secciones que tienen experiencia propia -- el navbar NO
+// crece con la taxonomía (esa la resuelve /explorar, alimentada por
+// /api/categories). Deportes deja de ser un filtro de categoría más y
+// pasa a ser el hub real (/deportes), con su propio toolbar de
+// competiciones/vistas -- ver app/deportes/page.tsx.
+
 import React, { useState, useEffect } from 'react'
-import { Menu, X, Search, Bell, Sun, Moon } from 'lucide-react'
+import { Menu, X, Search, Zap, Sun, Moon } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
-import { supabase } from '@/lib/supabaseClient'
 import { usePortalTheme } from '@/context/ThemeContext'
 
-function slugifyCategory(name: string): string {
-  return name
-    .trim()
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/(^-|-$)/g, '')
-}
+const NAV_LINKS: { name: string; href: string }[] = [
+  { name: 'Inicio', href: '/' },
+  { name: 'Política', href: '/categoria/politica' },
+  { name: 'Mundo', href: '/categoria/mundo' },
+  { name: 'Empresas', href: '/categoria/empresas' },
+  { name: 'Sociedad', href: '/categoria/sociedad' },
+  { name: 'Deportes', href: '/deportes' },
+  { name: 'Explorar', href: '/explorar' },
+]
 
 export default function ModernNavbar() {
   const { theme, toggleTheme } = usePortalTheme()
   const isDark = theme === 'dark'
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const [navLinks, setNavLinks] = useState<{ name: string; href: string }[]>([
-    { name: 'Inicio', href: '/' },
-    { name: 'Fútbol', href: '/categoria/futbol' },
-    { name: 'Baloncesto', href: '/categoria/baloncesto' },
-    { name: 'Tenis', href: '/categoria/tenis' },
-    { name: 'Motor', href: '/categoria/motor' },
-    { name: 'Opinión', href: '/categoria/opinion' },
-  ])
+  const navLinks = NAV_LINKS
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
     window.addEventListener('scroll', onScroll)
-
-    const loadCategories = async () => {
-      const { data } = await supabase
-        .from('news')
-        .select('category')
-        .eq('status', 'published')
-        .not('category', 'is', null)
-        .limit(50)
-
-      const uniqueCategories = Array.from(
-        new Set((data ?? []).map((item) => (item.category ?? '').trim()).filter(Boolean))
-      )
-        .slice(0, 6)
-        .map((name) => ({ name, href: `/categoria/${slugifyCategory(name)}` }))
-
-      if (uniqueCategories.length > 0) {
-        setNavLinks([{ name: 'Inicio', href: '/' }, ...uniqueCategories])
-      }
-    }
-
-    loadCategories()
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
 
   return (
     <>
       <header
-        className={`fixed top-0 left-0 right-0 z-50 backdrop-blur-xl transition-colors duration-200 ${
-          isDark
-            ? `border-b border-white/10 ${scrolled ? 'bg-neutral-950/90 shadow-[0_10px_30px_rgba(0,0,0,0.35)]' : 'bg-neutral-950/70'}`
-            : `border-b border-neutral-200 ${scrolled ? 'bg-white/95 shadow-[0_10px_30px_rgba(15,23,42,0.08)]' : 'bg-white/80'}`
+        className={`transition-colors duration-200 ${
+          isDark ? 'bg-[#0B0B0B] border-b border-white/10' : 'bg-white border-b border-[#E5E5E5]'
         }`}
       >
         <div
@@ -73,21 +49,24 @@ export default function ModernNavbar() {
           }`}
         >
           <Link href="/" className="flex items-center gap-2 min-w-0 flex-shrink-0">
-            <div className="w-7 h-7 bg-red-600 rounded-md flex items-center justify-center text-white font-black text-base shadow-[0_0_18px_rgba(239,68,68,0.6)]">
-              N
-            </div>
-            <span className={`font-black text-lg tracking-tight whitespace-nowrap ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-              NEXUS<span className="text-red-500">NEWS</span>
+            <Zap size={26} className="text-[#E30613] fill-[#E30613] flex-shrink-0" strokeWidth={0} />
+            <span className="flex flex-col leading-none">
+              <span className={`font-black text-lg tracking-tight whitespace-nowrap ${isDark ? 'text-white' : 'text-neutral-900'}`}>
+                NEXUS
+              </span>
+              <span className={`text-[8px] font-bold uppercase tracking-[0.16em] whitespace-nowrap ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>
+                Noticias que importan
+              </span>
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-1">
+          <nav className="hidden md:flex items-center gap-6">
             {navLinks.map(link => (
               <Link
                 key={link.name}
                 href={link.href}
-                className={`px-3 py-1.5 rounded-full text-[11px] font-bold uppercase tracking-[0.12em] transition-colors ${
-                  isDark ? 'text-white/70 hover:text-white hover:bg-white/10' : 'text-neutral-500 hover:text-neutral-900 hover:bg-neutral-100'
+                className={`text-[11px] font-bold uppercase tracking-[0.12em] transition-colors ${
+                  isDark ? 'text-white/70 hover:text-white' : 'text-[#666] hover:text-[#161616]'
                 }`}
               >
                 {link.name}
@@ -96,11 +75,8 @@ export default function ModernNavbar() {
           </nav>
 
           <div className={`hidden md:flex items-center gap-3 ${isDark ? 'text-white/80' : 'text-neutral-600'}`}>
-            <button aria-label="Buscar" className="hover:text-red-500 transition">
+            <button aria-label="Buscar" className="hover:text-[#E30613] transition">
               <Search size={17} />
-            </button>
-            <button aria-label="Notificaciones" className="hover:text-red-500 transition">
-              <Bell size={17} />
             </button>
             <button
               onClick={toggleTheme}
@@ -112,12 +88,15 @@ export default function ModernNavbar() {
           </div>
 
           <div className="flex items-center gap-1 md:hidden">
+            <button aria-label="Buscar" className={`p-2 ${isDark ? 'text-white/80' : 'text-neutral-600'}`}>
+              <Search size={19} />
+            </button>
             <button
               onClick={toggleTheme}
               aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
-              className={isDark ? 'text-white/80' : 'text-neutral-600'}
+              className={`p-2 ${isDark ? 'text-white/80' : 'text-neutral-600'}`}
             >
-              {isDark ? <Sun size={20} /> : <Moon size={20} />}
+              {isDark ? <Sun size={19} /> : <Moon size={19} />}
             </button>
             <button
               className={isDark ? 'text-white p-2' : 'text-neutral-900 p-2'}

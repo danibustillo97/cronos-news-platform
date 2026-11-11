@@ -25,9 +25,12 @@ from app.domain.intelligence.entities import (
 )
 from app.domain.discovery.entities import DiscoveryFilters, DiscoveryItem, DiscoveryJob, IngestedContent
 from app.domain.artifact.entities import (
-    Artifact, ArtifactGenerationRequest, ArtifactGenerationResult, ArtifactJob, ProviderCheckResult, ProviderId,
+    Artifact, ArtifactGenerationRequest, ArtifactGenerationResult, ArtifactJob, ClaimResolutionRequest,
+    ClaimResolutionResult, ProviderCheckResult, ProviderId, SeoFixRequest, SeoFixResult,
 )
 from app.domain.publication.entities import PublishedContent
+from app.domain.ads.entities import AdBanner
+from app.domain.studio.entities import StudioProject
 
 
 # ── repository ports ─────────────────────────────────────────────────────
@@ -120,11 +123,28 @@ class ArtifactRepository(Protocol):
         fabricated count."""
         ...
     def save(self, artifact: Artifact) -> None: ...
+    def list_due_for_publication(self, now: datetime, limit: int = 20) -> list[str]: ...
+    def claim_scheduled_publication(self, artifact_id: str, now: datetime) -> Artifact | None: ...
+    def recover_stale_scheduled_publications(self, stale_before: datetime) -> None: ...
+    def release_scheduled_publication(self, artifact_id: str) -> None: ...
+
+
+class StudioProjectRepository(Protocol):
+    def find_by_id(self, project_id: str) -> StudioProject | None: ...
+    def list_versions_for_source(self, source_artifact_id: str) -> list[StudioProject]:
+        """Every version for this source Artifact, newest first -- the
+        real version history (section 21), never just the latest."""
+        ...
+    def save(self, project: StudioProject) -> None: ...
 
 
 class ArtifactJobRepository(Protocol):
     def find_by_id(self, job_id: str) -> ArtifactJob | None: ...
     def find_latest_for_story(self, story_id: str) -> ArtifactJob | None: ...
+    def list_for_story(self, story_id: str, limit: int = 20) -> list[ArtifactJob]:
+        """Every attempt for this story, newest first -- the real retry
+        history (section 1), not just the latest one."""
+        ...
     def list_recent(self, limit: int = 20) -> list[ArtifactJob]: ...
     def save(self, job: ArtifactJob) -> None: ...
 
@@ -202,10 +222,34 @@ class StoragePort(Protocol):
     directly. Today: a local LAB-export file server. Tomorrow: Supabase
     Storage signed URLs — callers never notice the swap."""
     def resolve_url(self, storage_ref: str) -> str: ...
+    def save_upload(self, story_id: str, filename: str, content: bytes) -> str:
+        """Writes a real, human-uploaded file into the same storage this
+        adapter already serves reads from, and returns its storage_ref
+        (same shape resolve_url expects back)."""
+        ...
 
 
 class SearchPort(Protocol):
     def search(self, query: str, limit: int = 20) -> list[News]: ...
+
+
+class AdBannerRepository(Protocol):
+    def list_all(self) -> list[AdBanner]:
+        """Every banner, every position, active or not -- the admin list."""
+        ...
+    def list_active_for_position(self, position: str) -> list[AdBanner]:
+        """Active banners for one slot -- the public read <AdSlot> uses."""
+        ...
+    def find_by_id(self, banner_id: str) -> AdBanner | None: ...
+    def save(self, banner: AdBanner) -> None: ...
+    def delete(self, banner_id: str) -> None: ...
+
+
+class AdBannerStoragePort(Protocol):
+    """Writes a banner creative into public object storage and returns its
+    public URL. Separate from StoragePort -- that one is keyed by story_id
+    (editorial assets), banners aren't part of any Story."""
+    def upload(self, filename: str, content: bytes, content_type: str) -> str: ...
 
 
 class PublishedContentRepository(Protocol):
@@ -254,6 +298,21 @@ class ArtifactGenerationPort(Protocol):
     when the provider isn't configured or the call fails -- see
     ArtifactGenerationUnavailableError."""
     def generate(self, request: ArtifactGenerationRequest) -> ArtifactGenerationResult: ...
+
+    def suggest_seo_fix(self, request: SeoFixRequest) -> SeoFixResult:
+        """Section 5's real "Corregir con IA" -- one narrow, real LLM call
+        (never a full re-generation, never a second AI infrastructure)
+        that proposes a corrected value for ONE over/under-length SEO
+        field. Same provider boundary, same honest failure path
+        (ArtifactGenerationUnavailableError) as generate()."""
+        ...
+
+    def resolve_claim(self, request: ClaimResolutionRequest) -> ClaimResolutionResult:
+        """Revisión 2.0 section 2/4's real "Resolver con IA" for a claim
+        -- re-examines it against the real source material already on
+        hand. Same provider boundary, same honest failure path as
+        generate()/suggest_seo_fix()."""
+        ...
 
 
 class ArtifactProviderPort(ArtifactGenerationPort, Protocol):
@@ -315,7 +374,7 @@ class ArtifactPublishingPort(Protocol):
     title/content/seo/status='published'); it never touches or replaces
     an ingestion row. Returns the new row's real id -- never a fabricated
     one -- and raises on any failure instead of pretending it worked."""
-    def publish(self, artifact: Artifact, category_name: str | None, image_url: str | None) -> str: ...
+    def publish(self, artifact: Artifact, category_name: str | None, image_url: str | None, content_html: str) -> str: ...
 
 
 class MediaGenerationPort(Protocol):
