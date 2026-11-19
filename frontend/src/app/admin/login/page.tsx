@@ -75,7 +75,7 @@ export default function AdminLogin() {
   }
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#08080C] text-white selection:bg-violet-500/30">
+    <main className="admin-login-page relative overflow-hidden bg-[#08080C] text-white selection:bg-violet-500/30">
 
       {/* Background */}
       <div className="pointer-events-none absolute inset-0">
@@ -95,7 +95,7 @@ export default function AdminLogin() {
       </div>
 
       {/* Header */}
-      <header className="relative z-10 flex items-center justify-between px-6 py-6 sm:px-10 lg:px-16">
+      <header className="admin-login-header relative z-10 flex items-center justify-between px-6 sm:px-10 lg:px-16">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05]">
             <ShieldCheck size={20} className="text-violet-400" />
@@ -120,18 +120,18 @@ export default function AdminLogin() {
       </header>
 
       {/* Main */}
-      <section className="relative z-10 flex min-h-[calc(100vh-100px)] items-center justify-center px-5 pb-12 pt-4">
+      <section className="admin-login-content relative z-10 flex items-center justify-center px-5">
 
-        <div className="grid w-full max-w-[1120px] items-center gap-12 lg:grid-cols-[1.1fr_0.9fr] lg:gap-20">
+        <div className="admin-login-grid grid w-full max-w-[1120px] items-center lg:grid-cols-[1.1fr_0.9fr]">
 
           {/* Left editorial section */}
           <motion.div
             initial={{ opacity: 0, x: -24 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.7 }}
-            className="hidden lg:block"
+            className="admin-login-editorial hidden lg:block"
           >
-            <div className="mb-8 inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/[0.06] px-3 py-2">
+            <div className="admin-login-editorial-badge mb-8 inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/[0.06] px-3 py-2">
               <Sparkles size={13} className="text-violet-400" />
               <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300">
                 Editorial Intelligence
@@ -148,13 +148,13 @@ export default function AdminLogin() {
               </span>
             </h1>
 
-            <p className="mt-7 max-w-md text-[15px] leading-7 text-neutral-400">
+            <p className="admin-login-editorial-copy mt-7 max-w-md text-[15px] leading-7 text-neutral-400">
               Un espacio centralizado para gestionar contenido,
               operaciones editoriales y herramientas de administración.
             </p>
 
             {/* Feature cards */}
-            <div className="mt-12 grid max-w-lg grid-cols-2 gap-3">
+            <div className="admin-login-features mt-12 grid max-w-lg grid-cols-2 gap-3">
 
               <div className="rounded-2xl border border-white/[0.07] bg-white/[0.025] p-4">
                 <div className="mb-4 flex h-9 w-9 items-center justify-center rounded-xl bg-violet-500/10">
@@ -184,7 +184,7 @@ export default function AdminLogin() {
 
             </div>
 
-            <div className="mt-12 flex items-center gap-3 text-xs text-neutral-600">
+            <div className="admin-login-editorial-footer mt-12 flex items-center gap-3 text-xs text-neutral-600">
               <div className="h-px w-10 bg-neutral-800" />
               <span>BUILT FOR MODERN MEDIA OPERATIONS</span>
             </div>
@@ -195,27 +195,16 @@ export default function AdminLogin() {
             initial={{ opacity: 0, y: 24, scale: 0.98 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
             transition={{ duration: 0.65, delay: 0.1 }}
-            className="mx-auto w-full max-w-[440px]"
+            className="admin-login-card mx-auto w-full max-w-[440px]"
           >
-            <div className="relative overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#111116]/90 p-7 shadow-[0_30px_100px_rgba(0,0,0,0.5)] backdrop-blur-2xl sm:p-10">
+            <div className="admin-login-card-surface relative overflow-hidden rounded-[28px] border border-white/[0.09] bg-[#111116]/90 p-7 shadow-[0_30px_100px_rgba(0,0,0,0.5)] backdrop-blur-2xl sm:p-10">
 
               {/* Card glow */}
               <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-600/[0.10] blur-[90px]" />
 
               <div className="relative">
 
-                {/* Mobile brand */}
-                <div className="mb-8 flex items-center gap-3 lg:hidden">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-violet-600 to-purple-900">
-                    <ShieldCheck size={23} />
-                  </div>
-
-                  <span className="text-lg font-black tracking-widest">
-                    NEXUS
-                  </span>
-                </div>
-
-                <div className="mb-8">
+                <div className="admin-login-card-intro mb-8">
                   <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-400/20 bg-violet-500/[0.10]">
                     <LockKeyhole size={21} className="text-violet-300" />
                   </div>
@@ -252,7 +241,7 @@ export default function AdminLogin() {
                 </AnimatePresence>
 
                 {/* Form */}
-                <form onSubmit={handleLogin} className="space-y-5">
+                <form onSubmit={handleLogin} className="admin-login-form space-y-5">
 
                   {/* Email */}
                   <div className="space-y-2">
@@ -278,7 +267,7 @@ export default function AdminLogin() {
                         autoComplete="username"
                         required
                         disabled={loading}
-                        className="h-[54px] w-full rounded-xl border border-white/[0.09] bg-black/30 pl-12 pr-4 text-sm text-white outline-none transition-all placeholder:text-neutral-700 hover:border-white/15 focus:border-violet-500/60 focus:bg-black/50 focus:ring-4 focus:ring-violet-500/[0.08] disabled:opacity-50"
+                        className="admin-login-input h-[54px] w-full rounded-xl border border-white/[0.09] bg-black/30 pl-12 pr-4 text-sm text-white outline-none transition-all placeholder:text-neutral-700 hover:border-white/15 focus:border-violet-500/60 focus:bg-black/50 focus:ring-4 focus:ring-violet-500/[0.08] disabled:opacity-50"
                       />
                     </div>
                   </div>
@@ -309,7 +298,7 @@ export default function AdminLogin() {
                         autoComplete="current-password"
                         required
                         disabled={loading}
-                        className="h-[54px] w-full rounded-xl border border-white/[0.09] bg-black/30 pl-12 pr-12 text-sm text-white outline-none transition-all placeholder:text-neutral-700 hover:border-white/15 focus:border-violet-500/60 focus:bg-black/50 focus:ring-4 focus:ring-violet-500/[0.08] disabled:opacity-50"
+                        className="admin-login-input h-[54px] w-full rounded-xl border border-white/[0.09] bg-black/30 pl-12 pr-12 text-sm text-white outline-none transition-all placeholder:text-neutral-700 hover:border-white/15 focus:border-violet-500/60 focus:bg-black/50 focus:ring-4 focus:ring-violet-500/[0.08] disabled:opacity-50"
                       />
 
                       <button
@@ -330,7 +319,7 @@ export default function AdminLogin() {
                   <button
                     type="submit"
                     disabled={loading || !email.trim() || !password}
-                    className="group relative mt-3 flex h-[56px] w-full items-center justify-center gap-3 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-sm font-bold text-white shadow-[0_8px_30px_rgba(124,58,237,0.22)] transition-all hover:from-violet-500 hover:to-purple-500 hover:shadow-[0_8px_35px_rgba(124,58,237,0.35)] disabled:cursor-not-allowed disabled:opacity-50"
+                    className="admin-login-submit group relative mt-3 flex h-[56px] w-full items-center justify-center gap-3 overflow-hidden rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-sm font-bold text-white shadow-[0_8px_30px_rgba(124,58,237,0.22)] transition-all hover:from-violet-500 hover:to-purple-500 hover:shadow-[0_8px_35px_rgba(124,58,237,0.35)] disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {loading ? (
                       <>
@@ -351,7 +340,7 @@ export default function AdminLogin() {
                 </form>
 
                 {/* Footer card */}
-                <div className="mt-8 border-t border-white/[0.07] pt-6">
+                <div className="admin-login-card-footer mt-8 border-t border-white/[0.07] pt-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
                       <ShieldCheck size={15} className="text-emerald-500" />
@@ -371,7 +360,7 @@ export default function AdminLogin() {
             </div>
 
             {/* Bottom footer */}
-            <div className="mt-6 flex flex-col items-center justify-between gap-3 px-2 text-[10px] text-neutral-600 sm:flex-row">
+            <div className="admin-login-page-footer mt-6 flex flex-col items-center justify-between gap-3 px-2 text-[10px] text-neutral-600 sm:flex-row">
               <span>© {new Date().getFullYear()} Nexus Administration</span>
               <span className="tracking-wider">PRIVATE ACCESS · AUTHORIZED USERS ONLY</span>
             </div>

@@ -6,6 +6,7 @@ import { ThemeProvider } from "@/context/ThemeContext"
 import { MediaPlayerProvider } from "@/context/MediaPlayerContext"
 import MediaPlayerBar from "@/components/platform/MediaPlayerBar"
 import { Toaster } from 'sonner'
+import PublicAnalyticsTracker from "@/components/analytics/PublicAnalyticsTracker"
 
 function AdminOnlyProviders({ isAdmin, children }: { isAdmin: boolean; children: React.ReactNode }) {
   // ProductionProvider fetches GET /api/productions and opens Supabase
@@ -36,6 +37,7 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
     <ThemeProvider>
       <MediaPlayerProvider>
         {body}
+        <PublicAnalyticsTracker />
         <MediaPlayerBar />
       </MediaPlayerProvider>
     </ThemeProvider>

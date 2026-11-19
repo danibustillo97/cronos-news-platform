@@ -4,6 +4,7 @@ export type View =
     | "production"
     | "social"
     | "nexus_studio"
+    | "broadcaster"
     | "distribution"
     | "tags_seo"
     | "providers"

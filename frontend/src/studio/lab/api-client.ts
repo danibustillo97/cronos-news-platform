@@ -33,7 +33,7 @@
 // the frontend's real domain) is the correct, intended setup, not a bug.
 const isBrowser = typeof window !== 'undefined';
 const isLocalNextDev = isBrowser
-  && window.location.hostname === 'localhost'
+  && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
   && window.location.port === '3000';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL

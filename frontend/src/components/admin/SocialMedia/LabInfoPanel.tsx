@@ -29,7 +29,7 @@ const Section = ({ icon, title, children }: { icon: React.ReactNode; title: stri
 
 export function LabInfoPanel() {
     const { customTitle, setCustomTitle, generatedHook, setGeneratedHook, setVideoScript, loadRenderedVideoFromUrl } = useStudioContext();
-    const { activeStory, workspace, primaryComposition, setActiveView } = useProduction();
+    const { activeStory, workspace, primaryComposition } = useProduction();
 
     const content = primaryComposition?.content ?? null;
 
@@ -56,12 +56,6 @@ export function LabInfoPanel() {
                 <p className="text-[10px]" style={{ color: DS.sub }}>
                     {activeStory ? 'Esta historia todavía no fue producida.' : 'Sin historia activa.'}
                 </p>
-                <button onClick={() => setActiveView('production')}
-                    className="w-full py-2 rounded-lg text-xs font-semibold flex items-center justify-center gap-2"
-                    style={{ background: DS.accentDim, color: DS.accent }}
-                >
-                    Ir a Producción <ArrowRight size={12} />
-                </button>
             </div>
         );
     }

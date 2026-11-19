@@ -8,7 +8,7 @@
 import React, { useEffect, useState } from 'react';
 import {
     Globe, Smartphone, Instagram, Youtube, Facebook,
-    CheckCircle2, Circle, ArrowRight, Link2, RefreshCw,
+    CheckCircle2, Circle, Link2, RefreshCw,
 } from 'lucide-react';
 import { useProduction } from '@/studio/lab/ProductionContext';
 import { apiUrl } from '@/studio/lab/api-client';
@@ -52,7 +52,7 @@ function OutputRow({ plan, onPrepare }: { plan: DistributionPlanDTO | { platform
 }
 
 export function DistributionView() {
-    const { activeStory, workspace, setActiveView } = useProduction();
+    const { activeStory, workspace } = useProduction();
     const [preparing, setPreparing] = useState(false);
     const [plans, setPlans] = useState<DistributionPlanDTO[] | null>(null);
 
@@ -86,12 +86,7 @@ export function DistributionView() {
                 <div className="text-center max-w-sm">
                     <Globe size={28} style={{ color: DS.muted }} className="mx-auto mb-3" />
                     <p className="text-[13px] font-semibold" style={{ color: DS.txt }}>Sin historia producida</p>
-                    <p className="text-[11px] mt-1" style={{ color: DS.sub }}>Producí una historia primero para ver sus canales de distribución.</p>
-                    <button onClick={() => setActiveView('production')}
-                        className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold"
-                        style={{ background: DS.accentDim, color: DS.accent }}>
-                        Ir a Producción <ArrowRight size={12} />
-                    </button>
+                    <p className="text-[11px] mt-1" style={{ color: DS.sub }}>Cuando haya una historia lista, sus canales de distribución aparecerán aquí.</p>
                 </div>
             </div>
         );

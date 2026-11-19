@@ -7,7 +7,7 @@ import Link from "@tiptap/extension-link";
 import type { JSONContent } from "@tiptap/core";
 import { TableKit } from "@tiptap/extension-table";
 import Youtube from "@tiptap/extension-youtube";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
   Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, Image as ImageIcon, Quote,
@@ -30,6 +30,7 @@ interface Props {
   artifactId?: string;
   mediaRequirements?: MediaRequirement[];
   onMediaChanged?: () => void;
+  onUploadImage?: (file: File) => Promise<string>;
 }
 
 type BlockType = "paragraph" | "h1" | "h2" | "h3" | "blockquote";
@@ -109,12 +110,13 @@ function ToolbarButton({
 }
 
 const MenuBar = ({
-  editor, isFullscreen, onToggleFullscreen, onInsertBodyImage, insertingImage, onOpenDialog,
+  editor, isFullscreen, onToggleFullscreen, onInsertBodyImage, onUploadImage, insertingImage, onOpenDialog,
 }: {
   editor: Editor | null;
   isFullscreen: boolean;
   onToggleFullscreen: () => void;
   onInsertBodyImage?: () => void;
+  onUploadImage?: () => void;
   insertingImage?: boolean;
   onOpenDialog: (kind: InsertDialogKind, value?: string) => void;
 }) => {
@@ -178,9 +180,9 @@ const MenuBar = ({
           <button type="button" onClick={() => onOpenDialog("image")} className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-neutral-300 hover:bg-white/10">
             <ImageIcon size={14} /> Imagen por URL
           </button>
-          {onInsertBodyImage && (
-            <button type="button" onClick={onInsertBodyImage} disabled={insertingImage} className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-neutral-300 hover:bg-white/10 disabled:opacity-50">
-              <ImagePlus size={14} /> {insertingImage ? "Preparando imagen…" : "Imagen del cuerpo"}
+          {(onInsertBodyImage || onUploadImage) && (
+            <button type="button" onClick={onUploadImage ?? onInsertBodyImage} disabled={insertingImage} className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-neutral-300 hover:bg-white/10 disabled:opacity-50">
+              <ImagePlus size={14} /> {insertingImage ? "Preparando imagen…" : onUploadImage ? "Subir imagen al cuerpo" : "Imagen del cuerpo"}
             </button>
           )}
           <button type="button" onClick={() => onOpenDialog("gallery")} className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-neutral-300 hover:bg-white/10">
@@ -229,13 +231,14 @@ const MenuBar = ({
 };
 
 export default function TiptapEditor({
-  value, onChange, className, artifactId, mediaRequirements, onMediaChanged,
+  value, onChange, className, artifactId, mediaRequirements, onMediaChanged, onUploadImage,
 }: Props) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [insertingImage, setInsertingImage] = useState(false);
   const [dialogKind, setDialogKind] = useState<InsertDialogKind | null>(null);
   const [dialogValue, setDialogValue] = useState("");
   const [documentStats, setDocumentStats] = useState({ words: 0, characters: 0 });
+  const bodyImageInput = useRef<HTMLInputElement>(null);
 
   const openDialog = (kind: InsertDialogKind, initialValue = "") => {
     setDialogValue(initialValue);
@@ -244,7 +247,7 @@ export default function TiptapEditor({
 
   const extensions = useMemo(() => {
     const base = [
-      StarterKit,
+      StarterKit.configure({ link: false, underline: false }),
       Image.configure({
         inline: false,
         allowBase64: true,
@@ -386,6 +389,32 @@ export default function TiptapEditor({
     }
   };
 
+  const uploadBodyImage = async () => {
+    bodyImageInput.current?.click();
+  };
+
+  const handleBodyImageSelected = async (file: File | undefined) => {
+    if (!editor || !file || !onUploadImage) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Selecciona un archivo de imagen");
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("La imagen debe pesar menos de 10 MB");
+      return;
+    }
+    setInsertingImage(true);
+    try {
+      const src = await onUploadImage(file);
+      editor.chain().focus().setImage({ src }).run();
+      toast.success("Imagen insertada en el artículo");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "No se pudo subir la imagen");
+    } finally {
+      setInsertingImage(false);
+    }
+  };
+
   if (!editor) return <div className="animate-pulse text-sm text-neutral-600">Cargando editor…</div>;
 
   const body = (
@@ -395,9 +424,22 @@ export default function TiptapEditor({
         isFullscreen={isFullscreen}
         onToggleFullscreen={() => setIsFullscreen((v) => !v)}
         onInsertBodyImage={artifactId ? insertBodyImage : undefined}
+        onUploadImage={onUploadImage ? uploadBodyImage : undefined}
         insertingImage={insertingImage}
         onOpenDialog={openDialog}
       />
+      {onUploadImage && (
+        <input
+          ref={bodyImageInput}
+          type="file"
+          accept="image/jpeg,image/png,image/webp"
+          className="hidden"
+          onChange={(event) => {
+            void handleBodyImageSelected(event.target.files?.[0]);
+            event.target.value = "";
+          }}
+        />
+      )}
       <EditorContent editor={editor} className="flex-1 overflow-hidden" />
       <div className="flex flex-shrink-0 items-center justify-between border-t border-white/5 px-2 py-2 text-[10px] text-neutral-600">
         <span>{documentStats.words} palabras</span>

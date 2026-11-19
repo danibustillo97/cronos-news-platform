@@ -2,38 +2,56 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
+import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
-import { Bell, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { toast } from "sonner";
 
 import AdminSidebar from "@/components/admin/AdminSidebar";
+import AdminTopBar from "@/components/admin/AdminTopBar";
 import AdminDashboard from "@/components/admin/AdminDashboard";
 import AdminSeoTags from "@/components/admin/AdminSeoTags";
 import AdminProviders from "@/components/admin/AdminProviders";
 import AdminAds from "@/components/admin/AdminAds";
-import StudioView from "@/components/admin/Studio/StudioView";
 import NexusStudioView from "@/components/admin/NexusStudio/NexusStudioView";
+import BroadcasterView from "@/components/admin/Broadcaster/BroadcasterView";
 import EditorialView from "@/components/admin/Editorial/EditorialView";
-import { ProductionWorkspace } from "@/components/admin/Production/ProductionWorkspace";
 import { DistributionView } from "@/components/admin/Distribution/DistributionView";
 import { useProduction } from "@/studio/lab/ProductionContext";
 
 import { View } from "@/types/admin";
 
+const NAVIGABLE_VIEWS: View[] = [
+  "dashboard", "editorial", "nexus_studio", "broadcaster", "distribution", "tags_seo", "providers", "ads",
+];
+
+function isNavigableView(value: string | null): value is View {
+  return value !== null && NAVIGABLE_VIEWS.includes(value as View);
+}
+
 export default function AdminPage() {
-  const { activeView, setActiveView, activeStory } = useProduction();
+  const { activeView, setActiveView } = useProduction();
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<any>(null);
+  const [user, setUser] = useState<User | null>(null);
 
   const router = useRouter();
 
   useEffect(() => {
     const url = new URL(window.location.href);
-    const viewParam = url.searchParams.get('view') as View | null;
-    if (viewParam) setActiveView(viewParam);
-    // Runs once on mount to honor a deep link (?view=social, etc).
+    const viewParam = url.searchParams.get("view");
+    if (viewParam === "production" || viewParam === "social") {
+      url.searchParams.delete("view");
+      window.history.replaceState(window.history.state, "", url);
+      return;
+    }
+    if (isNavigableView(viewParam)) setActiveView(viewParam);
+    // Runs once on mount to honor supported deep links.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (activeView === "production" || activeView === "social") setActiveView("dashboard");
+  }, [activeView, setActiveView]);
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -49,32 +67,36 @@ export default function AdminPage() {
   }, [router]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      toast.error("No se pudo cerrar la sesión", { description: error.message });
+      return;
+    }
     router.push("/admin/login");
   };
 
+  const visibleView = activeView === "production" || activeView === "social" ? "dashboard" : activeView;
+
   const pageTitle = useMemo(() => {
-    switch (activeView) {
+    switch (visibleView) {
       case "dashboard": return "Command Center";
       case "editorial": return "Editorial";
-      case "production": return "Producción";
-      case "social": return "Studio (legacy)";
       case "nexus_studio": return "NEXUS Studio";
+      case "broadcaster": return "Broadcaster";
       case "distribution": return "Distribución";
       case "tags_seo": return "SEO Intelligence";
       case "providers": return "Providers";
       case "ads": return "Publicidad";
       default: return "CRONOS";
     }
-  }, [activeView]);
+  }, [visibleView]);
 
   const renderContent = () => {
-    switch (activeView) {
+    switch (visibleView) {
       case "dashboard": return <AdminDashboard />;
       case "editorial": return <EditorialView />;
-      case "production": return <ProductionWorkspace />;
-      case "social": return <StudioView />;
       case "nexus_studio": return <NexusStudioView />;
+      case "broadcaster": return <BroadcasterView />;
       case "distribution": return <DistributionView />;
       case "tags_seo": return <AdminSeoTags />;
       case "providers": return <AdminProviders />;
@@ -94,46 +116,24 @@ export default function AdminPage() {
   // 'editorial' needs it too now: Revisión is a real 3-column workspace
   // with its own independent per-column scroll (section 20) -- it can't
   // sit inside <main>'s page-level overflow-y-auto.
-  const fullBleed = activeView === 'social' || activeView === 'nexus_studio' || activeView === 'production' || activeView === 'distribution' || activeView === 'editorial';
+  const fullBleed = visibleView === "nexus_studio" || visibleView === "broadcaster" || visibleView === "distribution" || visibleView === "editorial";
 
   return (
     <div className="bg-[#050505] h-screen text-white overflow-hidden">
       <AdminSidebar
-        activeView={activeView}
+        activeView={visibleView}
         setActiveView={(view) => setActiveView(view as View)}
       />
 
-      <div className="flex flex-col h-screen overflow-hidden" style={{ marginLeft: 48, width: 'calc(100vw - 48px)' }}>
-        <header className={`border-b border-white/10 px-6 flex items-center justify-between bg-black/60 backdrop-blur flex-shrink-0 ${activeView === 'social' || activeView === 'nexus_studio' ? 'hidden' : 'h-14'}`}>
-          <div className="flex items-center gap-4 min-w-0">
-            <h1 className="text-[15px] font-bold tracking-tight">
-              {pageTitle}
-            </h1>
+      <div className="flex flex-col h-screen overflow-hidden" style={{ marginLeft: 64, width: 'calc(100vw - 64px)' }}>
+        {visibleView !== "nexus_studio" && (
+          <AdminTopBar title={pageTitle} user={user} onLogout={handleLogout} />
+        )}
 
-            {activeStory?.title && (
-              <>
-                <span className="text-neutral-700">/</span>
-                <span className="text-[12px] text-neutral-400 truncate max-w-[360px]">{activeStory.title}</span>
-              </>
-            )}
-          </div>
-
-          <div className="flex items-center gap-5 flex-shrink-0">
-            <span className="flex items-center gap-1.5 text-[10px] text-neutral-500">
-              <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-              live
-            </span>
-            <Bell size={16} className="text-neutral-500" />
-            <button onClick={handleLogout} className="text-neutral-500 hover:text-white transition-colors">
-              <LogOut size={16} />
-            </button>
-          </div>
-        </header>
-
-        <main className={`min-h-0 flex-1 ${fullBleed ? 'overflow-hidden' : 'p-6 overflow-y-auto'}`}>
+        <main className={`min-h-0 flex-1 ${fullBleed ? 'overflow-hidden' : visibleView === "dashboard" ? 'p-3 sm:p-4 overflow-y-auto' : 'p-6 overflow-y-auto'}`}>
           <AnimatePresence mode="wait">
             <motion.div
-              key={activeView}
+              key={visibleView}
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}

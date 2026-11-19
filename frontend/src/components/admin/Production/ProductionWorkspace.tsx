@@ -58,7 +58,7 @@ function ProductionRow({ item, selected, onClick }: {
 export function ProductionWorkspace() {
     const {
         activeStory, storyId, workspace, primaryComposition, isProducing, isLoadingWorkspace, lastError,
-        produceStory, reviewComposition, setActiveView, resetProduction,
+        produceStory, reviewComposition, resetProduction,
         activeProductions, openProduction,
     } = useProduction();
 
@@ -229,13 +229,6 @@ export function ProductionWorkspace() {
                                     Aprobar y enviar a Studio <ArrowRight size={12} />
                                 </button>
                             )}
-                            <button
-                                onClick={() => setActiveView('social')}
-                                className="ml-2 text-[11px] font-semibold"
-                                style={{ color: DS.sub }}
-                            >
-                                Ir a Studio →
-                            </button>
                         </div>
                     </div>
                 )}

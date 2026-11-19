@@ -1,22 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { FileEdit, Rocket, Search } from "lucide-react";
+import { FileEdit, FileText, Rocket, Search } from "lucide-react";
 import { apiUrl } from "@/studio/lab/api-client";
+import ManualNewsDesk from "@/components/admin/Editorial/ManualNewsDesk";
 import DiscoveryPanel from "@/components/admin/Editorial/DiscoveryPanel";
 import RevisionWorkspace from "@/components/admin/Editorial/RevisionWorkspace";
 import PublishPanel from "@/components/admin/Editorial/PublishPanel";
 
-type EditorialTab = "discovery" | "revision" | "publish";
+type EditorialTab = "news" | "discovery" | "revision" | "publish";
 
 const TABS: { id: EditorialTab; label: string; icon: typeof Search }[] = [
-  { id: "discovery", label: "Descubrir", icon: Search },
-  { id: "revision", label: "Editar", icon: FileEdit },
-  { id: "publish", label: "Publicar", icon: Rocket },
+  { id: "news", label: "Noticias", icon: FileText },
+  { id: "discovery", label: "Descubrir IA", icon: Search },
+  { id: "revision", label: "Editor", icon: FileEdit },
+  { id: "publish", label: "Cola IA", icon: Rocket },
 ];
 
 export default function EditorialView() {
-  const [tab, setTab] = useState<EditorialTab>("discovery");
+  const [tab, setTab] = useState<EditorialTab>("news");
   const [readyCount, setReadyCount] = useState<number | null>(null);
   const [manualQueue, setManualQueue] = useState<string[]>([]);
 
@@ -44,18 +46,8 @@ export default function EditorialView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#080808]">
-      <header className="flex flex-shrink-0 flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:px-6">
-        <div className="flex items-center gap-3 sm:mr-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 text-red-400">
-            <FileEdit size={17} />
-          </div>
-          <div>
-            <h2 className="text-sm font-bold text-white">Editorial</h2>
-            <p className="text-[11px] text-neutral-500">Noticias, edición y publicación</p>
-          </div>
-        </div>
-
-        <nav aria-label="Flujo editorial" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+      <header className="flex flex-shrink-0 items-center border-b border-white/10 px-3 py-1.5 sm:px-5">
+        <nav aria-label="Flujo editorial" className="flex min-w-0 items-center gap-1 overflow-x-auto">
           {TABS.map(({ id, label, icon: Icon }) => {
             const active = tab === id;
             const badge = id === "publish" ? readyCount : null;
@@ -65,9 +57,9 @@ export default function EditorialView() {
                 type="button"
                 onClick={() => setTab(id)}
                 aria-current={active ? "page" : undefined}
-                className={`inline-flex flex-shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-[13px] font-semibold transition-colors ${
+                className={`inline-flex flex-shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[11px] font-medium transition-colors ${
                   active
-                    ? "bg-white text-neutral-950"
+                    ? "bg-white/[0.09] text-white"
                     : "text-neutral-400 hover:bg-white/[0.06] hover:text-white"
                 }`}
               >
@@ -85,6 +77,7 @@ export default function EditorialView() {
       </header>
 
       <main className="min-h-0 flex-1">
+        {tab === "news" && <ManualNewsDesk />}
         {tab === "discovery" && (
           <div className="h-full overflow-y-auto px-4 py-4 sm:px-6">
             <DiscoveryPanel onEditManually={openManualEditor} />

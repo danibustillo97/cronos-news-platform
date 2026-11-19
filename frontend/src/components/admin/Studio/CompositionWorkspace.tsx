@@ -29,11 +29,6 @@ export function CompositionWorkspace({ onEdit }: { onEdit: () => void }) {
                     <Film size={28} style={{ color: DS.muted }} className="mx-auto mb-3" />
                     <p className="text-[13px] font-semibold" style={{ color: DS.txt }}>Sin historia producida</p>
                     <p className="text-[11px] mt-1" style={{ color: DS.sub }}>Studio interviene sobre contenido que LAB ya produjo — producí una historia primero.</p>
-                    <button onClick={() => setActiveView('production')}
-                        className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold"
-                        style={{ background: DS.accentDim, color: DS.accent }}>
-                        Ir a Producción <ArrowRight size={12} />
-                    </button>
                 </div>
             </div>
         );

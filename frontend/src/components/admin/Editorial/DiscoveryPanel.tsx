@@ -56,7 +56,7 @@ async function responseError(response: Response): Promise<Error> {
 const TABS: { id: DiscoveryTab; label: string; icon: typeof Search }[] = [
   { id: "descubrir", label: "Nuevas", icon: Compass },
   { id: "seleccionado", label: "Seleccionadas", icon: CheckSquare },
-  { id: "artifact", label: "En edición", icon: Sparkles },
+  { id: "artifact", label: "En redacción", icon: Sparkles },
 ];
 
 export default function DiscoveryPanel({
@@ -74,7 +74,7 @@ export default function DiscoveryPanel({
 
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [groupFilter, setGroupFilter] = useState<string | null>(null);
-  const [timeRangeHours, setTimeRangeHours] = useState<number | null>(24);
+  const [timeRangeHours, setTimeRangeHours] = useState<number | null>(null);
 
   const [job, setJob] = useState<DiscoveryJob | null>(null);
   const [triggering, setTriggering] = useState(false);
@@ -383,40 +383,44 @@ export default function DiscoveryPanel({
   return (
     <div className="space-y-3 pb-16 sm:pb-0">
       {/* State navigation; search history stays available below the feed. */}
-      <div className="flex items-center justify-between gap-3 border-b border-white/10 flex-wrap">
-        <div className="flex items-center gap-5 overflow-x-auto scrollbar-hide">
+      <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-white/10">
+        <nav aria-label="Estados de noticias" className="flex min-w-0 items-center gap-1 overflow-x-auto scrollbar-hide">
           {TABS.map(({ id, label, icon: Icon }) => {
             const count = id === "descubrir" ? discovered.length
               : id === "seleccionado" ? selected.length
               : inArtifact.length;
+            const active = tab === id;
             return (
               <button
                 key={id}
                 onClick={() => setTab(id)}
-                className={`relative flex items-center gap-1.5 pb-2.5 -mb-px border-b-2 text-[13.5px] font-semibold transition-colors flex-shrink-0 whitespace-nowrap ${
-                  tab === id ? "text-white border-red-500" : "text-neutral-500 hover:text-neutral-300 border-transparent"
+                aria-current={active ? "page" : undefined}
+                className={`flex flex-shrink-0 items-center gap-1.5 border-b-2 px-3 py-2.5 text-xs font-semibold transition-colors ${
+                  active
+                    ? "border-red-500 text-white"
+                    : "border-transparent text-neutral-500 hover:text-neutral-200"
                 }`}
               >
                 <Icon size={14} />
-                {label}
-                {id === "descubrir" && jobActive && <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />}
-                {!loading && <span className="text-[10px] font-normal text-neutral-600">{count}</span>}
+                <span>{label}</span>
+                {id === "descubrir" && jobActive && <span className="h-1.5 w-1.5 rounded-full bg-red-400 animate-pulse" />}
+                {!loading && <span className={`text-[10px] ${active ? "text-neutral-300" : "text-neutral-600"}`}>{count}</span>}
               </button>
             );
           })}
-        </div>
+        </nav>
 
-        <div className="flex items-center gap-2 pb-2.5 flex-shrink-0">
+        <div className="flex flex-shrink-0 items-center gap-2 py-1.5">
           {!triggering ? (
             <button
               onClick={handleTrigger}
-              className="flex items-center gap-1.5 bg-white text-black px-3.5 py-1.5 rounded-lg text-xs font-bold hover:bg-neutral-200 transition-colors"
+              className="flex items-center gap-1.5 rounded-lg bg-white px-3 py-2 text-xs font-semibold text-neutral-950 transition-colors hover:bg-neutral-200"
             >
               <Search size={13} /> Buscar noticias
             </button>
           ) : (
             <>
-              <span className="flex items-center gap-1.5 bg-white/10 text-white px-3.5 py-1.5 rounded-lg text-xs font-bold">
+              <span className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs font-semibold text-neutral-200">
                 <RefreshCw className="animate-spin" size={13} />
                 {job?.status === "CANCELLING" ? "Deteniendo..." : "Descubriendo..."}
               </span>
@@ -425,7 +429,7 @@ export default function DiscoveryPanel({
                   onClick={handleStop}
                   disabled={stopping}
                   title="Detener -- termina el ítem en curso y conserva lo ya encontrado"
-                  className="flex items-center gap-1.5 bg-white/5 text-neutral-300 px-3 py-1.5 rounded-lg text-xs font-semibold hover:bg-red-500/20 hover:text-red-400 transition-colors disabled:opacity-50"
+                  className="flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-2 text-xs font-medium text-neutral-400 transition-colors hover:border-red-500/30 hover:text-red-300 disabled:opacity-50"
                 >
                   <Square size={11} className={stopping ? "animate-pulse" : ""} />
                   {stopping ? "Deteniendo..." : "Detener"}
@@ -455,7 +459,9 @@ export default function DiscoveryPanel({
             onArchive={(id) => decide(id, "ARCHIVE")}
             onProcess={(id) => setPickerForItem(id)}
             onViewArtifact={(storyId, title) => setDrawer({ storyId, title })}
-            emptyHint="No hay noticias nuevas en este filtro."
+            emptyHint={timeRangeHours === null
+              ? groupFilter ? "No hay noticias en este tema." : "No hay noticias para mostrar."
+              : `No hay noticias ${groupFilter ? "en este tema " : ""}de las últimas ${timeRangeHours < 24 ? `${timeRangeHours} h` : timeRangeHours === 24 ? "24 h" : `${Math.round(timeRangeHours / 24)} días`}. Amplía el período o inicia una búsqueda.`}
           />
           <details className="mt-4 border-t border-white/10 pt-3">
             <summary className="cursor-pointer text-xs font-medium text-neutral-500 hover:text-neutral-300">
@@ -577,7 +583,7 @@ export default function DiscoveryPanel({
           ) : inArtifact.length === 0 ? (
             <div className="text-neutral-500 text-sm text-center py-12 flex flex-col items-center gap-2">
               <Sparkles size={20} className="text-neutral-700" />
-              Nada procesándose en Artifact todavía. Procesá un item en &quot;Seleccionado&quot;.
+              Todavía no hay noticias en redacción. Envía una noticia desde &quot;Seleccionadas&quot;.
             </div>
           ) : (
             <div className="flex items-start gap-4">

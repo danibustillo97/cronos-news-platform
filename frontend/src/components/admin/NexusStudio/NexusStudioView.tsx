@@ -2,8 +2,7 @@
 
 // Entrada real de NEXUS Studio -- sin proyecto activo, el selector de
 // contenido (Artifacts PUBLISHED reales); con uno, el editor completo.
-// No reemplaza "Studio (legacy)" (social/SocialMedia) -- vive aparte
-// hasta que este cubra sus capacidades reales (regla 36).
+// NEXUS Studio is the supported content editing workspace.
 
 import { useState } from 'react'
 import ContentSelector from '@/components/admin/NexusStudio/ContentSelector'

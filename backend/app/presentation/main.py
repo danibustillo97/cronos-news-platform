@@ -48,7 +48,7 @@ app = FastAPI(title="CRONOS Backend", version="0.1.0", lifespan=lifespan)
 # hardcode a production domain here; it differs per environment (staging vs
 # production, custom domain vs *.vercel.app preview) -- see
 # docs/NEXUS_ENVIRONMENT_MATRIX.md.
-_DEFAULT_ORIGINS = ["http://localhost:3000", "http://nexus.local", "http://localhost"]
+_DEFAULT_ORIGINS = ["http://localhost:3000", "http://127.0.0.1:3000", "http://nexus.local", "http://localhost"]
 _extra_origins = [o.strip() for o in os.getenv("CORS_ALLOWED_ORIGINS", "").split(",") if o.strip()]
 
 app.add_middleware(

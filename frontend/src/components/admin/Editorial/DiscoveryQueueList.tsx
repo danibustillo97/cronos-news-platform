@@ -89,39 +89,47 @@ export default function DiscoveryQueueList({
   }, [categoryGroups]);
 
   const visible = useMemo(() => {
-    let list = groupCategoryIds ? items.filter((i) => i.categoryId && groupCategoryIds.has(i.categoryId)) : items;
+    const now = Date.now();
+    let list = timeRangeHours === null
+      ? items
+      : items.filter((item) => {
+        const discoveredAt = Date.parse(item.discoveredAt);
+        const ageMs = now - discoveredAt;
+        return Number.isFinite(discoveredAt) && ageMs >= 0 && ageMs <= timeRangeHours * 60 * 60 * 1000;
+      });
+    list = groupCategoryIds ? list.filter((i) => i.categoryId && groupCategoryIds.has(i.categoryId)) : list;
     list = [...list].sort((a, b) => scoreValue(b, sortBy) - scoreValue(a, sortBy));
     return list;
-  }, [items, groupCategoryIds, sortBy]);
+  }, [items, groupCategoryIds, sortBy, timeRangeHours]);
 
   const previewItem = previewId ? visible.find((i) => i.id === previewId) ?? null : null;
 
   return (
     <div>
-      {/* Toolbar -- one clearly bounded zone, not loose controls */}
-      <div className="space-y-2.5 pb-3 border-b border-white/10">
+      <div className="space-y-2 border-b border-white/10 pb-3">
         <CategoryChips groups={categoryGroups} selected={groupFilter} onSelect={onGroupFilterChange} />
-        <div className="flex flex-wrap items-center gap-2 text-xs">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-2 text-xs">
+          <span className="text-[10px] text-neutral-500">Periodo</span>
           <Select
-            className="w-[110px]" buttonClassName="!py-1.5 !text-xs"
+            className="w-[110px]" buttonClassName="!rounded-lg !py-1.5 !text-xs"
             value={TIME_RANGES.find((r) => r.hours === timeRangeHours)?.key ?? "all"}
             onChange={(key) => onTimeRangeChange(TIME_RANGES.find((r) => r.key === key)?.hours ?? null)}
             options={TIME_RANGES.map((r) => ({ value: r.key, label: r.label }))}
           />
+          <span className="ml-1 text-[10px] text-neutral-500">Orden</span>
           <Select
-            className="w-[150px]" buttonClassName="!py-1.5 !text-xs"
+            className="w-[150px]" buttonClassName="!rounded-lg !py-1.5 !text-xs"
             value={sortBy}
             onChange={setSortBy}
             options={SORT_OPTIONS}
           />
-          <span className="text-neutral-600">{loading ? "…" : `${visible.length} resultado${visible.length === 1 ? "" : "s"}`}</span>
           <button
             onClick={() => { setBulkMode((v) => !v); setCheckedIds(new Set()); }}
-            className={`flex items-center gap-1.5 px-2 py-1.5 rounded-md ${bulkMode ? "text-red-400" : "text-neutral-500 hover:text-white"}`}
+            className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 transition-colors ${bulkMode ? "border-red-500/30 bg-red-500/10 text-red-300" : "border-white/10 text-neutral-400 hover:bg-white/[0.04] hover:text-white"}`}
           >
             {bulkMode ? <CheckSquare size={13} /> : <Square size={13} />} Seleccionar varios
           </button>
-          <button onClick={onRefresh} className="ml-auto flex items-center gap-1.5 text-neutral-500 hover:text-white px-2 py-1.5">
+          <button onClick={onRefresh} className="ml-auto flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-neutral-500 transition-colors hover:bg-white/[0.05] hover:text-white">
             <RefreshCw size={12} /> Actualizar
           </button>
         </div>
@@ -178,8 +186,8 @@ export default function DiscoveryQueueList({
       ) : visible.length === 0 ? (
         <div className="text-neutral-500 text-sm text-center py-12">{emptyHint}</div>
       ) : (
-        <div className="flex items-start gap-4 mt-1">
-          <div className="flex-1 min-w-0 divide-y divide-white/5">
+        <div className="mt-3 flex items-start gap-4">
+          <div className="min-w-0 flex-1 space-y-2">
             {visible.map((item) => (
               <DiscoveryRow
                 key={item.id}
