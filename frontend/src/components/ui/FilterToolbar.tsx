@@ -36,11 +36,11 @@ export default function FilterToolbar({
           aria-selected={active === item.id}
           disabled={item.disabled}
           onClick={() => !item.disabled && onChange(item.id)}
-          className={`flex-shrink-0 px-3.5 py-3 text-[11px] font-bold uppercase tracking-[0.1em] whitespace-nowrap border-b-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E30613] ${
+          className={`flex-shrink-0 px-3.5 py-3 text-[11px] font-bold uppercase tracking-[0.1em] whitespace-nowrap border-b-2 transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#FACC15] ${
             item.disabled
               ? isDark ? 'text-neutral-700 border-transparent cursor-default' : 'text-neutral-300 border-transparent cursor-default'
               : active === item.id
-                ? 'border-[#E30613] text-[#E30613]'
+                ? 'border-[#FACC15] text-[#FACC15]'
                 : isDark
                   ? 'border-transparent text-white/60 hover:text-white'
                   : 'border-transparent text-[#666] hover:text-[#161616]'

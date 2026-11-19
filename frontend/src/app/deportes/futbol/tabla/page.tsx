@@ -44,7 +44,7 @@ function TablaContent() {
       <ModernNavbar />
 
       <main className="max-w-3xl mx-auto px-4 pt-8 pb-16">
-        <Link href="/deportes/futbol" className={`text-xs font-bold ${isDark ? 'text-neutral-400' : 'text-[#666]'} hover:text-[#E30613]`}>← Fútbol</Link>
+        <Link href="/deportes/futbol" className={`text-xs font-bold ${isDark ? 'text-neutral-400' : 'text-[#666]'} hover:text-[#FACC15]`}>← Fútbol</Link>
         <h1 className="text-3xl font-black mt-2 mb-6">Tabla de posiciones -- {leagueLabel}</h1>
 
         <div className="flex gap-1 mb-6 overflow-x-auto scrollbar-hide">
@@ -53,7 +53,7 @@ function TablaContent() {
               key={l.id}
               onClick={() => router.push(`/deportes/futbol/tabla?league=${l.id}`, { scroll: false })}
               className={`flex-shrink-0 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.06em] rounded-sm whitespace-nowrap ${
-                league === l.id ? 'bg-[#E30613] text-white' : isDark ? 'bg-white/5 text-neutral-400 hover:text-white' : 'bg-[#F0F0F0] text-[#666] hover:text-[#161616]'
+                league === l.id ? 'bg-[#FACC15] text-black' : isDark ? 'bg-white/5 text-neutral-400 hover:text-black' : 'bg-[#F0F0F0] text-[#666] hover:text-[#161616]'
               }`}
             >
               {l.label}

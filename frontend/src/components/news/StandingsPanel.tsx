@@ -50,7 +50,7 @@ export default function StandingsPanel() {
     <div className={`border p-5 ${isDark ? 'bg-white/[0.03] border-white/10' : 'bg-white border-[#E5E5E5]'}`}>
       <div className="flex items-center justify-between mb-3">
         <h3 className={`font-bold flex items-center gap-2 text-xs uppercase tracking-[0.1em] ${isDark ? 'text-white' : 'text-[#161616]'}`}>
-          <Trophy size={13} className="text-[#E30613]" aria-hidden="true" /> Tablas en vivo
+          <Trophy size={13} className="text-[#FACC15]" aria-hidden="true" /> Tablas en vivo
         </h3>
       </div>
 
@@ -66,9 +66,9 @@ export default function StandingsPanel() {
             role="tab"
             aria-selected={active === tab.id}
             onClick={() => setActive(tab.id)}
-            className={`px-2 py-1 text-[11px] font-bold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E30613] ${
+            className={`px-2 py-1 text-[11px] font-bold whitespace-nowrap transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#FACC15] ${
               active === tab.id
-                ? 'bg-[#E30613] text-white'
+                ? 'bg-[#FACC15] text-black'
                 : isDark ? 'text-neutral-400 hover:text-white' : 'text-[#666] hover:text-[#161616]'
             }`}
           >
@@ -88,7 +88,7 @@ export default function StandingsPanel() {
             {table.length > VISIBLE_ROWS && (
               <button
                 onClick={() => setShowFull(true)}
-                className="text-xs font-bold text-[#E30613] hover:opacity-70 transition-opacity"
+                className="text-xs font-bold text-[#FACC15] hover:opacity-70 transition-opacity"
               >
                 Ver tabla completa →
               </button>
@@ -121,7 +121,7 @@ export default function StandingsPanel() {
               <button
                 onClick={() => setShowFull(false)}
                 aria-label="Cerrar"
-                className={`p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#E30613] ${isDark ? 'text-neutral-400 hover:text-white' : 'text-[#666] hover:text-[#161616]'}`}
+                className={`p-1 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#FACC15] ${isDark ? 'text-neutral-400 hover:text-white' : 'text-[#666] hover:text-[#161616]'}`}
               >
                 <X size={18} />
               </button>

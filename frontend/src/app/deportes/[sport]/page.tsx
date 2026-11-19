@@ -27,7 +27,7 @@ export default function SportPlaceholderPage() {
       <ModernNavbar />
 
       <main className="max-w-3xl mx-auto px-4 pt-8 pb-24">
-        <Link href="/deportes" className={`text-xs font-bold ${isDark ? 'text-neutral-400' : 'text-[#666]'} hover:text-[#E30613]`}>← Deportes</Link>
+        <Link href="/deportes" className={`text-xs font-bold ${isDark ? 'text-neutral-400' : 'text-[#666]'} hover:text-[#FACC15]`}>← Deportes</Link>
         <h1 className="text-3xl font-black mt-2 mb-4 capitalize">{label}</h1>
 
         <div className={`border border-dashed p-10 text-center ${isDark ? 'border-white/10' : 'border-[#E5E5E5]'}`}>
@@ -37,7 +37,7 @@ export default function SportPlaceholderPage() {
           </p>
         </div>
 
-        <Link href="/deportes/futbol" className="inline-block mt-6 text-xs font-bold text-[#E30613] hover:opacity-70">
+        <Link href="/deportes/futbol" className="inline-block mt-6 text-xs font-bold text-[#FACC15] hover:opacity-70">
           Ver Fútbol en vivo →
         </Link>
       </main>

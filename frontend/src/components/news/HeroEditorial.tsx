@@ -39,7 +39,7 @@ export default function HeroEditorial({ item, src, onOpen }: { item: NewsView; s
         />
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-800 to-neutral-950">
-          <span className="text-[#E30613] font-black text-2xl">NEXUS</span>
+          <span className="text-[#FACC15] font-black text-2xl">NEXUS</span>
         </div>
       )}
 
@@ -47,7 +47,7 @@ export default function HeroEditorial({ item, src, onOpen }: { item: NewsView; s
       <div className="absolute inset-y-0 left-0 w-[65%] sm:w-[55%] bg-gradient-to-r from-black/95 via-black/55 to-transparent pointer-events-none" />
 
       <div className="absolute inset-y-0 left-0 w-[85%] sm:w-[52%] flex flex-col justify-center p-6 sm:p-10">
-        <span className="inline-block text-[#E30613] text-[11px] font-bold uppercase tracking-[0.18em] mb-3 w-fit">
+        <span className="inline-block text-[#FACC15] text-[11px] font-bold uppercase tracking-[0.18em] mb-3 w-fit">
           {item.category || 'Destacada'}
         </span>
         <h1 className="font-serif font-bold leading-[1.08] text-white text-2xl sm:text-4xl lg:text-[3.25rem] mb-4 max-w-xl line-clamp-4">

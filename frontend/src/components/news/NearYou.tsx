@@ -54,7 +54,7 @@ export default function NearYou({
     <SectionBand bg={isDark ? '#120D08' : '#FBF7F1'} borderColor={isDark ? 'rgba(255,255,255,0.1)' : '#E5E5E5'}>
       <section>
         <div className="flex items-center gap-2 mb-4">
-          <MapPin size={16} className="text-[#E30613]" />
+          <MapPin size={16} className="text-[#FACC15]" />
           <h2 className={`text-xl font-serif font-bold ${isDark ? 'text-white' : 'text-[#161616]'}`}>Cerca de ti</h2>
           <span className={`text-sm ${isDark ? 'text-neutral-500' : 'text-[#999]'}`}>
             {[signal.city, signal.region].filter(Boolean).join(', ')}
@@ -67,7 +67,7 @@ export default function NearYou({
             return (
               <button key={item.id} onClick={() => onOpen(item)} className="col-span-4 group block text-left">
                 <EditorialImage src={img} alt={item.title} sizes="(max-width: 768px) 100vw, 33vw" className="rounded-sm mb-2.5" />
-                <span className="text-[#E30613] text-[10px] font-bold uppercase tracking-[0.14em]">{item.category || 'Noticia'}</span>
+                <span className="text-[#FACC15] text-[10px] font-bold uppercase tracking-[0.14em]">{item.category || 'Noticia'}</span>
                 <h3 className={`text-base font-bold leading-snug mt-1 group-hover:opacity-70 transition-opacity line-clamp-2 ${isDark ? 'text-white' : 'text-[#161616]'}`}>
                   {item.title}
                 </h3>

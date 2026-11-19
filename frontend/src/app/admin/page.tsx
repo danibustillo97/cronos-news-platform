@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useRouter } from "next/navigation";
-import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
@@ -32,7 +31,6 @@ function isNavigableView(value: string | null): value is View {
 export default function AdminPage() {
   const { activeView, setActiveView } = useProduction();
   const [loading, setLoading] = useState(true);
-  const [user, setUser] = useState<User | null>(null);
 
   const router = useRouter();
 
@@ -60,7 +58,6 @@ export default function AdminPage() {
         router.push("/admin/login");
         return;
       }
-      setUser(data.session.user);
       setLoading(false);
     };
     bootstrap();
@@ -82,7 +79,7 @@ export default function AdminPage() {
       case "dashboard": return "Command Center";
       case "editorial": return "Editorial";
       case "nexus_studio": return "NEXUS Studio";
-      case "broadcaster": return "Broadcaster";
+      case "broadcaster": return "";
       case "distribution": return "Distribución";
       case "tags_seo": return "SEO Intelligence";
       case "providers": return "Providers";
@@ -123,27 +120,35 @@ export default function AdminPage() {
       <AdminSidebar
         activeView={visibleView}
         setActiveView={(view) => setActiveView(view as View)}
+        onLogout={handleLogout}
       />
 
       <div className="flex flex-col h-screen overflow-hidden" style={{ marginLeft: 64, width: 'calc(100vw - 64px)' }}>
         {visibleView !== "nexus_studio" && (
-          <AdminTopBar title={pageTitle} user={user} onLogout={handleLogout} />
+          <AdminTopBar title={pageTitle} activeView={visibleView} />
         )}
 
         <main className={`min-h-0 flex-1 ${fullBleed ? 'overflow-hidden' : visibleView === "dashboard" ? 'p-3 sm:p-4 overflow-y-auto' : 'p-6 overflow-y-auto'}`}>
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={visibleView}
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -8 }}
-              transition={{ duration: 0.15 }}
-              className={fullBleed ? 'h-full flex flex-col' : undefined}
-              style={fullBleed ? { height: '100%' } : undefined}
-            >
-              {renderContent()}
-            </motion.div>
-          </AnimatePresence>
+          {visibleView === "broadcaster" || visibleView === "nexus_studio" ? (
+            <div className="relative h-full">
+              <div className={visibleView === "broadcaster" ? "h-full" : "hidden"}><BroadcasterView /></div>
+              <div className={visibleView === "nexus_studio" ? "h-full" : "hidden"}><NexusStudioView /></div>
+            </div>
+          ) : (
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={visibleView}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.15 }}
+                className={fullBleed ? 'h-full flex flex-col' : undefined}
+                style={fullBleed ? { height: '100%' } : undefined}
+              >
+                {renderContent()}
+              </motion.div>
+            </AnimatePresence>
+          )}
         </main>
       </div>
     </div>

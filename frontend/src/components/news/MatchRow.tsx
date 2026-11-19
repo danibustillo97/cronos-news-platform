@@ -40,8 +40,8 @@ function TeamLogo({ src, name, size }: { src: string | null; name: string; size:
 function StatusLabel({ match, isDark, compact = false }: { match: Match; isDark: boolean; compact?: boolean }) {
   if (match.status === 'live') {
     return (
-      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#E30613] flex-shrink-0">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#E30613] animate-pulse" /> {match.statusDetail || 'EN VIVO'}
+      <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#FACC15] flex-shrink-0">
+        <span className="w-1.5 h-1.5 rounded-full bg-[#FACC15] animate-pulse" /> {match.statusDetail || 'EN VIVO'}
       </span>
     )
   }

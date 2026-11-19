@@ -25,7 +25,7 @@
   --editorial-surface-2: #1D1D1D;
   --editorial-white: #F5F5F3;
   --editorial-muted: #999999;
-  --editorial-accent: #E30613;
+  --editorial-accent: #FACC15;
 }
 
 @theme inline {
@@ -124,7 +124,7 @@ body {
 }
 
 .article-content a {
-  color: #dc2626;
+  color: #FACC15;
   text-decoration: underline;
   text-underline-offset: 4px;
 }
@@ -152,7 +152,7 @@ body {
 .article-content h3 { font-size: 1.4rem; }
 
 .article-content blockquote {
-  border-left: 4px solid #dc2626;
+  border-left: 4px solid #FACC15;
   background: linear-gradient(90deg, #fff5f5 0%, #ffffff 100%);
   padding: 1rem 1.25rem;
   border-radius: 0 0.8rem 0.8rem 0;

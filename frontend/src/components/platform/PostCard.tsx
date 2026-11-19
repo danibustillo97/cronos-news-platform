@@ -15,11 +15,10 @@
 // de comentarios todavía) -- Compartir es real en todas partes.
 
 import { useState } from 'react'
-import { Clock, MessageCircle, Heart, Share2, Check } from 'lucide-react'
-import EditorialImage from '@/components/news/EditorialImage'
+import Image from 'next/image'
+import { Clock, MessageCircle, Heart, Share2, Check, Play, Zap } from 'lucide-react'
 import CreatorBadge from '@/components/platform/CreatorBadge'
 import FormatBadge from '@/components/platform/FormatBadge'
-import VideoBlock from '@/components/platform/VideoBlock'
 import AudioBlock from '@/components/platform/AudioBlock'
 import { proxiedImage } from '@/lib/media'
 import type { Post } from '@/lib/platform'
@@ -67,14 +66,16 @@ function ActionIcons({ post, isDark, size = 13 }: { post: Post; isDark: boolean;
   )
 }
 
-function MediaBlock({ post }: { post: Post }) {
-  if (post.media?.videoUrl) {
-    return <VideoBlock videoUrl={post.media.videoUrl} posterUrl={proxiedImage(post.imageUrl)} title={post.title} />
+function CardImage({ src, alt, sizes }: { src: string | null; alt: string; sizes: string }) {
+  const [failed, setFailed] = useState(false)
+  if (!src || failed) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-[#2a2410] via-[#16140a] to-[#0B0B0B]">
+        <Zap size={28} className="fill-yellow-300 text-yellow-300 opacity-80" strokeWidth={0} />
+      </div>
+    )
   }
-  if (post.imageUrl) {
-    return <EditorialImage src={proxiedImage(post.imageUrl)} alt={post.title} sizes="(max-width: 768px) 100vw, 500px" variant="landscape" className="rounded-sm" />
-  }
-  return null
+  return <Image src={src} alt={alt} fill sizes={sizes} onError={() => setFailed(true)} className="object-cover transition-transform duration-500 group-hover:scale-[1.04]" />
 }
 
 export default function PostCard({
@@ -83,48 +84,65 @@ export default function PostCard({
   post: Post
   isDark: boolean
   onOpen: (post: Post) => void
-  variant?: 'feature' | 'compact'
+  variant?: 'feature' | 'compact' | 'card'
 }) {
   const isFeature = variant === 'feature'
+  const isCard = variant === 'card'
+  const image = proxiedImage(post.imageUrl)
+  const hasVideo = Boolean(post.media?.videoUrl)
+  const shell = isDark
+    ? 'border-white/[0.08] bg-[#121211] hover:border-yellow-300/40'
+    : 'border-[#E5E5E5] bg-white hover:border-yellow-400'
+
+  // Layout horizontal (imagen a un lado) para las tarjetas compactas y la destacada ancha.
+  if (!isCard) {
+    return (
+      <article className={`group overflow-hidden rounded-xl border transition-colors ${shell} ${isFeature ? 'sm:grid sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]' : 'flex'}`}>
+        <button onClick={() => onOpen(post)} aria-label={post.title} className={`relative block flex-none overflow-hidden bg-neutral-900 ${isFeature ? 'aspect-[16/10] sm:aspect-auto sm:min-h-[240px]' : 'order-last h-[88px] w-[112px]'}`}>
+          <CardImage src={image} alt={post.title} sizes={isFeature ? '(max-width: 768px) 100vw, 520px' : '120px'} />
+          {isFeature && <span className="absolute left-3 top-3 rounded-full bg-yellow-300 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-black">{post.category || 'Noticia'}</span>}
+          {hasVideo && <span className="absolute inset-0 flex items-center justify-center bg-black/30"><Play size={isFeature ? 30 : 20} className="fill-white text-white" /></span>}
+        </button>
+        <div className={`flex min-w-0 flex-1 flex-col justify-between gap-3 ${isFeature ? 'p-5' : 'p-3'}`}>
+          <button onClick={() => onOpen(post)} className="block text-left">
+            {!isFeature && <span className="text-[10px] font-black uppercase tracking-[0.14em] text-yellow-300">{post.category || 'Noticia'}</span>}
+            <h3 className={`font-serif font-bold leading-snug transition-colors group-hover:text-yellow-300 ${isFeature ? 'text-2xl line-clamp-3' : 'mt-0.5 text-sm line-clamp-2'} ${isDark ? 'text-white' : 'text-[#161616]'}`}>{post.title}</h3>
+            {isFeature && post.excerpt && <p className={`mt-2 text-sm leading-relaxed line-clamp-3 ${isDark ? 'text-neutral-400' : 'text-[#666]'}`}>{post.excerpt}</p>}
+          </button>
+          {post.media?.audioUrl && <AudioBlock trackId={post.id} audioUrl={post.media.audioUrl} title={post.title} creatorName={post.creator.name} isDark={isDark} />}
+          <div className={`flex items-center justify-between text-[11px] ${isDark ? 'text-neutral-500' : 'text-[#999]'}`}>
+            <span className="flex min-w-0 items-center gap-2">
+              {isFeature && <CreatorBadge creator={post.creator} isDark={isDark} size={20} />}
+              <span className="truncate">{formatRelative(post.publishedAt)}</span>
+              {post.readMinutes > 0 && <span className="flex items-center gap-1"><Clock size={11} /> {post.readMinutes} min</span>}
+            </span>
+            {isFeature && <ActionIcons post={post} isDark={isDark} size={13} />}
+          </div>
+        </div>
+      </article>
+    )
+  }
 
   return (
-    <article>
-      <div className="flex items-center justify-between mb-2.5">
-        <CreatorBadge creator={post.creator} isDark={isDark} size={isFeature ? 24 : 18} />
-        <FormatBadge format={post.format} />
-      </div>
-
-      {/* `feature` se cap a max-w-2xl SIEMPRE -- nunca a todo el ancho del
-          contenedor padre. En una columna angosta (FrontPage) ese máximo
-          nunca se activa (la columna ya es más angosta); en un contenedor
-          ancho (NowStream, a todo el ancho de la página) evita exactamente
-          el problema real de la iteración anterior: una imagen casi a
-          pantalla completa que se leía como "una tarjeta gigante". */}
-      <button onClick={() => onOpen(post)} className={`group block text-left w-full ${isFeature ? 'max-w-2xl' : ''}`}>
-        {(post.imageUrl || post.media?.videoUrl) && <div className="mb-2.5"><MediaBlock post={post} /></div>}
-        <span className="text-[#E30613] text-[10px] font-bold uppercase tracking-[0.14em]">{post.category || 'Noticia'}</span>
-        <h3 className={`font-serif font-bold leading-snug group-hover:opacity-70 transition-opacity ${isFeature ? 'text-xl mt-1.5' : 'text-sm mt-1 line-clamp-2'} ${isDark ? 'text-white' : 'text-[#161616]'}`}>
-          {post.title}
-        </h3>
-        {isFeature && post.excerpt && (
-          <p className={`text-sm mt-1.5 leading-relaxed line-clamp-2 ${isDark ? 'text-neutral-400' : 'text-[#666]'}`}>{post.excerpt}</p>
-        )}
+    <article className={`group flex flex-col overflow-hidden rounded-xl border transition-all hover:-translate-y-0.5 ${shell}`}>
+      <button onClick={() => onOpen(post)} aria-label={post.title} className="relative block aspect-[16/10] w-full overflow-hidden bg-neutral-900">
+        <CardImage src={image} alt={post.title} sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 300px" />
+        <span className="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/60 to-transparent" />
+        <span className="absolute left-3 top-3 rounded-full bg-yellow-300 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-black">{post.category || 'Noticia'}</span>
+        {hasVideo && <span className="absolute inset-0 flex items-center justify-center"><Play size={26} className="fill-white text-white drop-shadow" /></span>}
       </button>
-
-      {post.media?.audioUrl && (
-        <div className="mt-2.5">
-          <AudioBlock trackId={post.id} audioUrl={post.media.audioUrl} title={post.title} creatorName={post.creator.name} isDark={isDark} />
+      <div className="flex flex-1 flex-col justify-between gap-3 p-4">
+        <button onClick={() => onOpen(post)} className="block text-left">
+          <h3 className={`font-serif text-[15px] font-bold leading-snug line-clamp-3 transition-colors group-hover:text-yellow-300 ${isDark ? 'text-white' : 'text-[#161616]'}`}>{post.title}</h3>
+        </button>
+        {post.media?.audioUrl && <AudioBlock trackId={post.id} audioUrl={post.media.audioUrl} title={post.title} creatorName={post.creator.name} isDark={isDark} />}
+        <div className={`flex items-center justify-between text-[11px] ${isDark ? 'text-neutral-500' : 'text-[#999]'}`}>
+          <span className="flex items-center gap-2">
+            <span>{formatRelative(post.publishedAt)}</span>
+            {post.readMinutes > 0 && <span className="flex items-center gap-1"><Clock size={11} /> {post.readMinutes} min</span>}
+          </span>
+          <ShareIcon slug={post.slug} isDark={isDark} size={13} />
         </div>
-      )}
-
-      <div className={`flex items-center justify-between mt-2 text-[11px] ${isDark ? 'text-neutral-500' : 'text-[#999]'}`}>
-        <span className="flex items-center gap-3">
-          <span>{formatRelative(post.publishedAt)}</span>
-          {post.readMinutes > 0 && (
-            <span className="flex items-center gap-1"><Clock size={11} /> {post.readMinutes} min</span>
-          )}
-        </span>
-        <ActionIcons post={post} isDark={isDark} size={isFeature ? 14 : 12} />
       </div>
     </article>
   )

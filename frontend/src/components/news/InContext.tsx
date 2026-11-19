@@ -36,7 +36,7 @@ export default function InContext({ news, onOpen }: { news: NewsView[]; onOpen: 
           {items.map((item) => (
             <button key={item.id} onClick={() => onOpen(item)} className="col-span-4 group block text-left">
               <EditorialImage src={proxiedImage(item.image_url)} alt={item.title} sizes="(max-width: 768px) 100vw, 33vw" className="rounded-sm mb-2.5" />
-              <span className="text-[#E30613] text-[10px] font-bold uppercase tracking-[0.14em]">
+              <span className="text-[#FACC15] text-[10px] font-bold uppercase tracking-[0.14em]">
                 {FORMAT_LABEL[item.content_format as string] || item.content_format}
               </span>
               <h3 className="font-serif font-bold text-lg leading-snug mt-1.5 text-white group-hover:opacity-70 transition-opacity">

@@ -40,13 +40,13 @@ export default function MediaPlayerBar() {
   return (
     <div className="fixed bottom-0 inset-x-0 z-40 bg-[#0B0B0B] border-t border-white/10">
       <div className="h-0.5 bg-white/10">
-        <div className="h-full bg-[#E30613] transition-[width]" style={{ width: `${pct}%` }} />
+        <div className="h-full bg-[#FACC15] transition-[width]" style={{ width: `${pct}%` }} />
       </div>
       <div className="max-w-7xl mx-auto px-4 h-14 flex items-center gap-3">
         <button
           onClick={toggle}
           aria-label={isPlaying ? 'Pausar' : 'Reproducir'}
-          className="flex-shrink-0 w-9 h-9 rounded-full bg-[#E30613] text-white flex items-center justify-center"
+          className="flex-shrink-0 w-9 h-9 rounded-full bg-[#FACC15] text-black flex items-center justify-center"
         >
           {isPlaying ? <Pause size={14} fill="white" /> : <Play size={14} fill="white" className="ml-0.5" />}
         </button>

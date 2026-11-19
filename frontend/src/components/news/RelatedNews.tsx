@@ -84,7 +84,7 @@ export default function RelatedNews({ currentNewsId, category, onNewsClick }: Re
   return (
     <div className="mt-16 pt-12 border-t border-neutral-200">
       <h3 className="text-2xl font-black text-neutral-900 mb-8 flex items-center gap-3">
-        <span className="w-1.5 h-8 bg-red-600 rounded-full"></span>
+        <span className="w-1.5 h-8 bg-yellow-400 rounded-full"></span>
         Podría interesarte
       </h3>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8">

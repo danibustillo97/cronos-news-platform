@@ -21,7 +21,7 @@ export default function FormatBadge({ format }: { format: PostFormat }) {
   const { icon: Icon, label } = CONFIG[format] ?? CONFIG.article
   const live = format === 'live'
   return (
-    <span className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] ${live ? 'text-[#E30613]' : 'text-neutral-500'}`}>
+    <span className={`inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-[0.1em] ${live ? 'text-[#FACC15]' : 'text-neutral-500'}`}>
       <Icon size={11} className={live ? 'animate-pulse' : ''} />
       {label}
     </span>

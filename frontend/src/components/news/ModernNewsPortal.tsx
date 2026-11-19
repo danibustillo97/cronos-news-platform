@@ -95,7 +95,7 @@ export default function ModernNewsPortal() {
   if (loading) {
     return (
       <div className={`min-h-screen flex items-center justify-center ${isDark ? 'bg-[#0B0B0B]' : 'bg-[#F7F7F5]'}`}>
-        <div className="animate-spin h-10 w-10 border-t-2 border-b-2 border-[#E30613] rounded-full" />
+        <div className="animate-spin h-10 w-10 border-t-2 border-b-2 border-[#FACC15] rounded-full" />
       </div>
     )
   }

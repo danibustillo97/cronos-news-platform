@@ -20,7 +20,7 @@ export default function CoverageRail({ coverage, isDark, onOpen }: { coverage: C
         {match.homeLogo && <Image src={match.homeLogo} alt="" width={18} height={18} className="object-contain" />}
         <span className={`text-xs font-bold ${isDark ? 'text-white' : 'text-[#161616]'}`}>{coverage.title}</span>
         {match.awayLogo && <Image src={match.awayLogo} alt="" width={18} height={18} className="object-contain" />}
-        <span className={`ml-auto text-[10px] font-bold uppercase tracking-[0.1em] ${match.status === 'live' ? 'text-[#E30613]' : isDark ? 'text-neutral-500' : 'text-[#999]'}`}>
+        <span className={`ml-auto text-[10px] font-bold uppercase tracking-[0.1em] ${match.status === 'live' ? 'text-[#FACC15]' : isDark ? 'text-neutral-500' : 'text-[#999]'}`}>
           {match.status === 'live' ? 'En vivo' : match.status === 'finished' ? 'Final' : 'Próximo'} · {match.homeScore}-{match.awayScore}
         </span>
       </div>

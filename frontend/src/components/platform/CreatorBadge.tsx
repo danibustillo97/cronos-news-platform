@@ -32,7 +32,7 @@ export default function CreatorBadge({
   const content = (
     <>
       <span
-        className="flex-shrink-0 rounded-full bg-[#E30613]/15 flex items-center justify-center font-bold text-[#E30613]"
+        className="flex-shrink-0 rounded-full bg-[#FACC15]/15 flex items-center justify-center font-bold text-[#FACC15]"
         style={{ width: size, height: size, fontSize: size * 0.42 }}
       >
         {creator.initial}

@@ -29,19 +29,19 @@ export default function NowStream({
   return (
     <SectionBand bg={isDark ? '#0D0D0C' : '#F1F1EE'} borderColor={isDark ? 'rgba(255,255,255,0.1)' : '#E5E5E5'}>
       <section>
-        <div className="flex items-baseline justify-between mb-4">
-          <h2 className={`text-xl font-serif font-bold ${isDark ? 'text-white' : 'text-[#161616]'}`}>Ahora</h2>
+        <div className="flex items-end justify-between mb-5 gap-3">
+          <h2 className={`flex items-center gap-2.5 text-xl font-serif font-bold ${isDark ? 'text-white' : 'text-[#161616]'}`}><span className="h-5 w-1 rounded-full bg-yellow-300" />Ahora</h2>
           <span className={`text-xs ${isDark ? 'text-neutral-500' : 'text-[#999]'}`}>¿Qué está pasando?</span>
         </div>
 
-        <div className={`pb-6 mb-6 border-b ${isDark ? 'border-white/10' : 'border-[#E5E5E5]'}`}>
+        <div className="mb-5">
           <PostCard post={lead} isDark={isDark} onOpen={openPost} variant="feature" />
         </div>
 
         {rest.length > 0 && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-3 gap-4">
             {rest.map((post) => (
-              <PostCard key={post.id} post={post} isDark={isDark} onOpen={openPost} variant="compact" />
+              <PostCard key={post.id} post={post} isDark={isDark} onOpen={openPost} variant="card" />
             ))}
           </div>
         )}

@@ -25,7 +25,7 @@ function Chip({ href, label, isDark }: { href: string; label: string; isDark: bo
     <Link
       href={href}
       className={`inline-block px-3 py-1.5 text-xs font-semibold rounded-full border transition-colors ${
-        isDark ? 'border-white/15 text-neutral-200 hover:border-[#E30613] hover:text-white' : 'border-[#E5E5E5] text-[#333] hover:border-[#E30613] hover:text-[#161616]'
+        isDark ? 'border-white/15 text-neutral-200 hover:border-[#FACC15] hover:text-white' : 'border-[#E5E5E5] text-[#333] hover:border-[#FACC15] hover:text-[#161616]'
       }`}
     >
       {label}

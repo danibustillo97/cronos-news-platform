@@ -130,7 +130,7 @@ export default function ArticleContent({
         aria-pressed={saved}
         className="flex items-center justify-center gap-2 p-2.5 rounded-full border border-neutral-200 text-neutral-600 hover:border-neutral-300 hover:text-neutral-900 transition-colors"
       >
-        {saved ? <BookmarkCheck size={18} className="text-red-600" /> : <Bookmark size={18} />}
+        {saved ? <BookmarkCheck size={18} className="text-yellow-400" /> : <Bookmark size={18} />}
       </button>
       <a
         href={shareUrl('whatsapp', canonicalUrl, news.title)}
@@ -176,10 +176,10 @@ export default function ArticleContent({
       <div className="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start mb-8">
         <div>
           <div className="flex items-center gap-3 mb-3">
-            <span className="text-red-600 font-bold text-xs uppercase tracking-[0.2em]">
+            <span className="text-yellow-400 font-bold text-xs uppercase tracking-[0.2em]">
               {news.category || 'Noticia'}
             </span>
-            <span className="h-px w-8 bg-red-600" />
+            <span className="h-px w-8 bg-yellow-400" />
           </div>
 
           <h1 className="text-3xl md:text-4xl lg:text-[2.75rem] font-black text-neutral-900 leading-[1.08] mb-4">
@@ -191,7 +191,7 @@ export default function ArticleContent({
           )}
 
           <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 rounded-full bg-red-600 text-white font-black flex items-center justify-center flex-shrink-0">
+            <div className="w-10 h-10 rounded-full bg-yellow-400 text-black font-black flex items-center justify-center flex-shrink-0">
               {(news.author || 'Nexus News').trim().charAt(0).toUpperCase()}
             </div>
             <div className="flex flex-col">
@@ -231,7 +231,7 @@ export default function ArticleContent({
             />
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-800 to-neutral-950">
-              <span className="text-red-500 font-black text-2xl tracking-tight">Nexus News</span>
+              <span className="text-yellow-400 font-black text-2xl tracking-tight">Nexus News</span>
             </div>
           )}
           {heroImage && (
@@ -261,7 +261,7 @@ export default function ArticleContent({
 
         <div className="min-w-0">
           <div className="article-content max-w-none
-            [&>p:first-of-type]:first-letter:text-7xl [&>p:first-of-type]:first-letter:font-black [&>p:first-of-type]:first-letter:text-red-600 [&>p:first-of-type]:first-letter:mr-4 [&>p:first-of-type]:first-letter:float-left [&>p:first-of-type]:first-letter:leading-[0.8]
+            [&>p:first-of-type]:first-letter:text-7xl [&>p:first-of-type]:first-letter:font-black [&>p:first-of-type]:first-letter:text-yellow-400 [&>p:first-of-type]:first-letter:mr-4 [&>p:first-of-type]:first-letter:float-left [&>p:first-of-type]:first-letter:leading-[0.8]
           ">
             {parse(safeArticleContent || `<p>${news.excerpt || 'Sin contenido disponible.'}</p>`)}
           </div>
@@ -280,9 +280,9 @@ export default function ArticleContent({
               <form className="flex flex-col gap-2" onSubmit={(e) => e.preventDefault()}>
                 <input
                   type="email" placeholder="Tu correo electrónico"
-                  className="rounded-lg px-3 py-2.5 text-sm border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-red-500/60"
+                  className="rounded-lg px-3 py-2.5 text-sm border border-neutral-200 bg-white text-neutral-900 placeholder:text-neutral-400 outline-none focus:border-yellow-400/60"
                 />
-                <button type="submit" className="bg-red-600 hover:bg-red-700 transition-colors text-white px-4 py-2.5 rounded-lg font-bold text-sm">
+                <button type="submit" className="bg-yellow-400 hover:bg-yellow-300 transition-colors text-black px-4 py-2.5 rounded-lg font-bold text-sm">
                   Suscribirme
                 </button>
               </form>

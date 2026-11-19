@@ -368,7 +368,7 @@ function SistemaCompleto({ news }: { news: News[] }) {
 
 function Ticker({ titulos }: { titulos: string[] }) {
   return (
-    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-r from-black via-red-900/40 to-black py-3 border-t-2 border-red-500">
+    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-r from-black via-yellow-900/40 to-black py-3 border-t-2 border-yellow-400">
       <motion.div
         animate={{ x: ['100%', '-100%'] }}
         transition={{ repeat: Infinity, duration: 35, ease: 'linear' }}
@@ -397,17 +397,17 @@ function Header() {
   return (
     <>
       <div className="absolute top-6 left-6 flex items-center gap-3">
-        <div className="w-14 h-14 bg-red-600 rounded-lg flex items-center justify-center">
+        <div className="w-14 h-14 bg-yellow-400 rounded-lg flex items-center justify-center">
           <span className="text-white text-2xl font-bold">N</span>
         </div>
         <div>
           <h1 className="text-white text-2xl font-bold">NEXUS NEWS</h1>
-          <p className="text-red-400 text-xs font-semibold">Breaking News 24/7</p>
+          <p className="text-yellow-300 text-xs font-semibold">Breaking News 24/7</p>
         </div>
       </div>
 
-      <div className="absolute top-6 right-6 bg-black/90 px-5 py-2 rounded-lg border-2 border-red-500">
-        <p className="text-red-400 text-xs font-bold">EN VIVO</p>
+      <div className="absolute top-6 right-6 bg-black/90 px-5 py-2 rounded-lg border-2 border-yellow-400">
+        <p className="text-yellow-300 text-xs font-bold">EN VIVO</p>
         <p className="text-white text-xl font-bold">{hora}</p>
       </div>
     </>

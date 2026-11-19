@@ -94,7 +94,7 @@ function DeportesContent() {
         <div className="flex items-center gap-3 mb-1">
           <h1 className="text-3xl font-black">Deportes</h1>
           {live.length > 0 && (
-            <span className="inline-flex items-center gap-1.5 bg-[#E30613] text-white text-[10px] font-bold uppercase tracking-[0.1em] px-2 py-1 rounded-sm">
+            <span className="inline-flex items-center gap-1.5 bg-[#FACC15] text-black text-[10px] font-bold uppercase tracking-[0.1em] px-2 py-1 rounded-sm">
               <Radio size={11} /> {live.length} en vivo
             </span>
           )}
@@ -175,7 +175,7 @@ function DeportesContent() {
                 <button
                   key={l.id}
                   onClick={() => setLeague(l.id)}
-                  className={`px-2.5 py-1 text-[11px] font-bold whitespace-nowrap rounded-sm ${league === l.id ? 'bg-[#E30613] text-white' : isDark ? 'text-neutral-400 hover:text-white' : 'text-[#666] hover:text-[#161616]'}`}
+                  className={`px-2.5 py-1 text-[11px] font-bold whitespace-nowrap rounded-sm ${league === l.id ? 'bg-[#FACC15] text-black' : isDark ? 'text-neutral-400 hover:text-black' : 'text-[#666] hover:text-[#161616]'}`}
                 >
                   {l.label}
                 </button>

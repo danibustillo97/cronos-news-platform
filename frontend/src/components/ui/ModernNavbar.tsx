@@ -49,7 +49,7 @@ export default function ModernNavbar() {
           }`}
         >
           <Link href="/" className="flex items-center gap-2 min-w-0 flex-shrink-0">
-            <Zap size={26} className="text-[#E30613] fill-[#E30613] flex-shrink-0" strokeWidth={0} />
+            <Zap size={26} className="text-[#FACC15] fill-[#FACC15] flex-shrink-0" strokeWidth={0} />
             <span className="flex flex-col leading-none">
               <span className={`font-black text-lg tracking-tight whitespace-nowrap ${isDark ? 'text-white' : 'text-neutral-900'}`}>
                 NEXUS
@@ -75,7 +75,7 @@ export default function ModernNavbar() {
           </nav>
 
           <div className={`hidden md:flex items-center gap-3 ${isDark ? 'text-white/80' : 'text-neutral-600'}`}>
-            <button aria-label="Buscar" className="hover:text-[#E30613] transition">
+            <button aria-label="Buscar" className="hover:text-[#FACC15] transition">
               <Search size={17} />
             </button>
             <button

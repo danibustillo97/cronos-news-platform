@@ -32,7 +32,7 @@ export default function AudioBlock({
       <button
         onClick={() => play({ id: trackId, title, creatorName, audioUrl })}
         aria-label={showPause ? 'Pausar' : 'Reproducir'}
-        className="flex-shrink-0 w-9 h-9 rounded-full bg-[#E30613] text-white flex items-center justify-center"
+        className="flex-shrink-0 w-9 h-9 rounded-full bg-[#FACC15] text-black flex items-center justify-center"
       >
         {showPause ? <Pause size={15} fill="white" /> : <Play size={15} fill="white" className="ml-0.5" />}
       </button>

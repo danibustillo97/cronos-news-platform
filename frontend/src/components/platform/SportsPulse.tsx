@@ -52,18 +52,18 @@ export default function SportsPulse({
   const openPost = (post: Post) => onOpen(post.source)
 
   return (
-    <SectionBand bg={isDark ? '#0B0B0B' : '#FFFFFF'} borderColor="#E50914">
+    <SectionBand bg={isDark ? '#0B0B0B' : '#FFFFFF'} borderColor="#FACC15">
       <section>
         <div className="flex items-baseline justify-between mb-4">
           <div className="flex items-center gap-3">
             <h2 className={`text-xl font-serif font-bold ${isDark ? 'text-white' : 'text-[#161616]'}`}>Sports Pulse</h2>
             {live.length > 0 && (
-              <span className="inline-flex items-center gap-1.5 bg-[#E30613] text-white text-[10px] font-bold uppercase tracking-[0.1em] px-2 py-1 rounded-sm">
+              <span className="inline-flex items-center gap-1.5 bg-[#FACC15] text-black text-[10px] font-bold uppercase tracking-[0.1em] px-2 py-1 rounded-sm">
                 <Radio size={11} className="animate-pulse" /> {live.length} en vivo
               </span>
             )}
           </div>
-          <Link href="/deportes" className="text-xs font-bold text-[#E30613] hover:opacity-70 transition-opacity">
+          <Link href="/deportes" className="text-xs font-bold text-[#FACC15] hover:opacity-70 transition-opacity">
             Ir al hub de deportes →
           </Link>
         </div>

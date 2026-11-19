@@ -60,7 +60,7 @@ export default function EditorialImage({
         <Image src={src} alt={alt} fill priority={priority} sizes={sizes} className="object-cover" />
       ) : (
         <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-neutral-800 to-neutral-950">
-          <span className="text-[#E30613] font-black text-xl">NEXUS</span>
+          <span className="text-[#FACC15] font-black text-xl">NEXUS</span>
         </div>
       )}
     </div>

@@ -21,7 +21,7 @@ export default function ScoreTicker({ matches }: { matches: Match[] }) {
   return (
     <div className="w-full overflow-x-auto scrollbar-hide bg-[#0B0B0B] border-t border-white/[0.06]" role="region" aria-label="Resultados deportivos en vivo">
       <div className="flex items-center h-8 max-w-7xl mx-auto" role="list">
-        <span className={`flex items-center h-full gap-1.5 text-white text-[10px] font-bold uppercase tracking-[0.12em] px-3 flex-shrink-0 ${live.length > 0 ? 'bg-[#E30613]' : 'bg-neutral-800'}`}>
+        <span className={`flex items-center h-full gap-1.5 text-black text-[10px] font-bold uppercase tracking-[0.12em] px-3 flex-shrink-0 ${live.length > 0 ? 'bg-[#FACC15]' : 'bg-neutral-800'}`}>
           {live.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" aria-hidden="true" />}
           Pulse
         </span>

@@ -30,11 +30,11 @@ export default function SportsSection({
   if (!featured) return null
 
   return (
-    <SectionBand bg={isDark ? '#0B0B0B' : '#FFFFFF'} borderColor="#E50914">
+    <SectionBand bg={isDark ? '#0B0B0B' : '#FFFFFF'} borderColor="#FACC15">
       <section>
         <div className="flex items-baseline justify-between mb-5">
           <h2 className={`text-xl font-serif font-bold ${isDark ? 'text-white' : 'text-[#161616]'}`}>Fútbol / Deportes</h2>
-          <Link href="/deportes" className="text-xs font-bold text-[#E30613] hover:opacity-70 transition-opacity">
+          <Link href="/deportes" className="text-xs font-bold text-[#FACC15] hover:opacity-70 transition-opacity">
             Ir al hub de deportes →
           </Link>
         </div>
@@ -43,7 +43,7 @@ export default function SportsSection({
           <div className="col-span-4 md:col-span-5 lg:col-span-7">
             <button onClick={() => onOpen(featured)} className="group block text-left mb-6">
               <EditorialImage src={proxiedImage(featured.image_url)} alt={featured.title} sizes="(max-width: 1024px) 100vw, 620px" className="rounded-sm mb-3" />
-              <span className="text-[#E30613] text-[10px] font-bold uppercase tracking-[0.14em]">{featured.category}</span>
+              <span className="text-[#FACC15] text-[10px] font-bold uppercase tracking-[0.14em]">{featured.category}</span>
               <h3 className={`text-xl font-serif font-bold leading-snug mt-1.5 group-hover:opacity-70 transition-opacity ${isDark ? 'text-white' : 'text-[#161616]'}`}>
                 {featured.title}
               </h3>

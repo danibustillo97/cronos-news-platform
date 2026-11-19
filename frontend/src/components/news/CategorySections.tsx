@@ -58,7 +58,7 @@ export default function CategorySections({ news, isDark }: { news: NewsView[]; i
               </h3>
               <Link
                 href={`/categoria/${slugifyCategory(category)}`}
-                className="text-xs font-bold text-[#E30613] hover:opacity-70 transition-opacity"
+                className="text-xs font-bold text-[#FACC15] hover:opacity-70 transition-opacity"
               >
                 Ver más →
               </Link>

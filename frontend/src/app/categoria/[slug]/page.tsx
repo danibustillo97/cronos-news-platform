@@ -88,11 +88,11 @@ export default function CategoriaPage() {
         )}
 
         {visibleNews === null ? (
-          <div className="animate-spin h-8 w-8 border-t-4 border-b-4 border-[#E30613] rounded-full" />
+          <div className="animate-spin h-8 w-8 border-t-4 border-b-4 border-[#FACC15] rounded-full" />
         ) : visibleNews.length === 0 ? (
           <div className="text-neutral-500">
             <p>Todavía no hay historias publicadas en este tema.</p>
-            <Link href="/" className="text-[#E30613] font-semibold text-sm mt-2 inline-block">← Volver al inicio</Link>
+            <Link href="/" className="text-[#FACC15] font-semibold text-sm mt-2 inline-block">← Volver al inicio</Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mt-6">
