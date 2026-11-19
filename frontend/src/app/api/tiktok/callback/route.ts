@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
-import { extractCodeVerifier } from '../auth/route';
+import { createSupabaseServerClient } from '@/lib/supabaseServer';
+import { adminAuthError, requireAdmin } from '@/lib/supabaseAuth';
+import { decodeOAuthState } from '@/lib/oauthState';
+import { encryptToken } from '@/lib/tokenEncryption';
 
 /**
  * TikTok OAuth Callback
@@ -8,6 +10,7 @@ import { extractCodeVerifier } from '../auth/route';
  */
 export async function GET(request: NextRequest) {
   try {
+    await requireAdmin(request);
     const { searchParams } = new URL(request.url);
     const code = searchParams.get('code');
     const state = searchParams.get('state');
@@ -40,9 +43,21 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Extract code verifier from state (PKCE)
-    const codeVerifier = state ? extractCodeVerifier(state) : null;
-    
+    const cookieState = request.cookies.get('tiktok_oauth_state')?.value;
+    if (!cookieState || !state || cookieState !== state) {
+      return NextResponse.json(
+        { error: 'Invalid OAuth state' },
+        { status: 400 }
+      );
+    }
+    const decoded = decodeOAuthState(cookieState);
+    if (!decoded) {
+      return NextResponse.json(
+        { error: 'Invalid or expired OAuth state' },
+        { status: 400 }
+      );
+    }
+    const codeVerifier = decoded.codeVerifier;
     if (!codeVerifier) {
       return NextResponse.json(
         { error: 'Invalid or expired session. Please try connecting again.' },
@@ -68,7 +83,7 @@ export async function GET(request: NextRequest) {
 
     if (!tokenResponse.ok) {
       const errorData = await tokenResponse.json();
-      console.error('TikTok token error:', errorData);
+      console.error('TikTok token exchange was rejected');
       return NextResponse.json(
         { error: 'Failed to exchange code for token' },
         { status: 500 }
@@ -89,22 +104,29 @@ export async function GET(request: NextRequest) {
       userInfo = await userResponse.json();
     }
 
-    // Store tokens in Supabase (in a real app, encrypt these)
+    const accessTokenEncrypted = encryptToken(tokenData.access_token);
+    const refreshTokenEncrypted = tokenData.refresh_token
+      ? encryptToken(tokenData.refresh_token)
+      : null;
+    const admin = await requireAdmin(request);
+    const supabase = createSupabaseServerClient();
+
     const { error: dbError } = await supabase
       .from('tiktok_accounts')
       .upsert({
+        user_id: admin.id,
         open_id: tokenData.open_id,
-        access_token: tokenData.access_token,
-        refresh_token: tokenData.refresh_token,
+        access_token_encrypted: accessTokenEncrypted,
+        refresh_token_encrypted: refreshTokenEncrypted,
         expires_in: tokenData.expires_in,
         created_at: new Date().toISOString(),
         user_info: userInfo?.data?.user || null,
       }, {
-        onConflict: 'open_id'
+        onConflict: 'user_id,open_id'
       });
 
     if (dbError) {
-      console.error('Database error details:', dbError);
+      console.error('TikTok account persistence failed:', dbError.code || 'UNKNOWN');
       return NextResponse.json(
         { 
           error: 'Failed to store TikTok credentials',
@@ -158,11 +180,16 @@ export async function GET(request: NextRequest) {
 </body>
 </html>`;
     
-    return new NextResponse(html, {
+    const response = new NextResponse(html, {
       headers: { 'Content-Type': 'text/html' },
     });
+    response.cookies.delete('tiktok_oauth_state');
+    return response;
     
   } catch (error) {
+    if (error instanceof Error && 'status' in error) {
+      return adminAuthError(error);
+    }
     console.error('TikTok callback error:', error);
     return NextResponse.json(
       { error: 'Failed to complete TikTok authentication' },

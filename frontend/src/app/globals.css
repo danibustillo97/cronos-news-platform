@@ -29,7 +29,8 @@
 }
 
 @theme inline {
-  --font-serif: var(--font-serif);
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-primary: var(--primary);

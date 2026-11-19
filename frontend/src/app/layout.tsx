@@ -1,15 +1,7 @@
 import './globals.css'
 import type { Metadata } from 'next'
-import { Inter, Source_Serif_4 } from 'next/font/google'
 import AppLayoutClient from './AppLayoutClient'
 import { apiUrl } from '@/studio/lab/api-client'
-
-const inter = Inter({ subsets: ['latin'] })
-
-// Editorial display serif -- headlines only (lead story, section leads).
-// Never replaces Inter for nav/metadata/UI, per the homepage redesign's
-// typographic hierarchy: serif for editorial voice, sans for chrome.
-const sourceSerif = Source_Serif_4({ subsets: ['latin'], variable: '--font-serif', weight: ['600', '700', '900'] })
 
 // Site title/description/keywords are editable from /admin (AdminSeoTags,
 // backed by GET/PUT /api/settings/seo) -- these constants are ONLY the
@@ -24,7 +16,13 @@ const FALLBACK_SEO = {
 
 async function getSeoSettings(): Promise<{ title: string; description: string; keywords: string[] }> {
   try {
-    const res = await fetch(apiUrl('/api/settings/seo'), { next: { revalidate: 60 } })
+    if (!process.env.NEXT_PUBLIC_API_BASE_URL && !process.env.BACKEND_PUBLIC_URL) {
+      return FALLBACK_SEO
+    }
+    const res = await fetch(apiUrl('/api/settings/seo'), {
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(5000),
+    })
     if (!res.ok) return FALLBACK_SEO
     const data = await res.json()
     return { title: data.siteTitle, description: data.metaDescription, keywords: data.keywords }
@@ -69,9 +67,6 @@ export async function generateMetadata(): Promise<Metadata> {
     creator: '@nexusnews',
     images: ['/og-image.jpg'],
   },
-  verification: {
-    google: 'tu-codigo-de-verificacion-google', // Placeholder
-  },
   robots: {
     index: true,
     follow: true,
@@ -89,15 +84,7 @@ export async function generateMetadata(): Promise<Metadata> {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
-      <head>
-        {/* Google AdSense */}
-        <script
-          async
-          src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-9550834544643550"
-          crossOrigin="anonymous"
-        ></script>
-      </head>
-      <body className={`${inter.className} ${sourceSerif.variable} bg-neutral-950 text-white selection:bg-yellow-400 selection:text-black overflow-x-hidden max-w-full`}>
+      <body className="bg-neutral-950 text-white selection:bg-yellow-400 selection:text-black overflow-x-hidden max-w-full">
         <AppLayoutClient>{children}</AppLayoutClient>
       </body>
     </html>

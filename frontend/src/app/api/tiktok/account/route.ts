@@ -1,16 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { createSupabaseServerClient } from '@/lib/supabaseServer';
+import { adminAuthError, requireAdmin } from '@/lib/supabaseAuth';
 
 /**
  * Get connected TikTok account info
  */
 export async function GET(request: NextRequest) {
   try {
-    console.log('[TikTok Account] Fetching account...');
+    const admin = await requireAdmin(request);
+    const supabase = createSupabaseServerClient();
     
     const { data: account, error } = await supabase
       .from('tiktok_accounts')
-      .select('*')
+      .select('open_id,user_info,expires_in,created_at')
+      .eq('user_id', admin.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -51,7 +54,10 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('TikTok account check error:', error);
+    if (error instanceof Error && 'status' in error) {
+      return adminAuthError(error);
+    }
+    console.error('TikTok account check could not be completed');
     return NextResponse.json(
       { connected: false, error: 'Failed to check TikTok account' },
       { status: 500 }
@@ -64,13 +70,18 @@ export async function GET(request: NextRequest) {
  */
 export async function DELETE(request: NextRequest) {
   try {
+    const admin = await requireAdmin(request);
+    const supabase = createSupabaseServerClient();
     const { error } = await supabase
       .from('tiktok_accounts')
       .delete()
-      .neq('open_id', ''); // Delete all accounts
+      .eq('user_id', admin.id)
 
     if (error) {
-      console.error('Disconnect error:', error);
+      if (error instanceof Error && 'status' in error) {
+        return adminAuthError(error);
+      }
+      console.error('TikTok account disconnect could not be completed');
       return NextResponse.json(
         { error: 'Failed to disconnect TikTok account' },
         { status: 500 }
@@ -80,7 +91,10 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ success: true });
 
   } catch (error) {
-    console.error('TikTok disconnect error:', error);
+    if (error instanceof Error && 'status' in error) {
+      return adminAuthError(error);
+    }
+    console.error('TikTok disconnect could not be completed');
     return NextResponse.json(
       { error: 'Failed to disconnect TikTok account' },
       { status: 500 }

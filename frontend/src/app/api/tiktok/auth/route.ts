@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
+import { encodeOAuthState } from '@/lib/oauthState';
+import { adminAuthError, requireAdmin } from '@/lib/supabaseAuth';
 
 // Cookie name for storing code verifier
 const CODE_VERIFIER_COOKIE = 'tiktok_code_verifier';
@@ -26,18 +28,12 @@ function generatePKCE() {
  */
 export async function GET(request: NextRequest) {
   try {
+    await requireAdmin(request);
     // Trim values to remove accidental spaces or quotes
     const clientKey = process.env.TIKTOK_CLIENT_KEY?.trim().replace(/^["']|["']$/g, '');
     const clientSecret = process.env.TIKTOK_CLIENT_SECRET?.trim().replace(/^["']|["']$/g, '');
     const redirectUri = process.env.TIKTOK_REDIRECT_URI?.trim().replace(/^["']|["']$/g, '');
     const isDemoMode = process.env.TIKTOK_DEMO_MODE === 'true';
-    
-    console.log('[TikTok Auth] Checking credentials:', {
-      hasClientKey: !!clientKey,
-      clientKeyLength: clientKey?.length,
-      hasRedirectUri: !!redirectUri,
-      hasClientSecret: !!clientSecret,
-    });
     
     // Check if credentials are configured
     if (!clientKey || !redirectUri || !clientSecret) {
@@ -46,8 +42,6 @@ export async function GET(request: NextRequest) {
         clientSecret: !clientSecret,
         redirectUri: !redirectUri,
       };
-      
-      console.log('[TikTok Auth] Missing credentials:', missing);
       
       if (isDemoMode) {
         return NextResponse.json({
@@ -95,57 +89,45 @@ export async function GET(request: NextRequest) {
     
     // Create state that includes code_verifier (encoded) - TikTok returns this unchanged
     // Format: randomId.codeVerifierEncoded
-    const randomId = crypto.randomBytes(8).toString('base64url');
-    const state = `${randomId}.${Buffer.from(codeVerifier).toString('base64url')}`;
-    
-    // Build TikTok OAuth URL with PKCE
-    const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/');
-    authUrl.searchParams.set('client_key', clientKey);
-    authUrl.searchParams.set('redirect_uri', redirectUri);
-    authUrl.searchParams.set('scope', 'video.upload,user.info.basic');
-    authUrl.searchParams.set('response_type', 'code');
-    authUrl.searchParams.set('state', state);
-    authUrl.searchParams.set('code_challenge', codeChallenge);
-    authUrl.searchParams.set('code_challenge_method', 'S256');
-    
-    const finalUrl = authUrl.toString();
-    
-    // Debug logging
-    console.log('[TikTok Auth] Generated URL:', finalUrl);
-    console.log('[TikTok Auth] Client key:', clientKey.substring(0, 10) + '... (length: ' + clientKey.length + ')');
-    console.log('[TikTok Auth] Redirect URI:', redirectUri);
-    console.log('[TikTok Auth] Code challenge:', codeChallenge.substring(0, 20) + '...');
-    
-    // Create JSON response with auth URL
-    // Note: state now contains encoded code_verifier for reliable retrieval
-    return NextResponse.json({
-      authUrl: finalUrl,
-      state: randomId, // Only return the random part to frontend (for logging/debug)
-      codeChallenge: codeChallenge.substring(0, 20) + '...',
+    const unsignedState = crypto.randomBytes(32).toString('base64url');
+    const signedState = encodeOAuthState({
+      state: unsignedState,
+      codeVerifier,
+      expiresAt: Date.now() + 10 * 60 * 1000,
     });
     
+    const response = NextResponse.json({
+      authUrl: (() => {
+        const authUrl = new URL('https://www.tiktok.com/v2/auth/authorize/');
+        authUrl.searchParams.set('client_key', clientKey);
+        authUrl.searchParams.set('redirect_uri', redirectUri);
+        authUrl.searchParams.set('scope', 'video.upload,user.info.basic');
+        authUrl.searchParams.set('response_type', 'code');
+        authUrl.searchParams.set('state', signedState);
+        authUrl.searchParams.set('code_challenge', codeChallenge);
+        authUrl.searchParams.set('code_challenge_method', 'S256');
+        return authUrl.toString();
+      })(),
+      state: unsignedState,
+      codeChallenge: codeChallenge.substring(0, 20) + '...',
+    });
+    response.cookies.set('tiktok_oauth_state', signedState, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      maxAge: 600,
+      path: '/',
+    });
+    return response;
+    
   } catch (error) {
+    if (error instanceof Error && ('status' in error)) {
+      return adminAuthError(error);
+    }
     console.error('TikTok auth error:', error);
     return NextResponse.json(
       { error: 'Failed to initiate TikTok authentication', details: String(error) },
       { status: 500 }
     );
-  }
-}
-
-/**
- * Extract code verifier from state parameter
- * State format: randomId.codeVerifierEncoded
- */
-export function extractCodeVerifier(state: string): string | null {
-  try {
-    const parts = state.split('.');
-    if (parts.length === 2) {
-      const encodedVerifier = parts[1];
-      return Buffer.from(encodedVerifier, 'base64url').toString('utf-8');
-    }
-    return null;
-  } catch {
-    return null;
   }
 }

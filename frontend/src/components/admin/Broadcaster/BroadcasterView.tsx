@@ -611,7 +611,7 @@ export default function BroadcasterView() {
   previewSceneIdRef.current = previewSceneId;
 
   useEffect(() => {
-    setTopbarHost(document.querySelector("[data-broadcaster-topbar-slot]"));
+    setTopbarHost(document.querySelector<HTMLElement>("[data-broadcaster-topbar-slot]"));
   }, []);
 
   const studioMode: BroadcastMode = activePane === "football" ? "football" : "normal";
@@ -647,10 +647,12 @@ export default function BroadcasterView() {
         setProgramSceneSnapshot(storedProgramScene);
       }
       if (storedGraphics.length) {
-        const normalizedGraphics = storedGraphics.map((graphic) => ({
+        const normalizedGraphics: BroadcastGraphic[] = storedGraphics.map((graphic) => ({
           ...graphic,
           mode: graphic.mode ?? (graphic.football ? "football" : "normal"),
-          ...(graphic.kind === "scoreboard" && !graphic.football ? { football: createFootballScoreboard(), mode: "football" as const } : {}),
+          ...(graphic.kind === "scoreboard" && !graphic.football
+            ? { football: createFootballScoreboard(), mode: "football" as const }
+            : {}),
         }));
         setGraphics(normalizedGraphics);
         const storedProgramScene = storedScenes[1] ?? storedScenes[0];

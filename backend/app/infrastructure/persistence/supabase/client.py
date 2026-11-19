@@ -19,12 +19,6 @@ from pathlib import Path
 
 from supabase import create_client, Client
 
-_DEFAULT_URL = "https://mxvdnfaeqjifnxqmxbri.supabase.co"
-_DEFAULT_ANON_KEY = (
-    "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im14dmRuZmFlcWppZm54cW14YnJpIiwic"
-    "m9sZSI6ImFub24iLCJpYXQiOjE3NTIyNjg0NzAsImV4cCI6MjA2Nzg0NDQ3MH0.KLD8IAWiAIhkKXJ9lZR7Yc6GaPpxOa3zdaItozCw4Hc"
-)
-
 _ENV_FILE = Path(__file__).resolve().parents[4] / ".env"  # backend/.env
 
 
@@ -46,6 +40,10 @@ _load_env_file()
 
 @lru_cache(maxsize=1)
 def get_supabase_client() -> Client:
-    url = os.getenv("SUPABASE_URL", _DEFAULT_URL)
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY", _DEFAULT_ANON_KEY)
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+    if not url:
+        raise RuntimeError("SUPABASE_URL is required")
+    if not key:
+        raise RuntimeError("SUPABASE_KEY or SUPABASE_SERVICE_ROLE_KEY is required")
     return create_client(url, key)

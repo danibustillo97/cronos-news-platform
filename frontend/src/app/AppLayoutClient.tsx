@@ -7,6 +7,9 @@ import { MediaPlayerProvider } from "@/context/MediaPlayerContext"
 import MediaPlayerBar from "@/components/platform/MediaPlayerBar"
 import { Toaster } from 'sonner'
 import PublicAnalyticsTracker from "@/components/analytics/PublicAnalyticsTracker"
+import { ConsentProvider } from "@/components/ads/ConsentProvider"
+import CookieConsent from "@/components/ads/CookieConsent"
+import AdvertisingScripts from "@/components/ads/AdvertisingScripts"
 
 function AdminOnlyProviders({ isAdmin, children }: { isAdmin: boolean; children: React.ReactNode }) {
   // ProductionProvider fetches GET /api/productions and opens Supabase
@@ -34,12 +37,16 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
   // public site, not just within one page.
   if (isAdmin) return body
   return (
-    <ThemeProvider>
-      <MediaPlayerProvider>
-        {body}
-        <PublicAnalyticsTracker />
-        <MediaPlayerBar />
-      </MediaPlayerProvider>
-    </ThemeProvider>
+    <ConsentProvider>
+      <ThemeProvider>
+        <MediaPlayerProvider>
+          {body}
+          <PublicAnalyticsTracker />
+          <AdvertisingScripts />
+          <CookieConsent />
+          <MediaPlayerBar />
+        </MediaPlayerProvider>
+      </ThemeProvider>
+    </ConsentProvider>
   )
 }

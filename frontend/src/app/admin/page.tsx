@@ -65,6 +65,7 @@ export default function AdminPage() {
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
+    await fetch('/api/auth/session', { method: 'DELETE' }).catch(() => undefined);
     if (error) {
       toast.error("No se pudo cerrar la sesión", { description: error.message });
       return;

@@ -6,6 +6,7 @@ from app.container import Container, get_container
 from app.domain.ads.entities import POSITION_SIZES
 from app.application.use_cases.ads import CreateAdBannerInput, UpdateAdBannerInput
 from app.presentation.schemas import AdBannerOut, UpdateAdBannerRequest
+from app.presentation.auth import require_admin
 from app.presentation.mappers import ad_banner_out
 
 router = APIRouter(prefix="/api/ads", tags=["ads"])
@@ -33,7 +34,10 @@ def list_active_banners(
 
 
 @router.get("/all", response_model=list[AdBannerOut])
-def list_all_banners(container: Container = Depends(get_container)) -> list[AdBannerOut]:
+def list_all_banners(
+    container: Container = Depends(get_container),
+    _admin= require_admin(),
+) -> list[AdBannerOut]:
     """The admin management list -- every banner, every position, active
     or not."""
     banners = container.list_ad_banners.execute()
@@ -44,6 +48,7 @@ def list_all_banners(container: Container = Depends(get_container)) -> list[AdBa
 async def create_banner(
     position: str = Form(...), link_url: str = Form(...), alt_text: str = Form(""),
     file: UploadFile = File(...), container: Container = Depends(get_container),
+    _admin= require_admin(),
 ) -> AdBannerOut:
     content = await file.read()
     if len(content) > _MAX_UPLOAD_BYTES:
@@ -62,6 +67,7 @@ async def create_banner(
 @router.patch("/{banner_id}", response_model=AdBannerOut)
 def update_banner(
     banner_id: str, body: UpdateAdBannerRequest, container: Container = Depends(get_container),
+    _admin= require_admin(),
 ) -> AdBannerOut:
     try:
         banner = container.update_ad_banner.execute(UpdateAdBannerInput(
@@ -73,5 +79,9 @@ def update_banner(
 
 
 @router.delete("/{banner_id}", status_code=204)
-def delete_banner(banner_id: str, container: Container = Depends(get_container)) -> None:
+def delete_banner(
+    banner_id: str,
+    container: Container = Depends(get_container),
+    _admin= require_admin(),
+) -> None:
     container.delete_ad_banner.execute(banner_id)

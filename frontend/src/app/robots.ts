@@ -18,6 +18,9 @@ export default function robots(): MetadataRoute.Robots {
         '/dashboard/',
       ],
     },
-    sitemap: 'https://www.nexusnews.info/sitemap.xml',
+    sitemap: [
+      'https://www.nexusnews.info/sitemap.xml',
+      'https://www.nexusnews.info/news-sitemap.xml',
+    ],
   };
 }

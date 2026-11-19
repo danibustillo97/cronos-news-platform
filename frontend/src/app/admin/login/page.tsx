@@ -56,6 +56,15 @@ export default function AdminLogin() {
       }
 
       if (data.session) {
+        const sessionResponse = await fetch('/api/auth/session', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accessToken: data.session.access_token }),
+        })
+        if (!sessionResponse.ok) {
+          await supabase.auth.signOut()
+          throw new Error('Tu cuenta no tiene permisos administrativos.')
+        }
         router.replace('/admin')
         router.refresh()
       } else {

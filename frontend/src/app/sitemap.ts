@@ -29,6 +29,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/deportes/futbol`, lastModified: new Date(), changeFrequency: 'hourly', priority: 0.9 },
     { url: `${baseUrl}/deportes/futbol/tabla`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.6 },
     { url: `${baseUrl}/explorar`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.5 },
+    { url: `${baseUrl}/privacy`, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${baseUrl}/terms`, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${baseUrl}/cookies`, changeFrequency: 'yearly', priority: 0.3 },
+    { url: `${baseUrl}/about`, changeFrequency: 'monthly', priority: 0.4 },
+    { url: `${baseUrl}/corrections`, changeFrequency: 'monthly', priority: 0.4 },
   ];
 
   return [...staticUrls, ...newsUrls];

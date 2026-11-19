@@ -1,6 +1,8 @@
 'use client'
 
 import { useEffect, useRef } from 'react'
+import { useConsent } from './ConsentProvider'
+import { getAdProviderConfig } from '@/lib/adConfig'
 
 interface AdSpaceProps {
   slotId: string
@@ -14,9 +16,12 @@ export default function AdSpace({
   label = 'Publicidad',
 }: AdSpaceProps) {
   const loaded = useRef(false)
+  const { choice } = useConsent()
+  const config = getAdProviderConfig()
 
   useEffect(() => {
-    if (loaded.current) return
+    if (loaded.current || choice !== 'accepted') return
+    if (!config.adsenseEnabled || !config.adsensePublisherId) return
 
     try {
       // @ts-ignore
@@ -28,7 +33,7 @@ export default function AdSpace({
     } catch (err) {
       console.error('AdSense error:', err)
     }
-  }, [])
+  }, [choice, config.adsenseEnabled, config.adsensePublisherId])
 
   return (
     <div className={`w-full my-6 ${className}`}>
@@ -47,7 +52,7 @@ export default function AdSpace({
             minHeight: 90,
             maxHeight: 280,
           }}
-          data-ad-client="ca-pub-9550834544643550"
+          data-ad-client={config.adsensePublisherId || undefined}
           data-ad-slot={slotId}
           data-ad-format="rectangle"
           data-full-width-responsive="false"

@@ -69,17 +69,17 @@ export async function publishTikTokVideo(
   videoBlob: Blob,
   title: string
 ): Promise<{ success: boolean; share_url?: string | null; error?: string }> {
-  const formData = new FormData();
-  formData.append('video', videoBlob, 'video.mp4');
-  formData.append('title', title);
-  formData.append('privacy_level', 'PUBLIC');
-  formData.append('disable_duet', 'false');
-  formData.append('disable_stitch', 'false');
-  formData.append('disable_comment', 'false');
-
   const response = await fetch('/api/tiktok/upload', {
     method: 'POST',
-    body: formData,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      videoSize: videoBlob.size,
+      title,
+      privacy_level: 'PUBLIC',
+      disable_duet: true,
+      disable_stitch: true,
+      disable_comment: true,
+    }),
   });
 
   const result = await response.json();
@@ -88,5 +88,21 @@ export async function publishTikTokVideo(
     return { success: false, error: result.error || 'Upload failed' };
   }
 
-  return { success: true, share_url: result.share_url };
+  if (!result.upload_url) {
+    return { success: false, error: 'TikTok did not return an upload URL' };
+  }
+
+  const upload = await fetch(result.upload_url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'video/mp4',
+      'Content-Range': `bytes 0-${videoBlob.size - 1}/${videoBlob.size}`,
+    },
+    body: videoBlob,
+  });
+  if (!upload.ok) {
+    return { success: false, error: 'The direct TikTok upload failed' };
+  }
+
+  return { success: true, share_url: null };
 }

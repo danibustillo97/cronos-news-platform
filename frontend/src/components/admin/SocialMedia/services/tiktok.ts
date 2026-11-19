@@ -89,17 +89,17 @@ export async function uploadToTikTok(
     allowComment?: boolean;
   }
 ): Promise<TikTokUploadResult> {
-  const formData = new FormData();
-  formData.append('video', videoBlob, 'video.mp4');
-  formData.append('title', options.title);
-  formData.append('privacy_level', options.privacyLevel || 'PUBLIC');
-  formData.append('disable_duet', String(!options.allowDuet));
-  formData.append('disable_stitch', String(!options.allowStitch));
-  formData.append('disable_comment', String(!options.allowComment));
-
   const response = await fetch('/api/tiktok/upload', {
     method: 'POST',
-    body: formData,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      videoSize: videoBlob.size,
+      title: options.title,
+      privacy_level: options.privacyLevel || 'PUBLIC',
+      disable_duet: !options.allowDuet,
+      disable_stitch: !options.allowStitch,
+      disable_comment: !options.allowComment,
+    }),
   });
 
   const result = await response.json();
@@ -111,7 +111,20 @@ export async function uploadToTikTok(
     };
   }
 
-  return result;
+  if (!result.upload_url) {
+    return { success: false, error: 'TikTok did not return an upload URL' };
+  }
+  const upload = await fetch(result.upload_url, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'video/mp4',
+      'Content-Range': `bytes 0-${videoBlob.size - 1}/${videoBlob.size}`,
+    },
+    body: videoBlob,
+  });
+  return upload.ok
+    ? { success: true, publish_id: result.publish_id }
+    : { success: false, error: 'The direct TikTok upload failed' };
 }
 
 /**

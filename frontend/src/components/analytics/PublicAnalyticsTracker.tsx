@@ -9,12 +9,16 @@ export default function PublicAnalyticsTracker() {
   const lastPath = useRef<string | null>(null);
 
   useEffect(() => {
+    if (window.localStorage.getItem("cronos_ad_consent") !== "accepted") return;
     if (!pathname || pathname.startsWith("/admin") || pathname === lastPath.current) return;
     lastPath.current = pathname;
     trackPageView(pathname);
   }, [pathname]);
 
-  useEffect(() => startClickTracking(), []);
+  useEffect(() => {
+    if (window.localStorage.getItem("cronos_ad_consent") !== "accepted") return;
+    return startClickTracking();
+  }, []);
 
   return null;
 }

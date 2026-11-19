@@ -17,6 +17,8 @@
 import { useEffect, useState } from 'react'
 import { apiUrl } from '@/studio/lab/api-client'
 import AdSpace from './AdSpace'
+import { getAdProviderConfig } from '@/lib/adConfig'
+import { useConsent } from './ConsentProvider'
 
 // The 5 positions that actually appear on a real page -- grep this repo
 // for `AdSlot position=` before adding one back (see ModernNewsPortal.tsx
@@ -30,13 +32,6 @@ export type AdPosition =
 // actual) -- el mapa ya está listo para asignar unidades distintas por
 // posición el día que existan en la cuenta de AdSense, sin tocar quien
 // llama a <AdSlot position="...">.
-const SLOT_ID_BY_POSITION: Record<AdPosition, string> = {
-  HOME_TOP: '8962635274',
-  HOME_FEED: '8962635274',
-  ARTICLE_TOP: '8962635274',
-  ARTICLE_END: '8962635274',
-  SIDEBAR_DESKTOP: '8962635274',
-}
 
 // minHeight reservado por posición -- formatos distintos reservan distinto
 // espacio (un sidebar vertical no es del mismo alto que un banner nativo
@@ -84,6 +79,9 @@ function useHouseBanner(position: AdPosition): { banner: HouseBanner | null; loa
 
 export default function AdSlot({ position, className = '' }: { position: AdPosition; className?: string }) {
   const { banner, loading } = useHouseBanner(position)
+  const { choice } = useConsent()
+  const config = getAdProviderConfig()
+  const slotId = config.adsenseSlots[position]
 
   return (
     <div style={{ minHeight: MIN_HEIGHT_BY_POSITION[position] }} className={className} data-ad-position={position}>
@@ -106,8 +104,10 @@ export default function AdSlot({ position, className = '' }: { position: AdPosit
             style={{ maxWidth: banner.width }}
           />
         </a>
-      ) : loading ? null : (
-        <AdSpace slotId={SLOT_ID_BY_POSITION[position]} />
+      ) : loading ? null : choice === 'accepted' && config.adsenseEnabled && config.adsensePublisherId && slotId ? (
+        <AdSpace slotId={slotId} />
+      ) : (
+        null
       )}
     </div>
   )

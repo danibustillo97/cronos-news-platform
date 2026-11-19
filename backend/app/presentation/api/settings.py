@@ -6,6 +6,7 @@ from app.container import Container, get_container
 from app.application.use_cases.seo_settings import UpdateSeoSettingsInput
 from app.presentation.schemas import SeoSettingsOut, UpdateSeoSettingsRequest
 from app.presentation.mappers import seo_settings_out
+from app.presentation.auth import require_admin
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
 
@@ -16,7 +17,11 @@ def get_seo_settings(container: Container = Depends(get_container)) -> SeoSettin
 
 
 @router.put("/seo", response_model=SeoSettingsOut)
-def update_seo_settings(body: UpdateSeoSettingsRequest, container: Container = Depends(get_container)) -> SeoSettingsOut:
+def update_seo_settings(
+    body: UpdateSeoSettingsRequest,
+    container: Container = Depends(get_container),
+    _admin= require_admin(),
+) -> SeoSettingsOut:
     settings = container.update_seo_settings.execute(
         UpdateSeoSettingsInput(site_title=body.site_title, meta_description=body.meta_description, keywords=body.keywords)
     )

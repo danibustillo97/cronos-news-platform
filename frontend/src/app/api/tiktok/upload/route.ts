@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabaseClient';
+import { createSupabaseServerClient } from '@/lib/supabaseServer';
+import { adminAuthError, requireAdmin } from '@/lib/supabaseAuth';
+import { decryptToken } from '@/lib/tokenEncryption';
 
 /**
  * TikTok Video Upload
@@ -7,25 +9,35 @@ import { supabase } from '@/lib/supabaseClient';
  */
 export async function POST(request: NextRequest) {
   try {
-    const formData = await request.formData();
-    const videoFile = formData.get('video') as File;
-    const title = formData.get('title') as string;
-    const privacyLevel = formData.get('privacy_level') as string || 'PUBLIC';
-    const disableDuet = formData.get('disable_duet') === 'true';
-    const disableStitch = formData.get('disable_stitch') === 'true';
-    const disableComment = formData.get('disable_comment') === 'false'; // default true
+    const admin = await requireAdmin(request);
+    const supabase = createSupabaseServerClient();
+    const body = await request.json().catch(() => null) as {
+      videoSize?: unknown
+      title?: unknown
+      privacy_level?: unknown
+      disable_duet?: unknown
+      disable_stitch?: unknown
+      disable_comment?: unknown
+    } | null;
+    const videoSize = typeof body?.videoSize === 'number' ? body.videoSize : 0;
+    const title = typeof body?.title === 'string' ? body.title.slice(0, 150) : '';
+    const privacyLevel = typeof body?.privacy_level === 'string' ? body.privacy_level : 'PUBLIC';
+    const disableDuet = body?.disable_duet === true;
+    const disableStitch = body?.disable_stitch === true;
+    const disableComment = body?.disable_comment !== false;
 
-    if (!videoFile) {
-      return NextResponse.json(
-        { error: 'No video file provided' },
-        { status: 400 }
-      );
+    if (!Number.isSafeInteger(videoSize) || videoSize <= 0) {
+      return NextResponse.json({ error: 'Valid videoSize is required' }, { status: 400 });
+    }
+    if (videoSize > 500 * 1024 * 1024) {
+      return NextResponse.json({ error: 'Video exceeds 500 MB limit' }, { status: 413 });
     }
 
     // Get stored TikTok credentials
     const { data: account, error: accountError } = await supabase
       .from('tiktok_accounts')
-      .select('*')
+      .select('open_id,access_token_encrypted,refresh_token_encrypted,expires_in,created_at')
+      .eq('user_id', admin.id)
       .order('created_at', { ascending: false })
       .limit(1)
       .single();
@@ -38,7 +50,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if token is expired and refresh if needed
-    let accessToken = account.access_token;
+    let accessToken = decryptToken(account.access_token_encrypted);
     
     // Step 1: Initiate video upload
     const initResponse = await fetch('https://open.tiktokapis.com/v2/post/publish/inbox/video/init/', {
@@ -50,8 +62,8 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         source_info: {
           source: 'FILE_UPLOAD',
-          video_size: videoFile.size,
-          chunk_size: videoFile.size, // Single chunk for now
+          video_size: videoSize,
+          chunk_size: videoSize,
           total_chunk_count: 1,
         },
         title: title,
@@ -83,51 +95,20 @@ export async function POST(request: NextRequest) {
     const publishId = initData.data.publish_id;
     const uploadUrl = initData.data.upload_url;
 
-    // Step 2: Upload video file
-    const videoBuffer = await videoFile.arrayBuffer();
-    
-    const uploadResponse = await fetch(uploadUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'video/mp4',
-        'Content-Range': `bytes 0-${videoFile.size - 1}/${videoFile.size}`,
-      },
-      body: videoBuffer,
-    });
-
-    if (!uploadResponse.ok) {
-      console.error('TikTok video upload error:', await uploadResponse.text());
-      return NextResponse.json(
-        { error: 'Failed to upload video to TikTok' },
-        { status: 500 }
-      );
-    }
-
-    // Step 3: Check publish status
-    const statusResponse = await fetch(`https://open.tiktokapis.com/v2/post/publish/status/fetch/`, {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${accessToken}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        publish_id: publishId,
-      }),
-    });
-
-    let publishStatus = null;
-    if (statusResponse.ok) {
-      publishStatus = await statusResponse.json();
-    }
+    // The browser uploads directly to TikTok's upload_url. This route
+    // deliberately never receives the video bytes.
 
     return NextResponse.json({
       success: true,
       publish_id: publishId,
-      status: publishStatus?.data?.status || 'PENDING',
-      share_url: publishStatus?.data?.share_url || null,
+      upload_url: uploadUrl,
+      status: 'PENDING',
     });
 
   } catch (error) {
+    if (error instanceof Error && 'status' in error) {
+      return adminAuthError(error);
+    }
     console.error('TikTok upload error:', error);
     return NextResponse.json(
       { error: 'Failed to upload video to TikTok' },

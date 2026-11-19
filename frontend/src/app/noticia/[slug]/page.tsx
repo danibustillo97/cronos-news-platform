@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabaseClient';
 import { Metadata } from 'next';
+import { notFound } from 'next/navigation';
 import ArticleClient from './ArticleClient';
 
 interface PageProps {
@@ -13,6 +14,7 @@ export async function generateMetadata(
   const { data } = await supabase
     .from('news')
     .select('title, summary, excerpt, image_url, slug, category, author, published_at, tags')
+    .eq('status', 'published')
     .eq('slug', slug)
     .single();
 
@@ -55,17 +57,18 @@ export default async function Page({ params }: PageProps) {
   const { data: news } = await supabase
     .from('news')
     .select('*')
+    .eq('status', 'published')
     .eq('slug', slug)
     .single();
 
-  if (!news) return null;
+  if (!news) notFound();
 
   // dateModified: solo se usa updated_at si REALMENTE existe y es distinto
   // de published_at -- nunca se "refresca" una fecha artificialmente
   // (sección 12 del pedido).
   const dateModified = news.updated_at && news.updated_at !== news.published_at ? news.updated_at : news.published_at;
 
-  const jsonLd = {
+  const jsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
     headline: news.title,
@@ -73,16 +76,15 @@ export default async function Page({ params }: PageProps) {
     image: news.image_url ? [news.image_url] : undefined,
     datePublished: news.published_at,
     dateModified,
-    author: {
-      '@type': 'Person',
-      name: news.author || 'Nexus News',
-    },
+    ...(news.author ? {
+      author: { '@type': 'Person', name: news.author },
+    } : {}),
     publisher: {
       '@type': 'Organization',
       name: 'Nexus News',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://www.nexusnews.info/logo.png',
+        url: 'https://www.nexusnews.info/image/logo.png',
       },
     },
     articleSection: news.category || undefined,

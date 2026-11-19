@@ -37,8 +37,28 @@ const isLocalNextDev = isBrowser
   && window.location.port === '3000';
 
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL
-  || (isBrowser ? (isLocalNextDev ? 'http://localhost:8000' : '') : 'http://localhost:8000');
+  || (isBrowser ? '' : (
+    process.env.BACKEND_PUBLIC_URL
+    || (process.env.NODE_ENV === 'production' ? '' : 'http://localhost:8000')
+  ));
 
 export function apiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
+}
+
+export async function apiFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  let accessToken: string | null = null;
+  if (typeof window !== 'undefined') {
+    try {
+      const { supabase } = await import('@/lib/supabaseClient');
+      const { data } = await supabase.auth.getSession();
+      accessToken = data.session?.access_token || null;
+    } catch {
+      accessToken = null;
+    }
+  }
+
+  const headers = new Headers(init.headers);
+  if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
+  return fetch(apiUrl(path), { ...init, headers });
 }
