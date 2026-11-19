@@ -1,76 +1,96 @@
-# 📰 Cronos News Platform
+# NEXUS
 
-**Cronos News Platform** es una aplicación web desarrollada con **Next.js** y **TypeScript**, enfocada en la generación automatizada y visualización de noticias deportivas. Combina tecnologías modernas de frontend con automatización backend para mantener actualizado un portal informativo sin intervención manual constante.
+Content Operating System para producción editorial, multimedia y audiovisual.
+Automatización primero, IA solo donde agrega valor — ver [`obsidian-vault/Roadmap.md`](obsidian-vault/Roadmap.md) para el estado y las prioridades vigentes.
 
-> 🚀 **Demo en vivo**: [https://nexusnews.info](https://nexusnews.info)
+## Arquitectura
 
----
-
-## 📌 Características principales
-
-- 🔄 Noticias generadas automáticamente mediante scraping con Python.
-- ⚡ Interfaz rápida y moderna construida con Next.js + Tailwind.
-- 🧠 Sistema preparado para extracción y publicación automática de contenido.
-- 📱 Diseño responsive adaptable a cualquier dispositivo.
-- 🔍 Optimización SEO para posicionamiento orgánico.
-- 📊 Panel visual profesional tipo blog/redacción.
-
----
-
-## 🛠️ Tecnologías utilizadas
-
-- **Next.js** – Framework de React para SSR y generación estática
-- **TypeScript** – Tipado estático robusto
-- **Tailwind CSS** – Utilidades CSS para diseño moderno y responsivo
-- **Supabase** *(opcional)* – Backend como servicio (auth, BDD, APIs)
-- **Python + Web Scraping** – Automatización de noticias desde fuentes deportivas
-
----
-
-## 📦 Instalación local
-
-```bash
-# Clona el repositorio
-git clone https://github.com/danibustillo97/cronos-news-platform.git
-
-# Entra al proyecto
-cd cronos-news-platform
-
-# Instala las dependencias
-npm install
-
-# Inicia el servidor de desarrollo
-npm run dev
+```
+NEXUS
+│
+├── Automation (automation/) — su propio repo git + .claude, ver más abajo
+│   ├── src/        Scraper legado (main.py/script.py) — sin venv propio hoy
+│   ├── lab/        LAB — planners determinísticos (editorial→...→export), CLI, sin daemon
+│   └── runtime/    Local Runtime — puente HTTP real entre backend y LAB (puerto 8801)
+│
+├── backend/        FastAPI, DDD — news/story/composition/distribution/intelligence/asset/timeline
+├── frontend/       Next.js — portal público + panel /admin (News, Producción, Studio, Distribución, SEO)
+├── infrastructure/ Schemas SQL de Supabase, docker (nginx), scripts
+└── obsidian-vault/ Documentación viva (roadmap, arquitectura, decisiones)
 ```
 
-Abre [http://localhost:3000](http://localhost:3000) para ver la app en tu navegador.
+`automation/` es un **repo git y `.claude` separados a propósito** (antes `Desktop/RPA_NEWS_SCRIPT`, consolidado acá el 2026-09-15). NEXUS y Automation no se fusionan:
 
----
+- **NEXUS `.claude`** gobierna arquitectura global, backend, frontend, dominio, integración.
+- **`automation/.claude`** gobierna scraping, ingestion, LAB, automatizaciones.
 
-## 🧪 Próximas mejoras
+## Cadena conceptual
 
-- [ ] Panel administrativo para edición, publicación y control editorial
-- [ ] Clasificación por deportes, ligas o países
-- [ ] Soporte multiidioma (i18n)
-- [ ] Modo oscuro
-- [ ] Control de estados: borrador, publicado, archivado
-- [ ] Publicación programada y workflows de revisión
+```
+AUTOMATION → RAW CONTENT → CONTENT/INGESTION → PRODUCTION → READY
+  → STUDIO → COMPOSITION → DISTRIBUTION → PUBLISH → ANALYTICS
+```
 
----
+- **Production** es el centro de procesamiento editorial — News nunca limpia ni reescribe contenido, solo lista lo que ya está `READY`.
+- Los bounded contexts del backend (`News`, `Story`, `Composition`, `Distribution`, `Timeline`) implementan esta cadena con máquinas de estado propias; ver `backend/app/domain/*/entities.py`.
 
+## Arrancar todo con un comando
 
+```powershell
+cd C:\Users\User\Desktop\NEXUS
+.\nexus.ps1 up        # arranca backend, frontend, Local Runtime, nginx; verifica LAB
+.\nexus.ps1 status    # estado real de cada servicio (sin arrancar nada)
+.\nexus.ps1 down      # apaga todo
+.\nexus.ps1 restart
+.\nexus.ps1 logs [backend|frontend|runtime]
+.\nexus.ps1 doctor    # diagnóstico: puertos, Docker, .env, deps, DB, nginx, hosts
+.\nexus.ps1 ps        # procesos gestionados con pid real
+```
 
-## 👨‍💻 Autor
+Todo chequeo de `nexus.ps1` es real (endpoint HTTP o puerto ligado) — nunca un archivo de PID ni "la carpeta existe". `LAB` se reporta `READY`, no `ONLINE`: no tiene daemon, así que su estado es que el CLI corre de verdad (`lab.cli status`), no que haya un proceso vivo. El scraper legado (`automation/main.py`/`script.py`) no tiene health check a propósito — tiene efectos reales (scrapea sitios en vivo, escribe en Supabase de producción), fingir un chequeo sería peor que no tenerlo.
 
-**Danilo Bustillo**  
-Desarrollador Full Stack con experiencia en automatización de procesos, scraping inteligente, infraestructura cloud y soluciones frontend modernas.
+## URLs
 
-- [LinkedIn](https://www.linkedin.com/in/danibustillo97)
-- 📫 danibustillo97@gmail.com
-- 🌐 Portafolio: *[próximamente]*
+| | URL |
+|---|---|
+| Plataforma | http://localhost (o http://nexus.local si configuraste el hosts file — ver `nexus doctor`) |
+| API | http://localhost/api |
+| Studio | http://localhost/studio (hoy es una tab dentro de `/admin`, no una ruta propia) |
+| Health | http://localhost/health |
 
----
+## Puertos
 
-## 📄 Licencia
+| Servicio | Puerto | Cómo corre |
+|---|---|---|
+| Frontend (Next.js) | 3000 | nativo (`npm run dev`) |
+| Backend (FastAPI) | 8000 | nativo (venv + uvicorn --reload) |
+| Local Runtime | 8801 | nativo (venv + uvicorn) |
+| Nginx | 80 | Docker — único servicio containerizado, reverse proxy hacia los de arriba vía `host.docker.internal` |
+| Database | — | Supabase remoto, no hay Postgres local |
 
-Este proyecto es de uso libre para fines personales, educativos o de demostración. Para uso comercial, contactar previamente al autor.
+## Desarrollo local (sin `nexus.ps1`)
+
+```bash
+# Frontend
+cd frontend && npm install && npm run dev
+
+# Backend
+cd backend && python -m venv venv && ./venv/Scripts/pip install -r requirements.txt && ./venv/Scripts/python -m uvicorn app.presentation.main:app --reload
+
+# Local Runtime
+cd automation/runtime && python -m venv venv && ./venv/Scripts/pip install -r requirements.txt && ./venv/Scripts/python -m uvicorn app.main:app --port 8801
+```
+
+## Variables de entorno
+
+Nunca centralizadas en un solo archivo — cada servicio tiene el suyo, nunca commiteado (excepto `automation/.env`, que quedó trackeado desde antes de esta consolidación, ver `automation/.gitignore`):
+
+- `backend/.env` — `SUPABASE_SERVICE_ROLE_KEY`
+- `automation/.env` — `SUPABASE_URL`, `SUPABASE_KEY`, `OPENROUTER_API_KEY`
+- `automation/runtime/.env` — `SUPABASE_SERVICE_ROLE_KEY`
+
+`nexus doctor` verifica que existan y qué claves tienen, nunca sus valores.
+
+## Documentación
+
+Ver [`obsidian-vault/`](obsidian-vault/) para el roadmap, la arquitectura, y las notas de decisiones (stack técnico, Supabase, ramas activas, la consolidación a NEXUS).

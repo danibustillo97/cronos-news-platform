@@ -1,0 +1,92 @@
+import './globals.css'
+import type { Metadata } from 'next'
+import AppLayoutClient from './AppLayoutClient'
+import { apiUrl } from '@/studio/lab/api-client'
+
+// Site title/description/keywords are editable from /admin (AdminSeoTags,
+// backed by GET/PUT /api/settings/seo) -- these constants are ONLY the
+// fallback used if that fetch fails, so a backend outage never breaks the
+// site's <head>. They must never drift into being treated as the source
+// of truth again; the real values live in Supabase's `site_settings` row.
+const FALLBACK_SEO = {
+  title: 'Nexus News | Noticias Deportivas al Instante',
+  description: 'El mejor portal de noticias deportivas con análisis IA en tiempo real. Cobertura de fútbol, NBA, F1 y más.',
+  keywords: ['deportes', 'noticias', 'fútbol', 'NBA', 'F1', 'resultados en vivo'],
+}
+
+async function getSeoSettings(): Promise<{ title: string; description: string; keywords: string[] }> {
+  try {
+    if (!process.env.NEXT_PUBLIC_API_BASE_URL && !process.env.BACKEND_PUBLIC_URL) {
+      return FALLBACK_SEO
+    }
+    const res = await fetch(apiUrl('/api/settings/seo'), {
+      next: { revalidate: 60 },
+      signal: AbortSignal.timeout(5000),
+    })
+    if (!res.ok) return FALLBACK_SEO
+    const data = await res.json()
+    return { title: data.siteTitle, description: data.metaDescription, keywords: data.keywords }
+  } catch {
+    return FALLBACK_SEO
+  }
+}
+
+export async function generateMetadata(): Promise<Metadata> {
+  const seo = await getSeoSettings()
+  return {
+  metadataBase: new URL('https://www.nexusnews.info'),
+  title: {
+    default: seo.title,
+    template: '%s | Nexus News'
+  },
+  description: seo.description,
+  keywords: seo.keywords,
+  authors: [{ name: 'Nexus News Team' }],
+  creator: 'Nexus News',
+  publisher: 'Nexus News',
+  openGraph: {
+    type: 'website',
+    locale: 'es_ES',
+    url: 'https://www.nexusnews.info',
+    title: 'Nexus News | Noticias Deportivas al Instante',
+    description: 'El mejor portal de noticias deportivas con análisis IA en tiempo real.',
+    siteName: 'Nexus News',
+    images: [
+      {
+        url: '/og-image.jpg', // Asegúrate de tener esta imagen en public/
+        width: 1200,
+        height: 630,
+        alt: 'Nexus News - Noticias Deportivas',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'Nexus News | Noticias Deportivas',
+    description: 'Noticias deportivas al instante con IA.',
+    creator: '@nexusnews',
+    images: ['/og-image.jpg'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+  }
+}
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="es">
+      <body className="bg-neutral-950 text-white selection:bg-yellow-400 selection:text-black overflow-x-hidden max-w-full">
+        <AppLayoutClient>{children}</AppLayoutClient>
+      </body>
+    </html>
+  )
+}

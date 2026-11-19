@@ -1,0 +1,14 @@
+-- Add content_format column to news table.
+--
+-- Distinguishes editorial FORMAT (analysis / explainer / perspective) from
+-- the existing `category`/`tags` fields, which only describe topic, not
+-- format. Powers the homepage's "En Contexto" section -- an article only
+-- appears there if this is explicitly set; nothing infers format from
+-- content. Nullable, no data backfilled: nothing in this repo writes to
+-- `news` today (it's written by an external ingestion pipeline), so this
+-- starts empty until that pipeline or manual editing populates it.
+--
+-- Expected values (not enforced by a DB constraint, kept as free text so
+-- the ingestion pipeline can adopt it without a migration): 'analysis',
+-- 'explainer', 'perspective'.
+ALTER TABLE public.news ADD COLUMN IF NOT EXISTS content_format TEXT;

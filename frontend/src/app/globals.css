@@ -1,0 +1,778 @@
+@import "tailwindcss";
+
+:root {
+  --background: #ffffff;
+  --foreground: #ffffff;
+  --primary: #fbbf24;
+  --primary-dark: #f59e0b;
+  --secondary: #1f2937;
+  --accent: #3b82f6;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --error: #ef4444;
+  --surface: #111111;
+  --surface-light: #1a1a1a;
+  --border: #374151;
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --text-muted: #6b7280;
+
+  /* Paleta editorial NEXUS (portal público) -- ver components/news/*,
+     ModernNavbar, Footer. No reemplaza los tokens genéricos de arriba
+     (usados por el admin/studio); estos son los que usa el front page. */
+  --editorial-bg: #0B0B0B;
+  --editorial-surface: #151515;
+  --editorial-surface-2: #1D1D1D;
+  --editorial-white: #F5F5F3;
+  --editorial-muted: #999999;
+  --editorial-accent: #FACC15;
+}
+
+@theme inline {
+  --font-sans: Arial, Helvetica, sans-serif;
+  --font-serif: Georgia, "Times New Roman", serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-accent: var(--accent);
+  --color-surface: var(--surface);
+  --color-surface-light: var(--surface-light);
+  --color-border: var(--border);
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  overflow-x: hidden !important;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Note: @tailwindcss/typography is NOT installed in this project -- the
+   prose/prose-* classNames on .article-content elsewhere are inert (an
+   unregistered utility generates no CSS). All real article typography
+   lives here instead, in plain CSS, not in those classNames. */
+.article-content {
+  color: #111827;
+  font-size: 1.15rem;
+}
+
+.article-content > *:first-child {
+  margin-top: 0;
+}
+
+.article-content p,
+.article-content li,
+.article-content blockquote,
+.article-content td,
+.article-content th {
+  color: #1f2937;
+  font-size: 1.15rem;
+  line-height: 1.9;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.article-content figcaption {
+  color: #6b7280;
+  font-size: 0.9rem;
+  font-family: 'Inter', -apple-system, sans-serif;
+}
+
+.article-content p,
+.article-content ul,
+.article-content ol,
+.article-content blockquote,
+.article-content figure,
+.article-content pre,
+.article-content table {
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+}
+
+.article-content img,
+.article-content iframe,
+.article-content video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  height: auto;
+  border-radius: 1.1rem;
+  margin: 2rem auto;
+  box-shadow: 0 20px 40px rgba(15, 23, 42, 0.14);
+  background: #f3f4f6;
+}
+
+.article-content figure {
+  margin: 2rem 0;
+}
+
+.article-content figure img {
+  margin-bottom: 0.75rem;
+}
+
+.article-content a {
+  color: #FACC15;
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.article-content strong,
+.article-content b {
+  color: #111827;
+}
+
+.article-content h1,
+.article-content h2,
+.article-content h3,
+.article-content h4,
+.article-content h5,
+.article-content h6 {
+  color: #111827;
+  font-weight: 900;
+  font-family: 'Inter', -apple-system, sans-serif;
+  margin-top: 2.25rem;
+  margin-bottom: 1rem;
+  line-height: 1.2;
+}
+
+.article-content h2 { font-size: 1.75rem; }
+.article-content h3 { font-size: 1.4rem; }
+
+.article-content blockquote {
+  border-left: 4px solid #FACC15;
+  background: linear-gradient(90deg, #fff5f5 0%, #ffffff 100%);
+  padding: 1rem 1.25rem;
+  border-radius: 0 0.8rem 0.8rem 0;
+  margin: 2rem 0;
+  font-style: italic;
+}
+
+.article-content hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 2rem 0;
+}
+
+.article-content ul,
+.article-content ol {
+  padding-left: 1.5rem;
+}
+
+.article-content table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 0.75rem;
+  border: 1px solid #e5e7eb;
+}
+
+.article-content th,
+.article-content td {
+  padding: 0.8rem 0.9rem;
+  border-bottom: 1px solid #e5e7eb;
+  text-align: left;
+}
+
+.article-content th {
+  background: #f9fafb;
+  font-weight: 700;
+}
+
+.ProseMirror table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 1.25rem 0;
+}
+
+.ProseMirror th,
+.ProseMirror td {
+  border: 1px solid #525252;
+  padding: 0.5rem 0.75rem;
+  min-width: 5rem;
+  vertical-align: top;
+}
+
+.ProseMirror th {
+  background: #262626;
+  font-weight: 700;
+}
+
+.ProseMirror figure[data-image-gallery] {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: 0.75rem;
+}
+
+.ProseMirror figure[data-image-gallery] img {
+  width: 100%;
+  height: auto;
+  margin: 0;
+}
+
+.ProseMirror [data-youtube-video] iframe,
+.article-content [data-youtube-video] iframe,
+.ProseMirror video,
+.article-content video {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  aspect-ratio: 16 / 9;
+  height: auto;
+  margin: 1.5rem 0;
+}
+
+/* Premium Scrollbar */
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, var(--primary), var(--primary-dark));
+  border-radius: 10px;
+  border: 2px solid var(--background);
+}
+
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, var(--primary-dark), #d97706);
+}
+
+.custom-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--primary) transparent;
+}
+
+/* Premium Animations */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: -200px 0;
+  }
+  100% {
+    background-position: calc(200px + 100%) 0;
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.6s ease-out;
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.6s ease-out;
+}
+
+.animate-pulse-slow {
+  animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+}
+
+/* Premium Glass Effect */
+.glass {
+  background: rgba(17, 17, 17, 0.8);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Premium Gradients */
+.gradient-primary {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+}
+
+.gradient-surface {
+  background: linear-gradient(135deg, var(--surface), var(--surface-light));
+}
+
+.gradient-text {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Premium Shadows */
+.shadow-premium {
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+}
+
+.shadow-glow {
+  box-shadow: 0 0 20px rgba(251, 191, 36, 0.3);
+}
+
+.shadow-glow-blue {
+  box-shadow: 0 0 20px rgba(59, 130, 246, 0.3);
+}
+
+/* Premium Borders */
+.border-premium {
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.border-premium-hover {
+  border: 1px solid rgba(251, 191, 36, 0.4);
+}
+
+/* Premium Buttons */
+.btn-premium {
+  background: linear-gradient(135deg, var(--primary), var(--primary-dark));
+  color: #000;
+  font-weight: 600;
+  padding: 12px 24px;
+  border-radius: 12px;
+  border: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(251, 191, 36, 0.3);
+}
+
+.btn-premium:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(251, 191, 36, 0.4);
+}
+
+.btn-secondary {
+  background: var(--surface-light);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  font-weight: 500;
+  padding: 12px 24px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-secondary:hover {
+  background: var(--surface);
+  border-color: var(--primary);
+  color: var(--primary);
+}
+
+/* Premium Cards */
+.card-premium {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 24px;
+  transition: all 0.3s ease;
+}
+
+.card-premium:hover {
+  border-color: var(--primary);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  transform: translateY(-2px);
+}
+
+/* Premium Typography */
+.text-premium {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.text-gradient {
+  background: linear-gradient(135deg, var(--primary), var(--accent));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .card-premium {
+    padding: 16px;
+    border-radius: 12px;
+  }
+  
+  .btn-premium, .btn-secondary {
+    padding: 10px 20px;
+    font-size: 14px;
+  }
+}
+
+/* Loading States */
+.skeleton {
+  background: linear-gradient(90deg, #374151 25%, #4b5563 50%, #374151 75%);
+  background-size: 200px 100%;
+  animation: shimmer 1.5s infinite;
+  border-radius: 8px;
+}
+
+/* Focus States */
+.focus-premium:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.3);
+  border-color: var(--primary);
+}
+
+/* Hide Scrollbar */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Revolutionary Slider */
+.slider {
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.slider::-webkit-slider-track {
+  background: #374151;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: 0 0 0 2px #1f2937;
+  transition: all 0.3s ease;
+}
+
+.slider::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.3);
+}
+
+.slider::-moz-range-track {
+  background: #374151;
+  height: 4px;
+  border-radius: 2px;
+  border: none;
+}
+
+.slider::-moz-range-thumb {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  height: 16px;
+  width: 16px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 0 2px #1f2937;
+  transition: all 0.3s ease;
+}
+
+.slider::-moz-range-thumb:hover {
+  transform: scale(1.1);
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.3);
+}
+
+/* Revolutionary Animations */
+@keyframes revolutionaryPulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(251, 191, 36, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 10px rgba(251, 191, 36, 0);
+  }
+}
+
+.animate-revolutionary-pulse {
+  animation: revolutionaryPulse 2s infinite;
+}
+
+@keyframes revolutionaryFloat {
+  0%, 100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.animate-revolutionary-float {
+  animation: revolutionaryFloat 3s ease-in-out infinite;
+}
+
+/* Revolutionary Glass Effects */
+.glass-revolutionary {
+  background: rgba(17, 17, 17, 0.9);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+}
+
+.glass-revolutionary-light {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Revolutionary Gradients */
+.gradient-revolutionary {
+  background: linear-gradient(135deg, #1f2937, #111827, #0f172a);
+}
+
+.gradient-revolutionary-accent {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706);
+}
+
+.gradient-revolutionary-text {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b, #d97706);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Revolutionary Shadows */
+.shadow-revolutionary {
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(251, 191, 36, 0.1);
+}
+
+.shadow-revolutionary-glow {
+  box-shadow: 0 0 30px rgba(251, 191, 36, 0.3), 0 0 60px rgba(251, 191, 36, 0.1);
+}
+
+.shadow-revolutionary-inset {
+  box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.3), inset 0 0 0 1px rgba(251, 191, 36, 0.1);
+}
+
+.admin-login-page {
+  display: flex;
+  min-height: 100vh;
+  min-height: 100svh;
+  flex-direction: column;
+}
+
+.admin-login-header {
+  flex: none;
+  padding-block: clamp(0.75rem, 2.4vh, 1.5rem);
+}
+
+.admin-login-content {
+  min-height: 0;
+  flex: 1;
+  padding-block: clamp(0.75rem, 2vh, 1.5rem);
+}
+
+.admin-login-grid {
+  gap: clamp(1.5rem, 4vw, 5rem);
+}
+
+.admin-login-card-surface {
+  padding: clamp(1.25rem, 3vw, 2.5rem) !important;
+}
+
+.admin-login-page-footer {
+  margin-top: clamp(0.5rem, 1.5vh, 1.5rem) !important;
+}
+
+@media (max-height: 850px) {
+  .admin-login-header {
+    padding-block: 0.75rem;
+  }
+
+  .admin-login-content {
+    padding-block: 0.5rem;
+  }
+
+  .admin-login-grid {
+    gap: clamp(1rem, 3vw, 2rem);
+  }
+
+  .admin-login-editorial-badge {
+    margin-bottom: 1.25rem !important;
+  }
+
+  .admin-login-editorial h1 {
+    font-size: clamp(2.75rem, 4vw, 3.5rem);
+    line-height: 1.05;
+  }
+
+  .admin-login-editorial-copy {
+    margin-top: 1rem !important;
+    line-height: 1.5 !important;
+  }
+
+  .admin-login-features {
+    margin-top: 1.5rem !important;
+  }
+
+  .admin-login-features > div {
+    padding: 0.75rem;
+  }
+
+  .admin-login-features > div > div {
+    margin-bottom: 0.5rem !important;
+  }
+
+  .admin-login-editorial-footer {
+    margin-top: 1.5rem !important;
+  }
+
+  .admin-login-card-surface {
+    padding: clamp(1.25rem, 2.5vw, 2rem) !important;
+  }
+
+  .admin-login-card-intro {
+    margin-bottom: 1.25rem !important;
+  }
+
+  .admin-login-form {
+    display: flex;
+    flex-direction: column;
+    gap: 0.875rem;
+  }
+
+  .admin-login-form > * + * {
+    margin-top: 0 !important;
+  }
+
+  .admin-login-input {
+    height: 48px !important;
+  }
+
+  .admin-login-submit {
+    height: 50px !important;
+    margin-top: 0.25rem !important;
+  }
+
+  .admin-login-card-footer {
+    margin-top: 1.25rem !important;
+    padding-top: 1rem !important;
+  }
+
+  .admin-login-page-footer {
+    margin-top: 0.75rem !important;
+    gap: 0.5rem !important;
+  }
+}
+
+@media (max-height: 740px) {
+  .admin-login-header {
+    padding-block: 0.5rem;
+  }
+
+  .admin-login-content {
+    padding-block: 0.375rem;
+  }
+
+  .admin-login-card-surface {
+    padding: 1rem !important;
+  }
+
+  .admin-login-card-intro {
+    margin-bottom: 0.875rem !important;
+  }
+
+  .admin-login-card-intro > div:first-child {
+    width: 2.5rem;
+    height: 2.5rem;
+    margin-bottom: 0.75rem !important;
+  }
+
+  .admin-login-card-intro h2 {
+    font-size: 1.5rem;
+  }
+
+  .admin-login-card-intro > p:last-child {
+    margin-top: 0.375rem !important;
+    line-height: 1.4;
+  }
+
+  .admin-login-form {
+    gap: 0.75rem;
+  }
+
+  .admin-login-input {
+    height: 46px !important;
+  }
+
+  .admin-login-submit {
+    height: 48px !important;
+  }
+
+  .admin-login-card-footer {
+    margin-top: 1rem !important;
+    padding-top: 0.75rem !important;
+  }
+
+  .admin-login-page-footer {
+    margin-top: 0.5rem !important;
+    font-size: 9px;
+  }
+}
+
+@media (min-width: 1024px) and (max-height: 700px) {
+  .admin-login-editorial {
+    display: none !important;
+  }
+
+  .admin-login-grid {
+    grid-template-columns: minmax(0, 440px) !important;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) and (max-height: 600px) {
+  .admin-login-card-footer,
+  .admin-login-page-footer {
+    display: none !important;
+  }
+}
