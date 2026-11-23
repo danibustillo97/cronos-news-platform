@@ -5,7 +5,7 @@
 
 import { useEffect, useState } from "react";
 import { AlertTriangle } from "lucide-react";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
 import StatusPill from "./StatusPill";
 import { DISCOVERY_JOB_STATUS } from "./statusMeta";
 
@@ -42,7 +42,7 @@ export default function JobHistoryList({ refreshKey }: { refreshKey: number }) {
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(apiUrl("/api/discovery/jobs?limit=6"));
+        const res = await apiFetch("/api/discovery/jobs?limit=6");
         if (res.ok) setJobs((await res.json()).jobs ?? []);
       } finally {
         setLoading(false);

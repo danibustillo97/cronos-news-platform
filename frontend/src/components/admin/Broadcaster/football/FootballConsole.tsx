@@ -6,6 +6,7 @@ import { Download, Eye, Plus, RefreshCw, Trash2, Tv2, Undo2 } from "lucide-react
 import type { BroadcastGraphic, GraphicVariant } from "../graphicExport";
 import { COMPETITIONS, getCompetition } from "./competitions";
 import { DataPanel } from "./DataPanel";
+import { MatchClock } from "./MatchClock";
 import { FOOTBALL_VARIANTS, FOOTBALL_VARIANT_LABEL } from "./designs";
 import { WidgetBuilder, type AddOptions } from "./WidgetBuilder";
 import type { Fixture, FootballMatchController } from "./useFootballMatch";
@@ -17,7 +18,6 @@ const PERIODS = ["PRE", "1T", "HT", "2T", "ET", "PEN", "FT"] as const;
 const RANGES: Array<[string, number]> = [["Hoy", 0], ["7 días", 7], ["14 días", 14], ["30 días", 30]];
 
 const ymd = (date: Date) => `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
-const clockText = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 
 function countdown(kickoff?: string): string {
   if (!kickoff) return "";
@@ -89,8 +89,6 @@ export function FootballConsole({ fm, graphics, previewGraphicIds, programGraphi
   }, [range, theme.espn]);
 
   const sceneWidgets = useMemo(() => graphics.filter((graphic) => graphic.mode === "football"), [graphics]);
-  const lineups = match.lineups;
-  const hasLineups = Boolean(lineups?.home?.length || lineups?.away?.length);
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
@@ -132,6 +130,13 @@ export function FootballConsole({ fm, graphics, previewGraphicIds, programGraphi
               {match.kickoff && <p className="mt-1 text-emerald-300">{new Date(match.kickoff).toLocaleString("es", { dateStyle: "full", timeStyle: "short" })} · {countdown(match.kickoff)}</p>}
               {match.venue && <p className="text-neutral-400">{match.venue}{match.city ? ` · ${match.city}` : ""}</p>}
               {match.referee && <p className="text-neutral-400">Árbitro: {match.referee}</p>}
+              <p className={`mt-1 text-[10px] ${fm.cloud.status === "error" ? "text-amber-300" : "text-neutral-500"}`}>
+                {fm.cloud.status === "checking" ? "Nube: comprobando…"
+                  : fm.cloud.status === "saving" ? "Nube: guardando…"
+                    : fm.cloud.status === "saved" ? `Nube: guardado${fm.cloud.savedAt ? ` ${new Date(fm.cloud.savedAt).toLocaleTimeString("es", { hour: "2-digit", minute: "2-digit" })}` : ""}`
+                      : fm.cloud.status === "off" ? "Nube: sin sesión; solo en este navegador"
+                        : "Nube: no disponible; guardado solo en este navegador"}
+              </p>
               <div className="mt-2 grid grid-cols-2 gap-1.5">
                 <button type="button" onClick={() => void fm.refreshDetail()} disabled={fm.loading} className={btn}><RefreshCw size={12} className="mr-1 inline" />Actualizar datos</button>
                 <button type="button" onClick={() => onAddWidget("prematch")} className={btn}>Añadir previa</button>
@@ -149,7 +154,7 @@ export function FootballConsole({ fm, graphics, previewGraphicIds, programGraphi
                 <span className="font-mono text-4xl font-black text-white">{match.homeScore} : {match.awayScore}</span>
                 <span className="max-w-[90px] truncate text-xs font-bold text-neutral-200">{match.awayShort || match.awayTeam}</span>
               </div>
-              <p className="font-mono text-lg text-emerald-300">{match.period} · {clockText(match.clockSeconds)}{match.addedTime ? ` +${match.addedTime}` : ""}</p>
+              <p className="font-mono text-lg text-emerald-300">{match.period} · <MatchClock fm={fm} />{match.addedTime ? ` +${match.addedTime}` : ""}</p>
             </div>
             <div className="grid grid-cols-3 gap-1.5">
               <button type="button" onClick={fm.toggleClock} className={`${btn} ${fm.running ? "border-amber-400/40 text-amber-200" : "border-emerald-400/40 text-emerald-200"}`}>{fm.running ? "Pausar" : "Iniciar"}</button>
@@ -200,11 +205,44 @@ export function FootballConsole({ fm, graphics, previewGraphicIds, programGraphi
                     <span>{event.kind === "goal" ? "⚽" : event.kind === "yellow" ? "🟨" : event.kind === "red" ? "🟥" : "🔁"}</span>
                     <span className="min-w-0 flex-1 truncate">{event.player}{event.detail ? ` · ${event.detail}` : ""}</span>
                     <span className="text-neutral-500">{event.team === "home" ? match.homeShort : match.awayShort}</span>
+                    {!event.voided && <button type="button" onClick={() => fm.voidEvent(event.id)} aria-label={`Anular ${event.player} ${event.minute}'`} title="Anular este evento" className="rounded p-0.5 text-neutral-500 hover:bg-red-500/15 hover:text-red-300"><Undo2 size={11} /></button>}
                   </div>
                 ))}
                 {!fm.events.length && <p className="py-3 text-center text-[10px] text-neutral-600">Sin eventos todavía.</p>}
               </div>
             </div>
+            {fm.hasFixture && (
+              <div className="rounded-xl border border-sky-400/20 bg-sky-400/[0.04] p-2.5">
+                <div className="flex items-center gap-2">
+                  <p className="flex-1 text-[10px] font-bold uppercase tracking-widest text-sky-200">ESPN en vivo</p>
+                  <label className="flex items-center gap-1 text-[10px] text-neutral-300"><input type="checkbox" checked={fm.espnSync.enabled} onChange={(event) => fm.setEspnSync({ ...fm.espnSync, enabled: event.target.checked })} className="accent-sky-400" /> Seguir</label>
+                  <label title="Goles y tarjetas sin duplicados se aplican solos; autogoles y cambios siempre se revisan" className="flex items-center gap-1 text-[10px] text-neutral-300"><input type="checkbox" checked={fm.espnSync.auto} disabled={!fm.espnSync.enabled} onChange={(event) => fm.setEspnSync({ ...fm.espnSync, auto: event.target.checked })} className="accent-sky-400" /> Auto</label>
+                </div>
+                {fm.espnPending.length === 0 ? (
+                  <p className="mt-1.5 text-[10px] text-neutral-500">{fm.espnSync.enabled ? (match.period === "PRE" || match.period === "FT" ? "Se activa cuando el partido está en juego." : "Sin eventos nuevos de ESPN.") : "Seguimiento pausado."}</p>
+                ) : (
+                  <>
+                    <div className="mt-1.5 max-h-40 space-y-1 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
+                      {fm.espnPending.map((item) => (
+                        <div key={item.event.id} className="flex items-center gap-1.5 rounded-lg bg-black/25 px-2 py-1.5 text-[10px] text-neutral-200">
+                          <span className="font-mono text-neutral-500">{item.action.minute}&apos;</span>
+                          <span>{item.action.type === "goal" ? "⚽" : item.action.type === "sub" ? "🔁" : item.action.card === "yellow" ? "🟨" : "🟥"}</span>
+                          <span className="min-w-0 flex-1 truncate">
+                            {item.action.type === "sub" ? `${item.action.playerIn} por ${item.action.playerOut}` : item.action.player}
+                            {item.action.type === "goal" && item.action.detail ? ` · ${item.action.detail}` : ""}
+                            <span className="text-neutral-500"> · {item.action.team === "home" ? match.homeShort || "LOC" : match.awayShort || "VIS"}</span>
+                          </span>
+                          {item.duplicate && <span title="Ya cargaste un evento igual a mano" className="rounded bg-amber-400/15 px-1 text-[9px] font-bold text-amber-200">¿DUPLICADO?</span>}
+                          <button type="button" onClick={() => fm.applySuggestion(item.event.id)} className="rounded border border-sky-400/40 px-1.5 py-0.5 text-[9px] font-bold text-sky-100 hover:bg-sky-400/15">Aplicar</button>
+                          <button type="button" onClick={() => fm.dismissSuggestion(item.event.id)} aria-label="Ignorar" className="rounded px-1 text-neutral-500 hover:text-white">✕</button>
+                        </div>
+                      ))}
+                    </div>
+                    {fm.espnPending.length > 1 && <button type="button" onClick={fm.applyAllSuggestions} className={`${btn} mt-1.5 w-full`}>Aplicar todos ({fm.espnPending.length})</button>}
+                  </>
+                )}
+              </div>
+            )}
             <button type="button" onClick={() => { if (window.confirm("¿Reiniciar el partido y borrar eventos?")) fm.newMatch(); }} className="w-full rounded-lg border border-white/10 py-2 text-[10px] text-neutral-500 hover:text-red-300">Nuevo partido (reiniciar todo)</button>
           </>
         )}

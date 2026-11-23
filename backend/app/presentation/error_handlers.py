@@ -71,6 +71,12 @@ def register_error_handlers(app: FastAPI) -> None:
     async def _invalid_transition(request: Request, exc: InvalidStateTransition):
         return JSONResponse(status_code=409, content={"error": "INVALID_STATE_TRANSITION", "message": str(exc)})
 
+    @app.exception_handler(ValueError)
+    async def _invalid_value(request: Request, exc: ValueError):
+        # Domain/adapter validation ("scheduled_at must be in the future", unsupported image
+        # type, read-only credentials) is the caller's to fix: 422 with the reason, not a 500.
+        return JSONResponse(status_code=422, content={"error": "INVALID_REQUEST", "message": str(exc)})
+
     @app.exception_handler(ProviderUnavailableError)
     async def _provider_unavailable(request: Request, exc: ProviderUnavailableError):
         return JSONResponse(status_code=409, content={"error": "PROVIDER_UNAVAILABLE", "message": str(exc)})

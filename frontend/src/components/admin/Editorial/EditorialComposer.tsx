@@ -1,6 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { Editor } from "@tiptap/react";
 import TiptapEditor from "@/components/news/TiptapEditor";
 import type { MediaRequirement } from "./MediaRequirementBlock";
 
@@ -29,6 +30,7 @@ export default function EditorialComposer({
   mediaRequirements,
   onMediaChanged,
   onUploadImage,
+  onEditorReady,
 }: {
   title: string;
   subtitle: string;
@@ -52,6 +54,7 @@ export default function EditorialComposer({
   mediaRequirements?: MediaRequirement[];
   onMediaChanged?: () => void;
   onUploadImage?: (file: File) => Promise<string>;
+  onEditorReady?: (editor: Editor | null) => void;
 }) {
   const bodyText = body.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").trim();
   const wordCount = bodyText ? bodyText.split(/\s+/).length : 0;
@@ -126,6 +129,7 @@ export default function EditorialComposer({
             mediaRequirements={mediaRequirements}
             onMediaChanged={onMediaChanged}
             onUploadImage={onUploadImage}
+            onEditorReady={onEditorReady}
           />
         </div>
       </section>

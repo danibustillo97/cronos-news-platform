@@ -10,6 +10,7 @@ import { X, Check, ArrowRight, Trash2, Globe, FileImage, ExternalLink, FileEdit,
 import type { DiscoveryItem } from "./DiscoveryRow";
 import { ageLabel, excerpt, sourceLabel } from "./DiscoveryRow";
 import { CATEGORY_GROUP_CLASSES, CATEGORY_GROUP_FALLBACK } from "./statusMeta";
+import { safeHttpUrl } from "./safeLinks";
 
 function Metric({ label, value, color }: { label: string; value: number | null; color: string }) {
   const pct = value === null ? null : Math.round(value * 100);
@@ -174,7 +175,7 @@ export default function DiscoveryDetailPanel({
               </button>
             </>
           )}
-          <a href={item.originalUrl} target="_blank" rel="noreferrer"
+          <a href={safeHttpUrl(item.originalUrl) ?? undefined} target="_blank" rel="noreferrer"
             className="w-full flex items-center justify-center gap-1.5 text-xs font-medium px-3 py-2 rounded-lg text-neutral-500 hover:text-white hover:bg-white/10">
             <ExternalLink size={13} /> Ver fuente
           </a>

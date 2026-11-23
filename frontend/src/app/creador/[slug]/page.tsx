@@ -17,6 +17,7 @@ import { newsToPost, type Post } from '@/lib/platform'
 import { supabase } from '@/lib/supabaseClient'
 import { usePortalTheme } from '@/context/ThemeContext'
 import type { NewsView } from '@/types/news'
+import { publicAuthorName } from '@/lib/byline'
 
 export default function CreatorProfilePage() {
   const { theme } = usePortalTheme()
@@ -29,7 +30,7 @@ export default function CreatorProfilePage() {
     supabase.from('news').select('*').eq('status', 'published').order('published_at', { ascending: false }).limit(200)
       .then(({ data }) => {
         const all = (data || []) as NewsView[]
-        const mine = all.filter((n) => slugifyName(n.author || 'Nexus News') === params.slug)
+        const mine = all.filter((n) => slugifyName(publicAuthorName(n.author)) === params.slug)
         setPosts(mine.map((n) => newsToPost(n, all)))
       })
   }, [params.slug])

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import type { Editor } from "@tiptap/react";
 import { ChevronDown, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
 import Select, { type SelectGroup } from "@/components/ui/Select";
@@ -9,6 +10,7 @@ import FeaturedImageHero from "./FeaturedImageHero";
 import EditorialComposer from "./EditorialComposer";
 import SeoFixProposalCard from "./SeoFixProposalCard";
 import { useSeoFixProposal } from "./useSeoFixProposal";
+import { stripArticleWrapper, wrapArticle } from "./articleHtml";
 
 interface Category { id: string; name: string; }
 interface CategoryGroup { id: string; name: string; categories: Category[]; }
@@ -23,20 +25,14 @@ export interface RevisionDraft {
   tags: string[];
 }
 
-export function stripArticleWrapper(html: string): string {
-  const m = html.match(/<article[^>]*>([\s\S]*)<\/article>/);
-  return m ? m[1] : html;
-}
-
-export function wrapArticle(html: string): string {
-  return `<article>${html}</article>`;
-}
+export { stripArticleWrapper, wrapArticle };
 
 const TITLE_MAX = 70;
 
 export default function RevisionEditor({
-  draft, onFieldChange, categoryGroups, mediaRequirements, artifactId, onMediaChanged,
+  draft, onFieldChange, categoryGroups, mediaRequirements, artifactId, onMediaChanged, onEditorReady,
 }: {
+  onEditorReady?: (editor: Editor | null) => void;
   draft: RevisionDraft;
   onFieldChange: (patch: Partial<RevisionDraft>) => void;
   categoryGroups: CategoryGroup[];
@@ -197,6 +193,7 @@ export default function RevisionEditor({
         artifactId={artifactId}
         mediaRequirements={mediaRequirements}
         onMediaChanged={onMediaChanged}
+        onEditorReady={onEditorReady}
       />
     </div>
   );

@@ -112,10 +112,14 @@ class FakeCategoryRepo:
 
 
 class FakePublisher:
-    def __init__(self, news_id="news-1", error=None):
+    def __init__(self, news_id="news-1", error=None, taken_slugs=()):
         self._news_id = news_id
         self._error = error
+        self._taken = set(taken_slugs)
         self.calls = []
+
+    def reserve_slug(self, slug, artifact_id):
+        return f"{slug}-2" if slug in self._taken else slug
 
     def publish(self, artifact, category_name, image_url, content_html):
         if self._error:
@@ -1292,3 +1296,24 @@ def test_accepting_a_claim_resolution_persists_and_revalidates():
     assert updated.claims[0].label == EvidenceLabel.SOURCE_AVAILABILITY_CLAIM
     assert not any(i.check == "evidence" for i in updated.validation.issues)  # the warning is really gone
     assert artifacts.find_by_id(str(a.id)).claims[0].label == EvidenceLabel.SOURCE_AVAILABILITY_CLAIM  # persisted
+
+
+def test_review_artifact_reopen_sends_an_approved_artifact_back_to_review():
+    artifacts, stories, artifact = _approved_artifact_and_story()
+
+    result = ReviewArtifact(artifacts, stories).execute(ReviewArtifactInput(artifact_id=str(artifact.id), decision="REOPEN"))
+
+    assert result.status == ArtifactStatus.VALIDATED
+    assert artifacts.find_by_id(str(artifact.id)).status == ArtifactStatus.VALIDATED
+
+
+
+def test_publish_artifact_records_the_slug_actually_published():
+    artifacts, stories, artifact = _approved_artifact_and_story()
+    original = artifact.seo.slug
+    publisher = FakePublisher(taken_slugs=[original])
+
+    result = PublishArtifact(artifacts, stories, FakeCategoryRepo(_categories()), FakeAssetRepo(), FakeStorage(), publisher)         .execute(PublishArtifactInput(artifact_id=str(artifact.id)))
+
+    assert result.seo.slug == f"{original}-2"
+    assert publisher.calls[0][0].seo.slug == f"{original}-2"

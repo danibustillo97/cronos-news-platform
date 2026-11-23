@@ -6,7 +6,7 @@
 // backend ProposeSeoFix), never a separate mechanism per button.
 
 import { useState } from "react";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
 
 export interface SeoFixProposal {
   field: string;
@@ -31,7 +31,7 @@ export function useSeoFixProposal(artifactId: string, field: "title" | "seo_titl
   const request = async (instruction?: string) => {
     setState({ kind: "loading" });
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifactId}/seo/suggest-fix`), {
+      const res = await apiFetch(`/api/artifacts/${artifactId}/seo/suggest-fix`, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ field, ...(instruction ? { instruction } : {}) }),
       });

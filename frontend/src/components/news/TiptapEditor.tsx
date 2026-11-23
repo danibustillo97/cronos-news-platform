@@ -15,7 +15,7 @@ import {
   Undo2, Redo2, Plus, Minus, X,
 } from "lucide-react";
 import Select, { type SelectOption } from "@/components/ui/Select";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
 import EditorialImageNode from "@/components/admin/Editorial/EditorialImageNode";
 import { EditorialImageContext } from "@/components/admin/Editorial/EditorialImageContext";
 import type { MediaRequirement } from "@/components/admin/Editorial/MediaRequirementBlock";
@@ -31,6 +31,8 @@ interface Props {
   mediaRequirements?: MediaRequirement[];
   onMediaChanged?: () => void;
   onUploadImage?: (file: File) => Promise<string>;
+  /** Receives the editor instance (and null on unmount) so side panels can insert content. */
+  onEditorReady?: (editor: Editor | null) => void;
 }
 
 type BlockType = "paragraph" | "h1" | "h2" | "h3" | "blockquote";
@@ -120,6 +122,17 @@ const MenuBar = ({
   insertingImage?: boolean;
   onOpenDialog: (kind: InsertDialogKind, value?: string) => void;
 }) => {
+  const [insertOpen, setInsertOpen] = useState(false);
+  const insertMenuRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!insertOpen) return;
+    const onDown = (event: PointerEvent) => { if (!insertMenuRef.current?.contains(event.target as Node)) setInsertOpen(false); };
+    const onKey = (event: KeyboardEvent) => { if (event.key === "Escape") setInsertOpen(false); };
+    window.addEventListener("pointerdown", onDown);
+    window.addEventListener("keydown", onKey);
+    return () => { window.removeEventListener("pointerdown", onDown); window.removeEventListener("keydown", onKey); };
+  }, [insertOpen]);
+
   if (!editor) {
     return null;
   }
@@ -169,11 +182,12 @@ const MenuBar = ({
       <ToolbarButton onClick={() => editor.chain().focus().toggleBlockquote().run()} active={editor.isActive("blockquote")} title="Cita">
         <Quote size={16} />
       </ToolbarButton>
-      <details className="relative">
-        <summary className="flex cursor-pointer list-none items-center gap-1.5 rounded px-2.5 py-2 text-xs font-medium text-neutral-300 hover:bg-white/10">
+      <div ref={insertMenuRef} className="relative">
+        <button type="button" aria-haspopup="menu" aria-expanded={insertOpen} onClick={() => setInsertOpen((open) => !open)} className="flex cursor-pointer items-center gap-1.5 rounded px-2.5 py-2 text-xs font-medium text-neutral-300 hover:bg-white/10">
           <Plus size={14} /> Insertar bloque
-        </summary>
-        <div className="absolute left-0 top-full z-30 mt-2 grid w-64 gap-1 rounded-xl border border-white/10 bg-neutral-950 p-2 shadow-2xl sm:grid-cols-2">
+        </button>
+        {insertOpen && (
+        <div role="menu" onClick={() => setInsertOpen(false)} className="absolute left-0 top-full z-30 mt-2 grid w-64 gap-1 rounded-xl border border-white/10 bg-neutral-950 p-2 shadow-2xl sm:grid-cols-2">
           <button type="button" onClick={() => onOpenDialog("link", String(editor.getAttributes("link").href ?? ""))} className="flex items-center gap-2 rounded-lg px-2.5 py-2 text-left text-xs text-neutral-300 hover:bg-white/10">
             <LinkIcon size={14} /> Enlace
           </button>
@@ -207,7 +221,8 @@ const MenuBar = ({
             <Code size={14} /> Código
           </button>
         </div>
-      </details>
+        )}
+      </div>
       {editor.isActive("table") && (
         <div className="flex items-center gap-0.5 border-l border-white/10 pl-1">
           <ToolbarButton onClick={() => editor.chain().focus().addRowAfter().run()} title="Añadir fila">
@@ -231,13 +246,12 @@ const MenuBar = ({
 };
 
 export default function TiptapEditor({
-  value, onChange, className, artifactId, mediaRequirements, onMediaChanged, onUploadImage,
+  value, onChange, className, artifactId, mediaRequirements, onMediaChanged, onUploadImage, onEditorReady,
 }: Props) {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [insertingImage, setInsertingImage] = useState(false);
   const [dialogKind, setDialogKind] = useState<InsertDialogKind | null>(null);
   const [dialogValue, setDialogValue] = useState("");
-  const [documentStats, setDocumentStats] = useState({ words: 0, characters: 0 });
   const bodyImageInput = useRef<HTMLInputElement>(null);
 
   const openDialog = (kind: InsertDialogKind, initialValue = "") => {
@@ -248,9 +262,11 @@ export default function TiptapEditor({
   const extensions = useMemo(() => {
     const base = [
       StarterKit.configure({ link: false, underline: false }),
+      // Base64 images would bloat news.content with megabytes of text; pasted or dropped
+      // files are uploaded instead (see handleImageFiles).
       Image.configure({
         inline: false,
-        allowBase64: true,
+        allowBase64: false,
       }),
       Underline,
       Link.configure({ openOnClick: false, autolink: true }),
@@ -265,18 +281,28 @@ export default function TiptapEditor({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [Boolean(artifactId)]);
 
+  // Last HTML exchanged with the parent (received as `value` or emitted by typing). Content
+  // loaded from outside is never echoed back as a change, so parents can trust onChange to
+  // mean "a person edited the text" (autosave and unsaved-changes guards depend on it).
+  const lastSyncedRef = useRef(value);
+  // Pasted/dropped image files: returns true when handled (editorProps are fixed at creation,
+  // so they call the latest version through this ref).
+  const imageFilesRef = useRef<(files: File[], at: number | null) => boolean>(() => false);
   const editor = useEditor({
     extensions,
     content: value,
     onUpdate({ editor }) {
-      onChange(editor.getHTML());
-      const text = editor.getText().trim();
-      setDocumentStats({
-        words: text ? text.split(/\s+/).length : 0,
-        characters: text.length,
-      });
+      const html = editor.getHTML();
+      lastSyncedRef.current = html;
+      onChange(html);
     },
     editorProps: {
+      handlePaste: (_view, event) => imageFilesRef.current(Array.from(event.clipboardData?.files ?? []), null),
+      handleDrop: (view, event) => {
+        const files = Array.from(event.dataTransfer?.files ?? []);
+        const at = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? null;
+        return imageFilesRef.current(files, at);
+      },
       attributes: {
         class:
           "h-full overflow-y-auto outline-none prose prose-invert max-w-none prose-lg prose-p:text-neutral-300 prose-headings:font-bold prose-headings:text-white prose-a:text-blue-400 prose-strong:text-white prose-blockquote:border-l-2 prose-blockquote:border-white/20 prose-blockquote:pl-4 prose-blockquote:italic prose-blockquote:text-neutral-400 prose-img:rounded-xl prose-code:text-amber-300",
@@ -286,24 +312,30 @@ export default function TiptapEditor({
   });
 
   useEffect(() => {
-    // Only update content if it's significantly different to prevent cursor jumps
-    if (editor && value !== editor.getHTML()) {
-       // Check if the change is just empty paragraph differences or real content
-       if (editor.getHTML() === '<p></p>' && !value) return;
-
-       // Only set content if it's actually different to avoid cursor reset
-       editor.commands.setContent(value || "");
-    }
+    if (!editor || value === lastSyncedRef.current) return;
+    lastSyncedRef.current = value;
+    if (value === editor.getHTML()) return;
+    // A different document arrived from outside (another article, a restore): load it silently.
+    editor.commands.setContent(value || "", { emitUpdate: false });
   }, [value, editor]);
 
+  const readyRef = useRef(onEditorReady);
+  readyRef.current = onEditorReady;
   useEffect(() => {
-    if (!editor) return;
-    const text = editor.getText().trim();
-    setDocumentStats({
-      words: text ? text.split(/\s+/).length : 0,
-      characters: text.length,
-    });
+    readyRef.current?.(editor ?? null);
+    return () => readyRef.current?.(null);
   }, [editor]);
+
+  useEffect(() => {
+    if (!dialogKind && !isFullscreen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (dialogKind) setDialogKind(null);
+      else setIsFullscreen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [dialogKind, isFullscreen]);
 
   const submitInsertDialog = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -362,7 +394,7 @@ export default function TiptapEditor({
     if (!editor || !artifactId || !onMediaChanged) return;
     setInsertingImage(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifactId}/media`), {
+      const res = await apiFetch(`/api/artifacts/${artifactId}/media`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "BODY_IMAGE" }),
@@ -387,6 +419,31 @@ export default function TiptapEditor({
     } finally {
       setInsertingImage(false);
     }
+  };
+
+  imageFilesRef.current = (files, at) => {
+    const images = files.filter((file) => file.type.startsWith("image/"));
+    if (!images.length || !editor) return false;
+    if (!onUploadImage) {
+      toast.info(artifactId ? "Usa «Imagen del cuerpo» en Insertar bloque para añadir imágenes" : "Este editor no admite pegar imágenes");
+      return true;
+    }
+    void (async () => {
+      for (const file of images) {
+        if (file.size > 10 * 1024 * 1024) { toast.error(`${file.name || "Imagen"}: debe pesar menos de 10 MB`); continue; }
+        setInsertingImage(true);
+        try {
+          const src = await onUploadImage(file);
+          const chain = editor.chain().focus();
+          (at === null ? chain : chain.setTextSelection(at)).setImage({ src }).run();
+        } catch (error) {
+          toast.error(error instanceof Error ? error.message : "No se pudo subir la imagen");
+        } finally {
+          setInsertingImage(false);
+        }
+      }
+    })();
+    return true;
   };
 
   const uploadBodyImage = async () => {
@@ -441,10 +498,6 @@ export default function TiptapEditor({
         />
       )}
       <EditorContent editor={editor} className="flex-1 overflow-hidden" />
-      <div className="flex flex-shrink-0 items-center justify-between border-t border-white/5 px-2 py-2 text-[10px] text-neutral-600">
-        <span>{documentStats.words} palabras</span>
-        <span>{documentStats.characters} caracteres</span>
-      </div>
       {dialogKind && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4" onMouseDown={(event) => {
           if (event.target === event.currentTarget) setDialogKind(null);

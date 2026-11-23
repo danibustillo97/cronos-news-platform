@@ -9,10 +9,12 @@
 // public URL (nexusnews.info/noticia/<slug>), not a placeholder.
 
 import { useCallback, useEffect, useState } from "react";
-import { CalendarClock, CalendarX, RefreshCw, ExternalLink, Send, X } from "lucide-react";
+import { CalendarClock, CalendarX, Eye, RefreshCw, ExternalLink, Send, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
 import ArtifactRow from "./ArtifactRow";
+import ArticlePreviewModal from "./ArticlePreviewModal";
+import type { MediaRequirement } from "./MediaRequirementBlock";
 import Select from "@/components/ui/Select";
 
 interface SeoMetadata {
@@ -32,6 +34,8 @@ interface Artifact {
   seo: SeoMetadata;
   publishedNewsId: string | null;
   scheduledAt: string | null;
+  contentHtml?: string;
+  mediaRequirements?: MediaRequirement[];
 }
 
 const STATUS_OPTIONS = [
@@ -44,7 +48,7 @@ function localDateTimeValue(date: Date): string {
   return new Date(date.getTime() - date.getTimezoneOffset() * 60_000).toISOString().slice(0, 16);
 }
 
-export default function PublishPanel() {
+export default function PublishPanel({ active = true }: { active?: boolean }) {
   const [statusFilter, setStatusFilter] = useState("APPROVED");
   const [artifacts, setArtifacts] = useState<Artifact[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,12 +56,15 @@ export default function PublishPanel() {
   const [busy, setBusy] = useState<string | null>(null);
   const [scheduleTarget, setScheduleTarget] = useState<Artifact | null>(null);
   const [scheduleValue, setScheduleValue] = useState("");
+  // Publishing is public and immediate: it always goes through a confirmation with a preview.
+  const [confirmTarget, setConfirmTarget] = useState<Artifact | null>(null);
+  const [previewTarget, setPreviewTarget] = useState<Artifact | null>(null);
 
   const fetchArtifacts = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts?status=${statusFilter}&limit=50`));
+      const res = await apiFetch(`/api/artifacts?status=${statusFilter}&limit=50`);
       if (!res.ok) {
         if (res.status === 503) {
           const body = await res.json().catch(() => null);
@@ -75,19 +82,23 @@ export default function PublishPanel() {
   }, [statusFilter]);
 
   useEffect(() => {
-    fetchArtifacts();
-  }, [fetchArtifacts]);
+    if (active) void fetchArtifacts();
+  }, [active, fetchArtifacts]);
 
   const publish = async (artifactId: string) => {
     setBusy(artifactId);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifactId}/publish`), { method: "POST" });
+      const res = await apiFetch(`/api/artifacts/${artifactId}/publish`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
+      const published: Artifact | null = await res.json().catch(() => null);
       setArtifacts((prev) => prev.filter((a) => a.id !== artifactId));
-      toast.success("Publicado -- ya está en nexusnews.info");
+      setConfirmTarget(null);
+      toast.success("Publicado -- ya está en nexusnews.info", published?.seo?.slug ? {
+        action: { label: "Ver", onClick: () => window.open(`https://www.nexusnews.info/noticia/${published.seo.slug}`, "_blank", "noopener") },
+      } : undefined);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo publicar");
     } finally {
@@ -105,7 +116,7 @@ export default function PublishPanel() {
 
     setBusy(scheduleTarget.id);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${scheduleTarget.id}/schedule`), {
+      const res = await apiFetch(`/api/artifacts/${scheduleTarget.id}/schedule`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ scheduledAt: timestamp.toISOString() }),
@@ -124,10 +135,32 @@ export default function PublishPanel() {
     }
   };
 
+  const reopen = async (artifact: Artifact) => {
+    if (!window.confirm(`¿Devolver «${artifact.title}» a Revisión para corregirlo? Tendrá que aprobarse de nuevo.`)) return;
+    setBusy(artifact.id);
+    try {
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/review`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ decision: "REOPEN" }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.detail || body?.message || `HTTP ${res.status}`);
+      }
+      setArtifacts((prev) => prev.filter((a) => a.id !== artifact.id));
+      toast.success("Devuelto a Revisión");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo devolver a Revisión");
+    } finally {
+      setBusy(null);
+    }
+  };
+
   const cancelSchedule = async (artifactId: string) => {
     setBusy(artifactId);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifactId}/schedule/cancel`), { method: "POST" });
+      const res = await apiFetch(`/api/artifacts/${artifactId}/schedule/cancel`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.detail || body?.message || `HTTP ${res.status}`);
@@ -175,7 +208,7 @@ export default function PublishPanel() {
                 a.status === "APPROVED" ? (
                   <div className="flex items-center gap-1.5">
                     <button
-                      onClick={() => publish(a.id)}
+                      onClick={() => setConfirmTarget(a)}
                       disabled={busy === a.id}
                       className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-blue-500/10 text-blue-400 hover:bg-blue-500/20 disabled:opacity-50"
                     >
@@ -191,6 +224,14 @@ export default function PublishPanel() {
                       className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10 disabled:opacity-50"
                     >
                       <CalendarClock size={13} /> Programar
+                    </button>
+                    <button
+                      onClick={() => void reopen(a)}
+                      disabled={busy === a.id}
+                      title="Devolver a Revisión para corregir"
+                      className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1.5 rounded-lg text-neutral-400 hover:bg-white/5 hover:text-white disabled:opacity-50"
+                    >
+                      <Undo2 size={13} /> Revisión
                     </button>
                   </div>
                 ) : a.status === "SCHEDULED" ? (
@@ -222,6 +263,40 @@ export default function PublishPanel() {
             </ArtifactRow>
           ))}
         </div>
+      )}
+
+      {confirmTarget && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 p-4" role="dialog" aria-modal="true" aria-label="Confirmar publicación">
+          <div className="w-full max-w-sm rounded-xl border border-white/10 bg-neutral-950 p-5 shadow-2xl">
+            <h3 className="text-sm font-bold text-white">¿Publicar ahora?</h3>
+            <p className="mt-1 text-xs text-neutral-400 line-clamp-3">{confirmTarget.title}</p>
+            <p className="mt-2 text-[11px] text-neutral-500">Quedará visible en nexusnews.info/noticia/{confirmTarget.seo.slug} de inmediato.</p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <button onClick={() => setConfirmTarget(null)} className="rounded-lg px-3 py-2 text-xs text-neutral-400 hover:bg-white/5 hover:text-white">Volver</button>
+              {confirmTarget.contentHtml && (
+                <button onClick={() => setPreviewTarget(confirmTarget)} className="flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-2 text-xs text-neutral-300 hover:bg-white/10"><Eye size={12} /> Vista previa</button>
+              )}
+              <button
+                autoFocus
+                onClick={() => void publish(confirmTarget.id)}
+                disabled={busy === confirmTarget.id}
+                className="flex items-center gap-1.5 rounded-lg bg-blue-500/20 px-3 py-2 text-xs font-semibold text-blue-200 hover:bg-blue-500/30 disabled:opacity-50"
+              >
+                {busy === confirmTarget.id ? <RefreshCw size={12} className="animate-spin" /> : <Send size={12} />} Publicar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {previewTarget?.contentHtml && (
+        <ArticlePreviewModal
+          title={previewTarget.title} subtitle={previewTarget.subtitle ?? ""} excerpt={previewTarget.excerpt}
+          contentHtml={previewTarget.contentHtml}
+          featuredImageUrl={previewTarget.mediaRequirements?.find((m) => m.kind === "FEATURE_IMAGE")?.assetUrl ?? null}
+          mediaRequirements={previewTarget.mediaRequirements ?? []} artifactId={previewTarget.id}
+          onClose={() => setPreviewTarget(null)}
+        />
       )}
 
       {scheduleTarget && (

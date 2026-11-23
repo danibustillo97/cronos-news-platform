@@ -50,7 +50,11 @@ def trigger_artifact(
     real LLM call (10-60+ seconds) runs as a background task so this
     request never blocks on it -- poll GET /jobs/{id} for real progress."""
     job = container.trigger_artifact.execute(TriggerArtifactInput(story_id=body.story_id, provider=body.provider))
-    background_tasks.add_task(container.run_artifact_job.execute, RunArtifactJobInput(job_id=job.id))
+    if container.github_jobs:
+        # Serverless: the GitHub Actions worker runs it (a function cannot outlive its response).
+        container.wake_worker("artifact")
+    else:
+        background_tasks.add_task(container.run_artifact_job.execute, RunArtifactJobInput(job_id=job.id))
     return artifact_job_out(job)
 
 
@@ -253,7 +257,10 @@ def generate_media(
     job = container.trigger_media_generation.execute(
         TriggerMediaGenerationInput(artifact_id=artifact_id, placeholder_id=placeholder_id)
     )
-    background_tasks.add_task(container.run_media_generation_job.execute, RunMediaGenerationJobInput(job_id=job.id))
+    if container.github_jobs:
+        container.wake_worker("media")
+    else:
+        background_tasks.add_task(container.run_media_generation_job.execute, RunMediaGenerationJobInput(job_id=job.id))
     return media_generation_job_out(job)
 
 

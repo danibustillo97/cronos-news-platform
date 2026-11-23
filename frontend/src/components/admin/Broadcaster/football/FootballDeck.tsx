@@ -5,8 +5,11 @@ import { toast } from "sonner";
 import { Pause, Play, Undo2 } from "lucide-react";
 import type { FootballTeamPlayer, GraphicVariant } from "../graphicExport";
 import type { FootballMatchController } from "./useFootballMatch";
+import { MatchClock } from "./MatchClock";
 
 interface Props {
+  /** False while the studio is hidden behind another admin view: shortcuts must not reach the air. */
+  enabled?: boolean;
   fm: FootballMatchController;
   airGraphics: Array<{ id: string; name: string }>;
   onRetire: (graphicId: string) => void;
@@ -17,7 +20,6 @@ interface Props {
 type Team = "home" | "away";
 
 const PERIODS = ["PRE", "1T", "HT", "2T", "ET", "PEN", "FT"] as const;
-const clockText = (seconds: number) => `${String(Math.floor(seconds / 60)).padStart(2, "0")}:${String(seconds % 60).padStart(2, "0")}`;
 const key = "rounded bg-black/40 px-1 text-[9px] font-semibold text-white/60";
 const big = "rounded-lg border px-2 py-2.5 text-[11px] font-bold transition active:scale-[0.97]";
 
@@ -26,7 +28,7 @@ const THEME: Record<Team, { text: string; border: string; btn: string; keys: [st
   away: { text: "text-rose-200", border: "border-rose-400/30", btn: "border-rose-400/40 bg-rose-400/10 text-rose-100 hover:bg-rose-400/20", keys: ["H", "U", "N"], focusKey: "F" },
 };
 
-export function FootballDeck({ fm, airGraphics, onRetire, onRetireAll, onAirTemp }: Props) {
+export function FootballDeck({ enabled = true, fm, airGraphics, onRetire, onRetireAll, onAirTemp }: Props) {
   const { match } = fm;
   const [picked, setPicked] = useState<Record<Team, FootballTeamPlayer | null>>({ home: null, away: null });
   const [dorsal, setDorsal] = useState<Record<Team, string>>({ home: "", away: "" });
@@ -39,8 +41,8 @@ export function FootballDeck({ fm, airGraphics, onRetire, onRetireAll, onAirTemp
     return { home: sorted("home"), away: sorted("away") };
   }, [match.lineups, match.squads]);
 
-  const latest = useRef({ fm, picked, dorsal, entering, roster, airGraphics, onRetire, onRetireAll, onAirTemp });
-  latest.current = { fm, picked, dorsal, entering, roster, airGraphics, onRetire, onRetireAll, onAirTemp };
+  const latest = useRef({ enabled, fm, picked, dorsal, entering, roster, airGraphics, onRetire, onRetireAll, onAirTemp });
+  latest.current = { enabled, fm, picked, dorsal, entering, roster, airGraphics, onRetire, onRetireAll, onAirTemp };
 
   // Todo jugador sale únicamente de la columna de su equipo: nunca se mezclan.
   const resolve = (team: Team) => {
@@ -88,7 +90,11 @@ export function FootballDeck({ fm, airGraphics, onRetire, onRetireAll, onAirTemp
     const onKey = (event: KeyboardEvent) => {
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
-      if (event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      if (!latest.current.enabled || event.ctrlKey || event.metaKey || event.altKey || event.shiftKey) return;
+      // Holding a key would otherwise add a goal or a card per auto-repeat.
+      if (event.repeat) return;
+      // While a dialog or menu is open, its keys (Escape above all) belong to it, not to the air.
+      if (document.querySelector('[data-broadcaster-root] :is([role="dialog"], [role="menu"])')) return;
       const current = latest.current;
       const run = (fn: () => void) => { event.preventDefault(); fn(); };
       switch (event.key.toLowerCase()) {
@@ -202,7 +208,7 @@ export function FootballDeck({ fm, airGraphics, onRetire, onRetireAll, onAirTemp
       <div className="flex flex-col gap-2 rounded-xl border border-white/[0.08] bg-[#11161e] p-2.5">
         <div className="flex items-center justify-center gap-3 rounded-lg bg-black/50 px-3 py-2">
           <span className="text-3xl font-black tabular-nums text-white">{match.homeScore}<span className="px-1 text-emerald-300">:</span>{match.awayScore}</span>
-          <span className="rounded-lg bg-black/60 px-3 py-1 text-xl font-black tabular-nums text-emerald-300">{clockText(match.clockSeconds)}</span>
+          <span className="rounded-lg bg-black/60 px-3 py-1 text-xl font-black tabular-nums text-emerald-300"><MatchClock fm={fm} /></span>
         </div>
         <div className="grid grid-cols-2 gap-1.5">
           <button type="button" onClick={fm.toggleClock} className={`${big} flex items-center justify-center gap-1.5 ${fm.running ? "border-amber-400/40 bg-amber-400/10 text-amber-200" : "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"}`}>

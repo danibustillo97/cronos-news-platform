@@ -5,6 +5,9 @@ import { toast } from "sonner";
 import type { FootballHighlight, FootballScoreboard, FootballTeamPlayer } from "../graphicExport";
 import { COMPETITIONS, getCompetition } from "./competitions";
 import { logoToDataUrl } from "./raster";
+import { clockSecondsAt } from "./clock";
+import { planTimeline, type TimelineAction, type TimelineEvent, type TimelineSuggestion } from "./timeline";
+import { loadLatestFootballBroadcast, saveFootballBroadcast } from "@/lib/footballBroadcastStorage";
 
 export interface Fixture {
   id: string;
@@ -87,63 +90,145 @@ interface Persisted {
   events: MatchEvent[];
   audit: AuditEntry[];
   fixture?: { league: string; id: string } | null;
+  /** When the running clock last started (epoch ms); null while stopped. */
+  clockStartedAt?: number | null;
+  /** ESPN key events already applied or dismissed, so they are not suggested again. */
+  espnHandled?: string[];
+  /** When this copy was written; decides between the browser copy and the cloud copy. */
+  savedAt?: string;
+}
+
+export type CloudStatus = "checking" | "off" | "saving" | "saved" | "error";
+const CLOUD_DEBOUNCE_MS = 3000;
+
+/** Newer of two saved copies (a copy without a date always loses). */
+export function newerCopy<T extends { savedAt?: string }>(local: T | null, remote: T | null): "local" | "remote" | null {
+  if (!local && !remote) return null;
+  if (!remote) return "local";
+  if (!local) return "remote";
+  return Date.parse(remote.savedAt ?? "") > Date.parse(local.savedAt ?? "") ? "remote" : "local";
 }
 
 export function useFootballMatch() {
   const [match, setMatchState] = useState<FootballScoreboard>(createMatch);
   const [events, setEvents] = useState<MatchEvent[]>([]);
   const [audit, setAudit] = useState<AuditEntry[]>([]);
-  const [running, setRunning] = useState(false);
+  // match.clockSeconds holds the time at the last start/stop; the clock runs while clockStartedAt is set.
+  const [clockStartedAt, setClockStartedAtState] = useState<number | null>(null);
+  const running = clockStartedAt !== null;
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
   const matchRef = useRef(match);
   matchRef.current = match;
+  const startedAtRef = useRef<number | null>(null);
+  const setClockStartedAt = (value: number | null) => {
+    startedAtRef.current = value;
+    setClockStartedAtState(value);
+  };
+  /** Current match time in seconds, derived on demand. */
+  const clockNow = useCallback(() => clockSecondsAt(matchRef.current.clockSeconds, startedAtRef.current, Date.now()), []);
   const fixtureRef = useRef<{ league: string; id: string } | null>(null);
+  const [cloud, setCloud] = useState<{ status: CloudStatus; savedAt?: string }>({ status: "checking" });
+  const cloudIdRef = useRef<string | null>(null);
+  const cloudErrorShownRef = useRef(false);
+  // ESPN live timeline: suggestions the operator applies or dismisses (optionally goals/cards apply alone).
+  const [fixtureKey, setFixtureKey] = useState<string | null>(null);
+  const [espnSync, setEspnSync] = useState({ enabled: true, auto: false });
+  const [espnPending, setEspnPending] = useState<TimelineSuggestion[]>([]);
+  const handledRef = useRef(new Set<string>());
+  const eventsRef = useRef(events);
+  eventsRef.current = events;
 
+  const apply = (saved: Persisted) => {
+    setMatchState({ ...createMatch(), ...saved.match, highlight: undefined });
+    setEvents(saved.events ?? []);
+    setAudit(saved.audit ?? []);
+    fixtureRef.current = saved.fixture ?? null;
+    setFixtureKey(saved.fixture ? `${saved.fixture.league}:${saved.fixture.id}` : null);
+    handledRef.current = new Set(saved.espnHandled ?? []);
+    // A clock that was running keeps counting through a reload, as it does on the pitch.
+    setClockStartedAt(typeof saved.clockStartedAt === "number" ? saved.clockStartedAt : null);
+  };
+
+  // The browser copy loads at once; the cloud copy (another device, a cleared browser) wins if newer.
   useEffect(() => {
+    let local: Persisted | null = null;
     try {
       const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const saved = JSON.parse(raw) as Persisted;
-        setMatchState({ ...createMatch(), ...saved.match, highlight: undefined });
-        setEvents(saved.events ?? []);
-        setAudit(saved.audit ?? []);
-        fixtureRef.current = saved.fixture ?? null;
-      }
+      if (raw) local = JSON.parse(raw) as Persisted;
     } catch {
       toast.error("No se pudo recuperar el partido guardado");
     }
+    if (local) apply(local);
     setReady(true);
+    let cancelled = false;
+    loadLatestFootballBroadcast<Persisted>()
+      .then((remote) => {
+        if (cancelled) return;
+        if (!remote) { setCloud({ status: "off" }); return; }
+        cloudIdRef.current = remote.id;
+        if (newerCopy(local, remote.payload) === "remote") {
+          apply(remote.payload);
+          toast.info("Partido recuperado de la nube", { description: `${remote.payload.match.homeTeam} vs ${remote.payload.match.awayTeam}` });
+        }
+        setCloud({ status: "saved", savedAt: remote.payload.savedAt });
+      })
+      .catch(() => { if (!cancelled) setCloud({ status: "error" }); });
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
     if (!ready) return;
-    const timer = window.setTimeout(() => {
+    const snapshot = (): Persisted => ({
+      match: { ...match, highlight: undefined },
+      events,
+      audit,
+      fixture: fixtureRef.current,
+      clockStartedAt,
+      espnHandled: [...handledRef.current].slice(-300),
+      savedAt: new Date().toISOString(),
+    });
+    const local = window.setTimeout(() => {
       try {
-        window.localStorage.setItem(STORAGE_KEY, JSON.stringify({ match, events, audit, fixture: fixtureRef.current } satisfies Persisted));
+        window.localStorage.setItem(STORAGE_KEY, JSON.stringify(snapshot()));
       } catch {
         toast.error("No se pudo guardar el partido en este navegador");
       }
     }, 400);
-    return () => window.clearTimeout(timer);
-  }, [match, events, audit, ready]);
-
-  useEffect(() => {
-    if (!running) return;
-    const timer = window.setInterval(() => setMatchState((current) => ({ ...current, clockSeconds: current.clockSeconds + 1 })), 1000);
-    return () => window.clearInterval(timer);
-  }, [running]);
+    // The cloud copy waits until the startup comparison is done, so it never overwrites a newer one.
+    const remote = cloud.status === "checking" ? 0 : window.setTimeout(() => {
+      const payload = snapshot();
+      setCloud((current) => ({ ...current, status: "saving" }));
+      saveFootballBroadcast(cloudIdRef.current, `${payload.match.homeTeam} vs ${payload.match.awayTeam}`, payload.match.competition ?? "", payload)
+        .then((id) => {
+          if (!id) { setCloud({ status: "off" }); return; }
+          cloudIdRef.current = id;
+          cloudErrorShownRef.current = false;
+          setCloud({ status: "saved", savedAt: payload.savedAt });
+        })
+        .catch(() => {
+          setCloud((current) => ({ ...current, status: "error" }));
+          if (!cloudErrorShownRef.current) {
+            cloudErrorShownRef.current = true;
+            toast.warning("No se pudo guardar el partido en la nube", { description: "Sigue guardado en este navegador; se reintenta con el próximo cambio." });
+          }
+        });
+    }, CLOUD_DEBOUNCE_MS);
+    return () => { window.clearTimeout(local); if (remote) window.clearTimeout(remote); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [match, events, audit, clockStartedAt, ready, cloud.status === "checking"]);
 
   const setMatch = useCallback((patch: Partial<FootballScoreboard>) => setMatchState((current) => ({ ...current, ...patch })), []);
 
-  const minute = () => Math.floor(matchRef.current.clockSeconds / 60);
+  const minute = () => Math.floor(clockNow() / 60);
   const log = (action: string, team?: "home" | "away") =>
     setAudit((current) => [...current.slice(-199), { id: newId("audit"), action, team, minute: minute(), createdAt: new Date().toISOString() }]);
 
   const showHighlight = (highlight: FootballHighlight) => setMatchState((current) => ({ ...current, highlight }));
 
   const setPeriod = useCallback((period: FootballScoreboard["period"]) => {
-    setRunning(false);
+    setClockStartedAt(period === "1T" || period === "2T" || period === "ET" ? Date.now() : null);
     setMatchState((current) => ({
       ...current,
       period,
@@ -152,7 +237,6 @@ export function useFootballMatch() {
       matchStatus: period === "PRE" ? "scheduled" : period === "HT" ? "halftime" : period === "FT" ? "finished" : "live",
     }));
     log(`period_${period}`);
-    if (period === "1T" || period === "2T" || period === "ET") setRunning(true);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -162,17 +246,25 @@ export function useFootballMatch() {
       toast.info("Elige un periodo de juego para iniciar el reloj");
       return;
     }
-    setRunning((value) => !value);
+    if (startedAtRef.current === null) {
+      setClockStartedAt(Date.now());
+    } else {
+      // Pausing folds the elapsed run into the base time.
+      const seconds = clockNow();
+      setClockStartedAt(null);
+      setMatchState((state) => ({ ...state, clockSeconds: seconds }));
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const resetClock = useCallback(() => {
-    setRunning(false);
+    setClockStartedAt(null);
     setMatchState((current) => ({ ...current, clockSeconds: PERIOD_START[current.period] }));
   }, []);
 
-  const addGoal = useCallback((team: "home" | "away", player = "") => {
+  const addGoal = useCallback((team: "home" | "away", player = "", atMinute?: number, detail?: string) => {
     const m = matchRef.current;
-    const event: MatchEvent = { id: newId("event"), kind: "goal", team, minute: minute(), player: player || (team === "home" ? m.homeTeam : m.awayTeam) };
+    const event: MatchEvent = { id: newId("event"), kind: "goal", team, minute: atMinute ?? minute(), player: player || (team === "home" ? m.homeTeam : m.awayTeam), detail };
     setEvents((current) => [...current, event]);
     setMatchState((current) => ({
       ...current,
@@ -196,24 +288,46 @@ export function useFootballMatch() {
         [target.team === "home" ? "homeScore" : "awayScore"]: Math.max(0, state[target.team === "home" ? "homeScore" : "awayScore"] - 1),
         highlight: { kind: "void", team: target.team, player: target.player, minute: target.minute, detail: "Gol anulado" },
       }));
-      setAudit((entries) => [...entries.slice(-199), { id: newId("audit"), action: "goal_undone", team: target.team, minute: Math.floor(matchRef.current.clockSeconds / 60), createdAt: new Date().toISOString() }]);
+      setAudit((entries) => [...entries.slice(-199), { id: newId("audit"), action: "goal_undone", team: target.team, minute: minute(), createdAt: new Date().toISOString() }]);
       toast.success("Gol anulado", { description: `${target.player} · ${target.minute}'` });
       return current.map((event) => (event.id === target.id ? { ...event, voided: true } : event));
     });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- minute() only reads refs
   }, []);
 
-  const addCard = useCallback((team: "home" | "away", kind: "yellow" | "red", player = "") => {
+  // Voids any logged event (a card or a change entered by mistake) and reverts its counter.
+  const voidEvent = useCallback((eventId: string) => {
+    setEvents((current) => {
+      const target = current.find((event) => event.id === eventId && !event.voided);
+      if (!target) return current;
+      if (target.kind === "goal") {
+        const key = target.team === "home" ? "homeScore" : "awayScore";
+        setMatchState((state) => ({ ...state, [key]: Math.max(0, state[key] - 1), highlight: { kind: "void", team: target.team, player: target.player, minute: target.minute, detail: "Gol anulado" } }));
+      } else {
+        const key = target.kind === "sub"
+          ? (target.team === "home" ? "homeSubstitutions" : "awaySubstitutions")
+          : (`${target.team}${target.kind === "yellow" ? "Yellow" : "Red"}` as "homeYellow" | "awayYellow" | "homeRed" | "awayRed");
+        setMatchState((state) => ({ ...state, [key]: Math.max(0, (state[key] ?? 0) - 1) }));
+      }
+      setAudit((entries) => [...entries.slice(-199), { id: newId("audit"), action: `${target.kind}_voided`, team: target.team, minute: minute(), createdAt: new Date().toISOString() }]);
+      toast.success("Evento anulado", { description: `${target.player} · ${target.minute}'` });
+      return current.map((event) => (event.id === target.id ? { ...event, voided: true } : event));
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- minute() only reads refs
+  }, []);
+
+  const addCard = useCallback((team: "home" | "away", kind: "yellow" | "red", player = "", atMinute?: number) => {
     const m = matchRef.current;
     const key = `${team}${kind === "yellow" ? "Yellow" : "Red"}` as "homeYellow" | "awayYellow" | "homeRed" | "awayRed";
-    const event: MatchEvent = { id: newId("event"), kind, team, minute: minute(), player: player || (team === "home" ? m.homeTeam : m.awayTeam) };
+    const event: MatchEvent = { id: newId("event"), kind, team, minute: atMinute ?? minute(), player: player || (team === "home" ? m.homeTeam : m.awayTeam) };
     setEvents((current) => [...current, event]);
     setMatchState((current) => ({ ...current, [key]: current[key] + 1, highlight: { kind, team, player: event.player, minute: event.minute } }));
     log(`${kind}_card`, team);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const addSubstitution = useCallback((team: "home" | "away", playerOut: string, playerIn: string) => {
-    const event: MatchEvent = { id: newId("event"), kind: "sub", team, minute: minute(), player: playerIn || "Entra", detail: playerOut ? `Sale ${playerOut}` : undefined };
+  const addSubstitution = useCallback((team: "home" | "away", playerOut: string, playerIn: string, atMinute?: number) => {
+    const event: MatchEvent = { id: newId("event"), kind: "sub", team, minute: atMinute ?? minute(), player: playerIn || "Entra", detail: playerOut ? `Sale ${playerOut}` : undefined };
     setEvents((current) => [...current, event]);
     const key = team === "home" ? "homeSubstitutions" : "awaySubstitutions";
     setMatchState((current) => ({ ...current, [key]: (current[key] ?? 0) + 1, highlight: { kind: "sub", team, player: event.player, minute: event.minute, detail: event.detail } }));
@@ -249,9 +363,12 @@ export function useFootballMatch() {
 
   const loadFixture = useCallback(async (fixture: Fixture, competitionId: string) => {
     const theme = getCompetition(competitionId);
-    setRunning(false);
+    setClockStartedAt(null);
     setLoading(true);
     fixtureRef.current = { league: fixture.league, id: fixture.id };
+    setFixtureKey(`${fixture.league}:${fixture.id}`);
+    handledRef.current = new Set();
+    setEspnPending([]);
     setEvents([]);
     setMatchState({
       ...createMatch(),
@@ -342,17 +459,69 @@ export function useFootballMatch() {
     return () => window.clearInterval(timer);
   }, [kickoffAt, period, refreshDetail]);
 
+  const applyAction = (action: TimelineAction) => {
+    if (action.type === "goal") addGoal(action.team, action.player, action.minute, action.detail);
+    else if (action.type === "card") addCard(action.team, action.card, action.player, action.minute);
+    else addSubstitution(action.team, action.playerOut, action.playerIn, action.minute);
+  };
+  const applySuggestion = (id: string) => {
+    const item = espnPending.find((entry) => entry.event.id === id);
+    if (!item) return;
+    handledRef.current.add(id);
+    applyAction(item.action);
+    setEspnPending((current) => current.filter((entry) => entry.event.id !== id));
+  };
+  const dismissSuggestion = (id: string) => {
+    handledRef.current.add(id);
+    setEspnPending((current) => current.filter((entry) => entry.event.id !== id));
+  };
+  const applyAllSuggestions = () => {
+    espnPending.forEach((item) => { handledRef.current.add(item.event.id); applyAction(item.action); });
+    setEspnPending([]);
+  };
+  const applyRef = useRef(applyAction);
+  applyRef.current = applyAction;
+
+  const inPlay = match.period !== "PRE" && match.period !== "FT";
+  useEffect(() => {
+    const ref = fixtureRef.current;
+    if (!fixtureKey || !ref || !espnSync.enabled || !inPlay) return;
+    let cancelled = false;
+    const poll = async () => {
+      try {
+        const response = await fetch(`/api/football/timeline?league=${encodeURIComponent(ref.league)}&event=${encodeURIComponent(ref.id)}`);
+        if (!response.ok || cancelled) return;
+        const data = await response.json() as { events?: TimelineEvent[] };
+        if (cancelled) return;
+        const plan = planTimeline(data.events ?? [], handledRef.current, eventsRef.current);
+        const now = espnSync.auto ? plan.filter((item) => item.auto) : [];
+        now.forEach((item) => { handledRef.current.add(item.event.id); applyRef.current(item.action); });
+        if (now.length) toast.success(`ESPN: ${now.length} evento(s) aplicado(s)`);
+        setEspnPending(plan.filter((item) => !now.includes(item)));
+      } catch {
+        // ESPN unavailable for a moment: the next poll retries.
+      }
+    };
+    void poll();
+    const timer = window.setInterval(() => void poll(), 20000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  }, [fixtureKey, espnSync.enabled, espnSync.auto, inPlay]);
+
   const newMatch = useCallback(() => {
-    setRunning(false);
+    setClockStartedAt(null);
     fixtureRef.current = null;
+    setFixtureKey(null);
+    handledRef.current = new Set();
+    setEspnPending([]);
     setMatchState(createMatch());
     setEvents([]);
     setAudit([]);
   }, []);
 
   return {
-    match, events, audit, running, loading,
-    setMatch, setPeriod, toggleClock, resetClock, addGoal, undoGoal, addCard, addSubstitution,
+    match, events, audit, running, clockStartedAt, clockNow, loading, cloud,
+    hasFixture: fixtureKey !== null, espnSync, setEspnSync, espnPending, applySuggestion, dismissSuggestion, applyAllSuggestions,
+    setMatch, setPeriod, toggleClock, resetClock, addGoal, undoGoal, voidEvent, addCard, addSubstitution,
     showPlayer, showVar, loadFixture, refreshDetail, newMatch,
     clearHighlight: () => setMatchState((current) => ({ ...current, highlight: undefined })),
     competitions: COMPETITIONS,

@@ -24,7 +24,10 @@ import {
   MoreHorizontal, Archive, X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
+import { responseError } from "./apiErrors";
+import { PollAbortedError, pollJob } from "./pollJob";
+import { matchScore } from "./paletteSearch";
 import ProviderPickerModal from "./ProviderPickerModal";
 import ArtifactDrawer from "./ArtifactDrawer";
 import JobHistoryList from "./JobHistoryList";
@@ -48,11 +51,6 @@ interface CategoryGroup { id: string; name: string; categories: Category[]; }
 
 type DiscoveryTab = "descubrir" | "seleccionado" | "artifact";
 
-async function responseError(response: Response): Promise<Error> {
-  const body = await response.json().catch(() => null);
-  return new Error(body?.message || body?.detail || `HTTP ${response.status}`);
-}
-
 const TABS: { id: DiscoveryTab; label: string; icon: typeof Search }[] = [
   { id: "descubrir", label: "Nuevas", icon: Compass },
   { id: "seleccionado", label: "Seleccionadas", icon: CheckSquare },
@@ -60,8 +58,9 @@ const TABS: { id: DiscoveryTab; label: string; icon: typeof Search }[] = [
 ];
 
 export default function DiscoveryPanel({
-  onEditManually,
+  active = true, onEditManually,
 }: {
+  active?: boolean;
   onEditManually: (itemIds: string[]) => void;
 }) {
   const [tab, setTab] = useState<DiscoveryTab>("descubrir");
@@ -80,7 +79,7 @@ export default function DiscoveryPanel({
   const [triggering, setTriggering] = useState(false);
   const [stopping, setStopping] = useState(false);
   const [historyRefreshKey, setHistoryRefreshKey] = useState(0);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const pollRef = useRef<AbortController | null>(null);
 
   const [pickerForItem, setPickerForItem] = useState<string | null>(null);
   const [retryStoryId, setRetryStoryId] = useState<string | null>(null);
@@ -93,15 +92,21 @@ export default function DiscoveryPanel({
   const [assignmentTargets, setAssignmentTargets] = useState<string[] | null>(null);
   const [assignmentDraft, setAssignmentDraft] = useState("");
   const [assignmentBusy, setAssignmentBusy] = useState(false);
+  // Quick filter over the loaded lists (title, source and text), keeping their order.
+  const [feedSearch, setFeedSearch] = useState("");
+  const bySearch = useCallback((items: DiscoveryItem[]) => {
+    if (!feedSearch.trim()) return items;
+    return items.filter((item) => matchScore(`${item.originalTitle} ${item.sourceName ?? ""} ${item.sourceDomain} ${item.rawText.slice(0, 600)}`, feedSearch) > 0);
+  }, [feedSearch]);
 
   const fetchItems = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
       const [discoveredRes, selectedRes, artifactRes] = await Promise.all([
-        fetch(apiUrl("/api/discovery/items?status=DISCOVERED&sort_by=discovered_at&sort_dir=desc&limit=100")),
-        fetch(apiUrl("/api/discovery/items?status=SELECTED&sort_by=discovered_at&sort_dir=desc&limit=50")),
-        fetch(apiUrl("/api/discovery/items?status=SENT_TO_EDITORIAL&sort_by=discovered_at&sort_dir=desc&limit=20")),
+        apiFetch("/api/discovery/items?status=DISCOVERED&sort_by=discovered_at&sort_dir=desc&limit=100"),
+        apiFetch("/api/discovery/items?status=SELECTED&sort_by=discovered_at&sort_dir=desc&limit=50"),
+        apiFetch("/api/discovery/items?status=SENT_TO_EDITORIAL&sort_by=discovered_at&sort_dir=desc&limit=20"),
       ]);
       if (!discoveredRes.ok) throw await responseError(discoveredRes);
       if (!selectedRes.ok) throw await responseError(selectedRes);
@@ -123,7 +128,7 @@ export default function DiscoveryPanel({
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(apiUrl("/api/categories"));
+        const res = await apiFetch("/api/categories");
         if (res.ok) setCategoryGroups((await res.json()).groups ?? []);
       } catch {
         // Category chips just stay empty -- not fatal for the rest of the page.
@@ -132,22 +137,75 @@ export default function DiscoveryPanel({
   }, []);
 
   useEffect(() => {
-    fetchItems();
-  }, [fetchItems]);
+    if (active) void fetchItems();
+  }, [active, fetchItems]);
 
   const stopPolling = useCallback(() => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
+    pollRef.current?.abort();
+    pollRef.current = null;
   }, []);
 
   useEffect(() => () => stopPolling(), [stopPolling]);
 
+  // Follows a discovery job to the end (the search runs on GitHub Actions, so it can take a
+  // minute to start); the same follow-up resumes when the panel is opened again mid-search.
+  const followJob = useCallback((initial: DiscoveryJob) => {
+    stopPolling();
+    const controller = new AbortController();
+    pollRef.current = controller;
+    setJob(initial);
+    setTriggering(true);
+    void pollJob<DiscoveryJob>({
+      fetchStatus: async () => {
+        const r = await apiFetch(`/api/discovery/jobs/${initial.id}`);
+        return r.ok ? (await r.json()) as DiscoveryJob : null;
+      },
+      isDone: (current) => current.status === "COMPLETED" || current.status === "FAILED" || current.status === "CANCELLED",
+      onUpdate: setJob,
+      signal: controller.signal,
+    }).then((updated) => {
+      setHistoryRefreshKey((k) => k + 1);
+      if (updated.status === "COMPLETED") {
+        toast.success(`Discovery completado -- ${updated.itemsFound ?? 0} items nuevos`);
+        void fetchItems();
+      } else if (updated.status === "CANCELLED") {
+        toast.success(`Discovery detenido -- ${updated.itemsFound ?? 0} items nuevos`);
+        void fetchItems();
+      } else {
+        toast.error(`Discovery falló: ${updated.error ?? "error desconocido"}`);
+      }
+    }).catch((err) => {
+      if (err instanceof PollAbortedError) return;
+      toast.error(err instanceof Error ? err.message : "No se pudo seguir la búsqueda");
+    }).finally(() => {
+      if (pollRef.current === controller) {
+        pollRef.current = null;
+        setTriggering(false);
+        setStopping(false);
+      }
+    });
+  }, [fetchItems, stopPolling]);
+
+  useEffect(() => {
+    if (!active || pollRef.current) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch("/api/discovery/jobs?limit=1");
+        if (!res.ok || cancelled) return;
+        const latest: DiscoveryJob | undefined = (await res.json()).jobs?.[0];
+        if (latest && (latest.status === "QUEUED" || latest.status === "RUNNING" || latest.status === "CANCELLING")) followJob(latest);
+      } catch {
+        // No running job to resume.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [active, followJob]);
+
   const handleTrigger = async () => {
     setTriggering(true);
     try {
-      const res = await fetch(apiUrl("/api/discovery/jobs"), {
+      const res = await apiFetch("/api/discovery/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
@@ -157,30 +215,8 @@ export default function DiscoveryPanel({
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
       const created: DiscoveryJob = await res.json();
-      setJob(created);
-      toast.success("Buscando noticias -- Automation está corriendo un pase real");
-
-      pollRef.current = setInterval(async () => {
-        const r = await fetch(apiUrl(`/api/discovery/jobs/${created.id}`));
-        if (!r.ok) return;
-        const updated: DiscoveryJob = await r.json();
-        setJob(updated);
-        if (updated.status === "COMPLETED" || updated.status === "FAILED" || updated.status === "CANCELLED") {
-          stopPolling();
-          setTriggering(false);
-          setStopping(false);
-          setHistoryRefreshKey((k) => k + 1);
-          if (updated.status === "COMPLETED") {
-            toast.success(`Discovery completado -- ${updated.itemsFound ?? 0} items nuevos`);
-            fetchItems();
-          } else if (updated.status === "CANCELLED") {
-            toast.success(`Discovery detenido -- ${updated.itemsFound ?? 0} items nuevos`);
-            fetchItems();
-          } else {
-            toast.error(`Discovery falló: ${updated.error}`);
-          }
-        }
-      }, 3000);
+      toast.success("Buscando noticias -- la búsqueda arranca en segundos");
+      followJob(created);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo iniciar Discovery");
       setTriggering(false);
@@ -191,7 +227,7 @@ export default function DiscoveryPanel({
     if (!job) return;
     setStopping(true);
     try {
-      const res = await fetch(apiUrl(`/api/discovery/jobs/${job.id}/stop`), { method: "POST" });
+      const res = await apiFetch(`/api/discovery/jobs/${job.id}/stop`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || `HTTP ${res.status}`);
@@ -207,7 +243,7 @@ export default function DiscoveryPanel({
 
   const decide = async (itemId: string, decision: string) => {
     try {
-      const res = await fetch(apiUrl(`/api/discovery/items/${itemId}/decide`), {
+      const res = await apiFetch(`/api/discovery/items/${itemId}/decide`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision }),
@@ -232,9 +268,9 @@ export default function DiscoveryPanel({
     }
   };
 
-  const decideSelected = async (itemId: string, decision: string): Promise<boolean> => {
+  const decideSelected = async (itemId: string, decision: string, quiet = false): Promise<boolean> => {
     try {
-      const res = await fetch(apiUrl(`/api/discovery/items/${itemId}/decide`), {
+      const res = await apiFetch(`/api/discovery/items/${itemId}/decide`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision }),
@@ -250,10 +286,10 @@ export default function DiscoveryPanel({
         next.delete(itemId);
         return next;
       });
-      toast.success(decision === "IGNORE" ? "Ignorado" : "Archivado");
+      if (!quiet) toast.success(decision === "IGNORE" ? "Ignorado" : "Archivado");
       return true;
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo actualizar el item");
+      if (!quiet) toast.error(err instanceof Error ? err.message : "No se pudo actualizar el item");
       return false;
     }
   };
@@ -263,7 +299,7 @@ export default function DiscoveryPanel({
     setAssignmentBusy(true);
     try {
       for (const id of assignmentTargets) {
-        const res = await fetch(apiUrl(`/api/discovery/items/${id}/assignment`), {
+        const res = await apiFetch(`/api/discovery/items/${id}/assignment`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ assignee: assignmentDraft.trim() || null }),
@@ -300,16 +336,21 @@ export default function DiscoveryPanel({
   };
 
   const runBulkDecision = async (decision: "IGNORE" | "ARCHIVE") => {
-    for (const id of bulkEditIds) {
-      if (!await decideSelected(id, decision)) return;
+    const ids = [...bulkEditIds];
+    let done = 0;
+    for (const id of ids) {
+      if (await decideSelected(id, decision, true)) done += 1;
     }
     setBulkMoreOpen(false);
+    const verb = decision === "IGNORE" ? "ignoradas" : "archivadas";
+    if (done === ids.length) toast.success(`${done} noticias ${verb}`);
+    else toast.error(`${done} de ${ids.length} noticias ${verb}; las demás siguen seleccionadas`);
   };
 
   const confirmSendToEditorial = async (itemId: string, providerId: string) => {
     setPickerForItem(null);
     try {
-      const res = await fetch(apiUrl(`/api/discovery/items/${itemId}/decide`), {
+      const res = await apiFetch(`/api/discovery/items/${itemId}/decide`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ decision: "SEND_TO_EDITORIAL" }),
@@ -325,7 +366,7 @@ export default function DiscoveryPanel({
 
       if (updated.storyId) {
         try {
-          const jobRes = await fetch(apiUrl("/api/artifacts/jobs"), {
+          const jobRes = await apiFetch("/api/artifacts/jobs", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ storyId: updated.storyId, provider: providerId }),
@@ -349,7 +390,7 @@ export default function DiscoveryPanel({
   const confirmRetry = async (storyId: string, providerId: string) => {
     setRetryStoryId(null);
     try {
-      const res = await fetch(apiUrl("/api/artifacts/jobs"), {
+      const res = await apiFetch("/api/artifacts/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storyId, provider: providerId }),
@@ -440,10 +481,24 @@ export default function DiscoveryPanel({
         </div>
       </div>
 
+      {tab !== "artifact" && (
+        <label className="flex max-w-md items-center gap-2 rounded-lg border border-white/10 bg-black/30 px-2.5">
+          <Search size={13} className="text-neutral-600" />
+          <input
+            value={feedSearch}
+            onChange={(event) => setFeedSearch(event.target.value)}
+            placeholder="Filtrar por título, fuente o texto…"
+            aria-label="Filtrar noticias"
+            className="h-8 min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-neutral-600"
+          />
+          {feedSearch && <button type="button" onClick={() => setFeedSearch("")} aria-label="Limpiar filtro" className="text-neutral-500 hover:text-white"><X size={12} /></button>}
+        </label>
+      )}
+
       {tab === "descubrir" && (
         <>
           <DiscoveryQueueList
-            items={discovered}
+            items={bySearch(discovered)}
             categoryGroups={categoryGroups}
             categoryNameById={categoryNameById}
             groupFilter={groupFilter}
@@ -537,7 +592,7 @@ export default function DiscoveryPanel({
           ) : (
             <div className="flex items-start gap-4">
               <div className="flex-1 min-w-0 divide-y divide-white/5">
-                {selected.map((item) => (
+                {bySearch(selected).map((item) => (
                   <DiscoveryRow
                     key={item.id}
                     item={item}

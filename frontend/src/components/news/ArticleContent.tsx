@@ -21,6 +21,7 @@ import AdSlot from '@/components/ads/AdSlot'
 import DOMPurify from 'isomorphic-dompurify'
 import parse from 'html-react-parser'
 import type { NewsView } from '@/types/news'
+import { publicAuthorName } from '@/lib/byline'
 
 const SITE_URL = 'https://www.nexusnews.info'
 const BOOKMARKS_KEY = 'nexus-bookmarks'
@@ -192,10 +193,10 @@ export default function ArticleContent({
 
           <div className="flex items-center gap-3 mb-6">
             <div className="w-10 h-10 rounded-full bg-yellow-400 text-black font-black flex items-center justify-center flex-shrink-0">
-              {(news.author || 'Nexus News').trim().charAt(0).toUpperCase()}
+              {publicAuthorName(news.author).charAt(0).toUpperCase()}
             </div>
             <div className="flex flex-col">
-              <span className="font-bold text-neutral-900 text-sm">{news.author || 'Nexus News'}</span>
+              <span className="font-bold text-neutral-900 text-sm">{publicAuthorName(news.author)}</span>
               <span className="text-neutral-500 text-xs flex items-center gap-1.5">
                 <Calendar size={12} /> {formatArticleDate(news.published_at)} · {readingMinutes} min de lectura
               </span>

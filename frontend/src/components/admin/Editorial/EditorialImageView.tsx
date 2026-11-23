@@ -11,8 +11,10 @@ import { NodeViewWrapper } from "@tiptap/react";
 import type { NodeViewProps } from "@tiptap/react";
 import { AlertTriangle, ImagePlus, Pencil, RefreshCw, Trash2, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
+import { useMediaGeneration } from "./useMediaGeneration";
 import { useEditorialImageContext } from "./EditorialImageContext";
+import { compressImage } from "@/lib/imageCompression";
 
 const PROVENANCE_LABEL: Record<string, string> = {
   HUMAN_UPLOADED: "Subida manualmente",
@@ -38,6 +40,7 @@ export default function EditorialImageView({ node, deleteNode, editor }: NodeVie
   const [altDraft, setAltDraft] = useState(requirement?.altText ?? "");
   const [busy, setBusy] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const runGeneration = useMediaGeneration(ctx?.artifactId ?? "", placeholderId ?? "", ctx?.onMediaChanged ?? (() => {}));
 
   if (!ctx || !placeholderId) {
     if (readOnly) return null;
@@ -73,7 +76,7 @@ export default function EditorialImageView({ node, deleteNode, editor }: NodeVie
   }
 
   const patch = async (body: Record<string, unknown>) => {
-    const res = await fetch(apiUrl(`/api/artifacts/${ctx.artifactId}/media/${placeholderId}`), {
+    const res = await apiFetch(`/api/artifacts/${ctx.artifactId}/media/${placeholderId}`, {
       method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -112,26 +115,8 @@ export default function EditorialImageView({ node, deleteNode, editor }: NodeVie
   const generate = async () => {
     setBusy(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${ctx.artifactId}/media/${placeholderId}/generate`), { method: "POST" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message || `HTTP ${res.status}`);
-      }
-      const job: { id: string } = await res.json();
-      toast.success("Generando imagen real -- puede tardar unos segundos");
-      const poll = setInterval(async () => {
-        const r = await fetch(apiUrl(`/api/artifacts/media/jobs/${job.id}`));
-        if (!r.ok) return;
-        const updated = await r.json();
-        if (updated.status === "COMPLETED" || updated.status === "FAILED") {
-          clearInterval(poll);
-          setBusy(false);
-          if (updated.status === "COMPLETED") { toast.success("Imagen generada"); ctx.onMediaChanged(); }
-          else toast.error(`Generación falló: ${updated.error}`);
-        }
-      }, 3000);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo iniciar la generación");
+      await runGeneration();
+    } finally {
       setBusy(false);
     }
   };
@@ -140,8 +125,8 @@ export default function EditorialImageView({ node, deleteNode, editor }: NodeVie
     setBusy(true);
     try {
       const form = new FormData();
-      form.append("file", file);
-      const res = await fetch(apiUrl(`/api/artifacts/${ctx.artifactId}/media/${placeholderId}/upload`), { method: "POST", body: form });
+      form.append("file", await compressImage(file));
+      const res = await apiFetch(`/api/artifacts/${ctx.artifactId}/media/${placeholderId}/upload`, { method: "POST", body: form });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.detail || body?.message || `HTTP ${res.status}`);
@@ -158,7 +143,7 @@ export default function EditorialImageView({ node, deleteNode, editor }: NodeVie
   const remove = async () => {
     setBusy(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${ctx.artifactId}/media/${placeholderId}`), { method: "DELETE" });
+      const res = await apiFetch(`/api/artifacts/${ctx.artifactId}/media/${placeholderId}`, { method: "DELETE" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.detail || body?.message || `HTTP ${res.status}`);

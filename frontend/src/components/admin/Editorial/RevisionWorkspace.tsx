@@ -13,10 +13,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertCircle, Check, ChevronLeft, ChevronRight, Eye, FileCheck2, Loader2, RefreshCw, Search, Sparkles, Trash2, X,
+  AlertCircle, BookOpen, Check, ChevronLeft, ChevronRight, Eye, FileCheck2, Loader2, RefreshCw, Search, Sparkles, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
+import { responseError } from "./apiErrors";
+import { createAutosave, type Autosave, type AutosaveStatus } from "./autosave";
 import RevisionEditor, { type RevisionDraft } from "./RevisionEditor";
 import RevisionInspector, { type SeoDraft } from "./RevisionInspector";
 import ArtifactDrawer from "./ArtifactDrawer";
@@ -24,8 +26,11 @@ import ArtifactQueueRow from "./ArtifactQueueRow";
 import ArchivedDrawer from "./ArchivedDrawer";
 import ArticlePreviewModal from "./ArticlePreviewModal";
 import ProviderPickerModal from "./ProviderPickerModal";
+import ResearchPanel from "./ResearchPanel";
+import type { Editor } from "@tiptap/react";
 import { type Claim } from "./ClaimCard";
 import { type MediaRequirement } from "./MediaRequirementBlock";
+import { safeHttpUrl } from "./safeLinks";
 
 interface Category { id: string; name: string; }
 interface CategoryGroup { id: string; name: string; categories: Category[]; }
@@ -60,9 +65,11 @@ interface ArtifactJob {
 
 const AUTOSAVE_DELAY_MS = 1000;
 
-async function responseError(response: Response): Promise<Error> {
-  const body = await response.json().catch(() => null);
-  return new Error(body?.message || body?.detail || `HTTP ${response.status}`);
+interface SaveSnapshot {
+  artifactId: string;
+  draft: RevisionDraft;
+  seo: SeoDraft;
+  saveAsDraft: boolean;
 }
 
 function toDraft(a: ArtifactDetail): RevisionDraft {
@@ -76,8 +83,11 @@ function toSeoDraft(a: ArtifactDetail): SeoDraft {
 }
 
 export default function RevisionWorkspace({
-  manualQueue = [], onManualQueueConsumed, onGoToDiscovery,
+  active = true, openRequest = null, manualQueue = [], onManualQueueConsumed, onGoToDiscovery,
 }: {
+  active?: boolean;
+  /** Opens an artifact from outside (the Ctrl/⌘+K palette). */
+  openRequest?: { id: string; nonce: number } | null;
   manualQueue?: string[];
   onManualQueueConsumed?: () => void;
   onGoToDiscovery?: () => void;
@@ -94,7 +104,7 @@ export default function RevisionWorkspace({
 
   const [draft, setDraft] = useState<RevisionDraft | null>(null);
   const [seoDraft, setSeoDraft] = useState<SeoDraft | null>(null);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveStatus, setSaveStatus] = useState<AutosaveStatus>("idle");
 
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [approving, setApproving] = useState(false);
@@ -102,6 +112,8 @@ export default function RevisionWorkspace({
   const [artifactDrawerOpen, setArtifactDrawerOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"list" | "editor">("list");
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [researchOpen, setResearchOpen] = useState(false);
+  const [bodyEditor, setBodyEditor] = useState<Editor | null>(null);
   const [queueSearch, setQueueSearch] = useState("");
   const [archivedOpen, setArchivedOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -118,17 +130,15 @@ export default function RevisionWorkspace({
   draftRef.current = draft;
   const seoDraftRef = useRef<SeoDraft | null>(null);
   seoDraftRef.current = seoDraft;
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skipNextSaveRef = useRef(false);
 
   const fetchQueue = useCallback(async () => {
     setLoadingQueue(true);
     setError(null);
     try {
       const [draftRes, reviewRes, validatedRes] = await Promise.all([
-        fetch(apiUrl("/api/artifacts?status=DRAFT&limit=50")),
-        fetch(apiUrl("/api/artifacts?status=REVIEW_REQUIRED&limit=50")),
-        fetch(apiUrl("/api/artifacts?status=VALIDATED&limit=50")),
+        apiFetch("/api/artifacts?status=DRAFT&limit=50"),
+        apiFetch("/api/artifacts?status=REVIEW_REQUIRED&limit=50"),
+        apiFetch("/api/artifacts?status=VALIDATED&limit=50"),
       ]);
       if (!draftRes.ok) throw await responseError(draftRes);
       if (!reviewRes.ok) throw await responseError(reviewRes);
@@ -151,7 +161,7 @@ export default function RevisionWorkspace({
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(apiUrl("/api/categories"));
+        const res = await apiFetch("/api/categories");
         if (res.ok) setCategoryGroups((await res.json()).groups ?? []);
       } catch {
         // Category select just stays sparse -- not fatal.
@@ -159,90 +169,116 @@ export default function RevisionWorkspace({
     })();
   }, []);
 
-  useEffect(() => { fetchQueue(); }, [fetchQueue]);
+  // Refreshed each time the tab is shown (it stays mounted to keep the open article intact).
+  useEffect(() => { if (active) void fetchQueue(); }, [active, fetchQueue]);
 
-  const doSave = useCallback(async (saveAsDraft?: boolean): Promise<boolean> => {
+  // One autosave queue for the open article: edits are never lost or reordered, a failed
+  // save stays pending, and approve/switch/submit wait for it (see autosave.ts).
+  const autosaveRef = useRef<Autosave<SaveSnapshot> | null>(null);
+  if (!autosaveRef.current) {
+    autosaveRef.current = createAutosave<SaveSnapshot>({
+      delayMs: AUTOSAVE_DELAY_MS,
+      onStatus: setSaveStatus,
+      onError: (err) => toast.error(err instanceof Error ? `No se guardaron los cambios: ${err.message}` : "No se guardaron los cambios", { id: "revision-save-error" }),
+      save: async ({ artifactId, draft: d, seo: s, saveAsDraft }) => {
+        const res = await apiFetch(`/api/artifacts/${artifactId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: d.title, subtitle: d.subtitle || null, excerpt: d.excerpt, summary: d.summary,
+            contentHtml: d.contentHtml,
+            categoryId: d.categoryId, tags: d.tags, seoTitle: s.seoTitle, seoDescription: s.seoDescription,
+            slug: s.slug, canonicalUrl: s.canonicalUrl || null,
+            saveAsDraft,
+          }),
+        });
+        if (!res.ok) throw await responseError(res);
+        const updated: ArtifactDetail = await res.json();
+        // The backend re-validates on save (status/validationIssues can change from a fixed
+        // field): reflect that in the open editor and in its queue row.
+        if (selectedRef.current?.id === updated.id) setSelected(updated);
+        setQueue((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      },
+    });
+  }
+  const autosave = autosaveRef.current;
+
+  const scheduleSave = useCallback(() => {
     const artifact = selectedRef.current;
     const d = draftRef.current;
     const s = seoDraftRef.current;
-    if (!artifact || !d || !s) return false;
-    setSaveStatus("saving");
-    try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: d.title, subtitle: d.subtitle || null, excerpt: d.excerpt, summary: d.summary,
-          contentHtml: d.contentHtml,
-          categoryId: d.categoryId, tags: d.tags, seoTitle: s.seoTitle, seoDescription: s.seoDescription,
-          slug: s.slug, canonicalUrl: s.canonicalUrl || null,
-          saveAsDraft: saveAsDraft ?? artifact.status === "DRAFT",
-        }),
-      });
-      if (!res.ok) throw await responseError(res);
-      const updated: ArtifactDetail = await res.json();
-      // The backend may have re-validated (status/validationIssues can
-      // change from a fixed field) -- reflect that real result, don't
-      // just assume the save succeeded silently. Both the open editor AND
-      // its row in the queue need the fresh title/status/warning count --
-      // otherwise the list keeps showing a warning that's already fixed.
-      if (selectedRef.current?.id === updated.id) setSelected(updated);
-      setQueue((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-      setSaveStatus("saved");
-      return true;
-    } catch (err) {
-      setSaveStatus("error");
-      toast.error(err instanceof Error ? `No se guardaron los cambios: ${err.message}` : "No se guardaron los cambios");
-      return false;
-    }
-  }, []);
+    if (!artifact || !d || !s) return;
+    autosave.schedule({ artifactId: artifact.id, draft: d, seo: s, saveAsDraft: artifact.status === "DRAFT" });
+  }, [autosave]);
 
-  const scheduleSave = useCallback(() => {
-    if (skipNextSaveRef.current) { skipNextSaveRef.current = false; return; }
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { void doSave(); }, AUTOSAVE_DELAY_MS);
-  }, [doSave]);
+  const flushPendingSave = useCallback(() => autosave.flush(), [autosave]);
 
-  const flushPendingSave = useCallback(async (): Promise<boolean> => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-      return doSave();
-    }
-    return true;
-  }, [doSave]);
+  // Ctrl/⌘+S saves now (autosave runs anyway; this answers "is it saved?" instantly).
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && selectedRef.current) {
+        event.preventDefault();
+        void autosave.flush().then((ok) => { if (ok) toast.success("Cambios guardados", { id: "revision-saved" }); });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, autosave]);
+
+  // Leaving the editorial view or the page must not drop the last edits.
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!autosave.isDirty()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      void autosave.flush();
+    };
+  }, [autosave]);
 
   const selectArticle = useCallback(async (item: ArtifactDetail) => {
     if (selectedRef.current?.id === item.id) return;
-    if (!await flushPendingSave()) return;
+    if (!await flushPendingSave()
+      && !window.confirm("Los últimos cambios de este artículo no se pudieron guardar. ¿Descartarlos y abrir el otro?")) return;
+    autosave.reset();
     setLoadingDetail(true);
     setJob(null);
     setJobHistory([]);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${item.id}`));
+      const res = await apiFetch(`/api/artifacts/${item.id}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const full: ArtifactDetail = await res.json();
-      skipNextSaveRef.current = true;
+      selectedRef.current = full;
+      draftRef.current = toDraft(full);
+      seoDraftRef.current = toSeoDraft(full);
       setSelected(full);
-      setDraft(toDraft(full));
-      setSeoDraft(toSeoDraft(full));
-      setSaveStatus("idle");
+      setDraft(draftRef.current);
+      setSeoDraft(seoDraftRef.current);
       setMobilePane("editor");
-      const jobRes = await fetch(apiUrl(`/api/artifacts/jobs/by-story/${full.storyId}`));
+      const jobRes = await apiFetch(`/api/artifacts/jobs/by-story/${full.storyId}`);
       if (jobRes.ok) setJob(await jobRes.json());
-      const historyRes = await fetch(apiUrl(`/api/artifacts/jobs/by-story/${full.storyId}/history`));
+      const historyRes = await apiFetch(`/api/artifacts/jobs/by-story/${full.storyId}/history`);
       if (historyRes.ok) setJobHistory((await historyRes.json()).jobs ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo cargar el artículo");
     } finally {
       setLoadingDetail(false);
     }
-  }, [flushPendingSave]);
+  }, [autosave, flushPendingSave]);
+
+  useEffect(() => {
+    if (openRequest) void selectArticle({ id: openRequest.id } as ArtifactDetail);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRequest?.nonce]);
 
   const openManualDiscoveryItem = useCallback(async (itemId: string) => {
     setOpeningManualItem(true);
     try {
-      const res = await fetch(apiUrl(`/api/discovery/items/${itemId}/manual-editor`), { method: "POST" });
+      const res = await apiFetch(`/api/discovery/items/${itemId}/manual-editor`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || body?.detail || `HTTP ${res.status}`);
@@ -271,12 +307,17 @@ export default function RevisionWorkspace({
     void openManualDiscoveryItem(manualQueue[0]).finally(() => onManualQueueConsumed?.());
   }, [manualQueue, manualQueueKey, onManualQueueConsumed, openManualDiscoveryItem]);
 
+  // Refs are updated synchronously so the snapshot handed to autosave is always the newest one.
   const onFieldChange = (patch: Partial<RevisionDraft>) => {
-    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+    if (!draftRef.current) return;
+    draftRef.current = { ...draftRef.current, ...patch };
+    setDraft(draftRef.current);
     scheduleSave();
   };
   const onSeoChange = (patch: Partial<SeoDraft>) => {
-    setSeoDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+    if (!seoDraftRef.current) return;
+    seoDraftRef.current = { ...seoDraftRef.current, ...patch };
+    setSeoDraft(seoDraftRef.current);
     scheduleSave();
   };
 
@@ -294,7 +335,7 @@ export default function RevisionWorkspace({
 
   const onMediaChanged = useCallback(async () => {
     if (!selectedRef.current) return;
-    const res = await fetch(apiUrl(`/api/artifacts/${selectedRef.current.id}`));
+    const res = await apiFetch(`/api/artifacts/${selectedRef.current.id}`);
     if (res.ok) {
       const full: ArtifactDetail = await res.json();
       setSelected(full);
@@ -309,7 +350,7 @@ export default function RevisionWorkspace({
     const artifact = selectedRef.current;
     if (!artifact) return;
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}/claims/${claimId}/review`), {
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/claims/${claimId}/review`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -331,13 +372,35 @@ export default function RevisionWorkspace({
     [reviewClaim],
   );
 
-  const onApprove = async () => {
+  // One step from Revisión to the site: approve, then publish right away (with confirmation).
+  const onApproveAndPublish = async () => {
     const artifact = selectedRef.current;
     if (!artifact) return;
-    if (!await flushPendingSave()) return;
+    if (!window.confirm(`¿Aprobar y publicar «${draftRef.current?.title ?? artifact.title}» ahora? Quedará visible en el sitio de inmediato.`)) return;
+    const approved = await onApprove();
+    if (!approved) return;
+    try {
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/publish`, { method: "POST" });
+      if (!res.ok) throw await responseError(res);
+      const published: ArtifactDetail = await res.json();
+      toast.success("Publicado -- ya está en nexusnews.info", {
+        action: { label: "Ver", onClick: () => window.open(`https://www.nexusnews.info/noticia/${published.seo.slug}`, "_blank", "noopener") },
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? `Aprobado, pero no se pudo publicar: ${err.message}. Publícalo desde la Cola.` : "Aprobado, pero no se pudo publicar");
+    }
+  };
+
+  const onApprove = async (): Promise<boolean> => {
+    const artifact = selectedRef.current;
+    if (!artifact) return false;
+    if (!await flushPendingSave()) {
+      toast.error("No se puede aprobar: hay cambios sin guardar. Revisa la conexión y vuelve a intentarlo.");
+      return false;
+    }
     setApproving(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}/review`), {
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/review`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision: "APPROVE" }),
       });
       if (!res.ok) {
@@ -345,13 +408,17 @@ export default function RevisionWorkspace({
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
       toast.success("Revisión aprobada -- listo para Publicar");
+      autosave.reset();
       setQueue((prev) => prev.filter((a) => a.id !== artifact.id));
       setSelected(null);
       setDraft(null);
       setSeoDraft(null);
       setMobilePane("list");
+      setInspectorOpen(false);
+      return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo aprobar la revisión");
+      return false;
     } finally {
       setApproving(false);
     }
@@ -360,14 +427,13 @@ export default function RevisionWorkspace({
   const submitForReview = async () => {
     const artifact = selectedRef.current;
     if (!artifact || artifact.status !== "DRAFT" || submitting) return;
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
+    if (!await flushPendingSave()) {
+      toast.error("No se puede enviar: hay cambios sin guardar.");
+      return;
     }
-    if (!await doSave(true)) return;
     setSubmitting(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}/submit`), { method: "POST" });
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/submit`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || body?.detail || `HTTP ${res.status}`);
@@ -395,12 +461,13 @@ export default function RevisionWorkspace({
     if (!artifact) return;
     setArchiving(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}/archive`), { method: "POST" });
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/archive`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
       toast.success("Artículo eliminado de Revisión");
+      autosave.reset();
       setQueue((prev) => prev.filter((a) => a.id !== artifact.id));
       setSelected(null);
       setDraft(null);
@@ -418,7 +485,7 @@ export default function RevisionWorkspace({
     setProviderPickerOpen(false);
     if (!artifact) return;
     try {
-      const res = await fetch(apiUrl("/api/artifacts/jobs"), {
+      const res = await apiFetch("/api/artifacts/jobs", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storyId: artifact.storyId, provider: providerId }),
       });
@@ -513,9 +580,14 @@ export default function RevisionWorkspace({
               <button onClick={() => setMobilePane("list")} className="md:hidden text-xs text-neutral-400 hover:text-white">← Lista</button>
 
               <div className="flex items-center gap-1.5 text-[11.5px]">
+                {saveStatus === "pending" && <span className="text-neutral-400">Cambios sin guardar…</span>}
                 {saveStatus === "saving" && <span className="flex items-center gap-1.5 text-neutral-400"><Loader2 size={12} className="animate-spin" /> Guardando…</span>}
-                {saveStatus === "saved" && <span className="flex items-center gap-1.5 text-green-400"><Check size={12} /> Guardado hace unos segundos</span>}
-                {saveStatus === "error" && <span className="flex items-center gap-1.5 text-red-400"><AlertCircle size={12} /> Error al guardar</span>}
+                {saveStatus === "saved" && <span className="flex items-center gap-1.5 text-green-400"><Check size={12} /> Guardado</span>}
+                {saveStatus === "error" && (
+                  <button type="button" onClick={() => void flushPendingSave()} className="flex items-center gap-1.5 text-red-400 hover:text-red-300">
+                    <AlertCircle size={12} /> Error al guardar · Reintentar
+                  </button>
+                )}
                 {saveStatus === "idle" && <span className="text-neutral-500">Sin cambios</span>}
               </div>
 
@@ -545,7 +617,7 @@ export default function RevisionWorkspace({
                   <Eye size={13} /> Vista previa
                 </button>
                 <button
-                  onClick={flushPendingSave}
+                  onClick={async () => { if (await flushPendingSave()) toast.success("Cambios guardados", { id: "revision-saved" }); }}
                   disabled={saveStatus === "saving"}
                   className="flex items-center gap-1.5 text-[12px] font-bold px-3.5 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-500 disabled:opacity-50"
                 >
@@ -562,6 +634,13 @@ export default function RevisionWorkspace({
                   </button>
                 )}
                 <button
+                  onClick={() => setResearchOpen((open) => !open)}
+                  aria-pressed={researchOpen}
+                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium ${researchOpen ? "border-white/30 bg-white/10 text-white" : "border-white/10 text-neutral-300 hover:bg-white/5 hover:text-white"}`}
+                >
+                  <BookOpen size={12} /> Buscar información
+                </button>
+                <button
                   onClick={() => setInspectorOpen(true)}
                   className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-neutral-300 hover:bg-white/5 hover:text-white"
                 >
@@ -573,7 +652,7 @@ export default function RevisionWorkspace({
               {selected.sources[0] && (
                 <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-white/[0.015] text-[11px] text-neutral-500">
                   <span className="font-semibold text-neutral-400">Fuente original:</span>
-                  <a href={selected.sources[0].sourceUrl} target="_blank" rel="noreferrer" className="truncate hover:text-white hover:underline">
+                  <a href={safeHttpUrl(selected.sources[0].sourceUrl) ?? undefined} target="_blank" rel="noreferrer" className="truncate hover:text-white hover:underline">
                     {selected.sources[0].sourceName ?? selected.sources[0].sourceDomain}
                   </a>
                   <span className="ml-auto hidden sm:inline text-neutral-700">ID Discovery: {selected.storyId}</span>
@@ -582,6 +661,7 @@ export default function RevisionWorkspace({
               <RevisionEditor
                 draft={draft} onFieldChange={onFieldChange} categoryGroups={categoryGroups}
                 mediaRequirements={selected.mediaRequirements} artifactId={selected.id} onMediaChanged={onMediaChanged}
+                onEditorReady={setBodyEditor}
               />
             </div>
           </>
@@ -613,13 +693,19 @@ export default function RevisionWorkspace({
                 artifactId={selected.id}
                 status={selected.status} job={job} jobHistory={jobHistory} validationIssues={selected.validationIssues} claims={selected.claims}
                 seoDraft={seoDraft} onSeoChange={onSeoChange} mediaRequirements={selected.mediaRequirements}
-                onMarkClaimReviewed={onMarkClaimReviewed} onResolveClaim={onResolveClaim} onApprove={onApprove} approving={approving}
+                onMarkClaimReviewed={onMarkClaimReviewed} onResolveClaim={onResolveClaim} onApprove={() => void onApprove()} onApproveAndPublish={() => void onApproveAndPublish()} approving={approving}
                 onRetry={() => setProviderPickerOpen(true)} onChooseProvider={() => setProviderPickerOpen(true)}
                 onArchive={onArchiveArtifact} archiving={archiving} onApplySeoFix={onApplySeoFix}
               />
             </div>
           </div>
         )
+      )}
+
+      {researchOpen && selected && (
+        <div className="fixed bottom-4 right-4 top-28 z-30 w-[min(340px,calc(100vw-2rem))] overflow-y-auto rounded-xl shadow-2xl shadow-black/60">
+          <ResearchPanel key={selected.id} editor={bodyEditor} />
+        </div>
       )}
 
       {providerPickerOpen && (

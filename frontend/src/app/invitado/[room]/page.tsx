@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import type { MediaConnection, Peer } from "peerjs";
-import { hostPeerId } from "@/components/admin/Broadcaster/guestLink";
+import { hostPeerId, peerOptions } from "@/components/admin/Broadcaster/guestLink";
 
 type Status = "idle" | "calling" | "live" | "error";
 
@@ -41,7 +41,7 @@ export default function GuestPage() {
       streamRef.current = stream;
       if (videoRef.current) videoRef.current.srcObject = stream;
       const { Peer } = await import("peerjs");
-      const peer = new Peer();
+      const peer = new Peer(peerOptions());
       peerRef.current = peer;
       setStatus("calling");
       peer.on("open", () => {

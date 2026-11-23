@@ -10,8 +10,10 @@
 import { useRef, useState } from "react";
 import { ExternalLink, ImagePlus, Pencil, RefreshCw, Upload } from "lucide-react";
 import { toast } from "sonner";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
+import { useMediaGeneration } from "./useMediaGeneration";
 import type { MediaRequirement } from "./MediaRequirementBlock";
+import { compressImage } from "@/lib/imageCompression";
 
 export default function FeaturedImageHero({
   artifactId, requirement, onChanged,
@@ -28,7 +30,7 @@ export default function FeaturedImageHero({
   const savePrompt = async () => {
     setBusy(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifactId}/media/${requirement.placeholderId}`), {
+      const res = await apiFetch(`/api/artifacts/${artifactId}/media/${requirement.placeholderId}`, {
         method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ prompt: promptDraft }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -42,29 +44,12 @@ export default function FeaturedImageHero({
     }
   };
 
+  const runGeneration = useMediaGeneration(artifactId, requirement.placeholderId, onChanged);
   const generate = async () => {
     setBusy(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifactId}/media/${requirement.placeholderId}/generate`), { method: "POST" });
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.message || `HTTP ${res.status}`);
-      }
-      const job: { id: string } = await res.json();
-      toast.success("Generando imagen real -- puede tardar unos segundos");
-      const poll = setInterval(async () => {
-        const r = await fetch(apiUrl(`/api/artifacts/media/jobs/${job.id}`));
-        if (!r.ok) return;
-        const updated = await r.json();
-        if (updated.status === "COMPLETED" || updated.status === "FAILED") {
-          clearInterval(poll);
-          setBusy(false);
-          if (updated.status === "COMPLETED") { toast.success("Imagen generada"); onChanged(); }
-          else toast.error(`Generación falló: ${updated.error}`);
-        }
-      }, 3000);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo iniciar la generación");
+      await runGeneration();
+    } finally {
       setBusy(false);
     }
   };
@@ -73,8 +58,8 @@ export default function FeaturedImageHero({
     setBusy(true);
     try {
       const form = new FormData();
-      form.append("file", file);
-      const res = await fetch(apiUrl(`/api/artifacts/${artifactId}/media/${requirement.placeholderId}/upload`), { method: "POST", body: form });
+      form.append("file", await compressImage(file));
+      const res = await apiFetch(`/api/artifacts/${artifactId}/media/${requirement.placeholderId}/upload`, { method: "POST", body: form });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.detail || body?.message || `HTTP ${res.status}`);

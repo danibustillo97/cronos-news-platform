@@ -752,7 +752,7 @@ class ProposeSeoFix:
 @dataclass
 class ReviewArtifactInput:
     artifact_id: str
-    decision: str  # "APPROVE" | "REJECT"
+    decision: str  # "APPROVE" | "REJECT" | "REOPEN"
     reason: str | None = None
 
 
@@ -781,6 +781,8 @@ class ReviewArtifact:
                 self._stories.save(story)
         elif input.decision == "REJECT":
             artifact.reject(input.reason or "No reason given")
+        elif input.decision == "REOPEN":
+            artifact.reopen_for_review()
         else:
             raise ValueError(f"unknown artifact review decision: {input.decision!r}")
 
@@ -855,6 +857,10 @@ class PublishArtifact:
         category_name = self._resolve_category_name(artifact.category_id)
         image_url = self._resolve_feature_image_url(artifact)
         content_html = self._resolve_content_html(artifact)
+        # Record the slug actually used, so the artifact (and its "Ver" link) points at the real URL.
+        slug = self._publisher.reserve_slug(artifact.seo.slug, str(artifact.id))
+        if slug != artifact.seo.slug:
+            artifact.seo = replace(artifact.seo, slug=slug)
         news_id = self._publisher.publish(artifact, category_name, image_url, content_html)
 
         artifact.publish(news_id)

@@ -2,6 +2,8 @@ import { supabase } from '@/lib/supabaseClient';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import ArticleClient from './ArticleClient';
+import { publicAuthorName } from '@/lib/byline';
+import { jsonLdScript } from '@/lib/jsonLd';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -30,7 +32,7 @@ export async function generateMetadata(
     description,
     alternates: { canonical: url },
     keywords: data.tags && data.tags.length > 0 ? data.tags : undefined,
-    authors: data.author ? [{ name: data.author }] : undefined,
+    authors: [{ name: publicAuthorName(data.author) }],
     openGraph: {
       type: 'article',
       title: data.title,
@@ -38,7 +40,7 @@ export async function generateMetadata(
       url,
       siteName: 'Nexus News',
       publishedTime: data.published_at,
-      authors: data.author ? [data.author] : undefined,
+      authors: [publicAuthorName(data.author)],
       section: data.category || undefined,
       tags: data.tags || undefined,
       images: data.image_url ? [{ url: data.image_url, width: 1200, height: 630, alt: data.title }] : undefined,
@@ -76,9 +78,7 @@ export default async function Page({ params }: PageProps) {
     image: news.image_url ? [news.image_url] : undefined,
     datePublished: news.published_at,
     dateModified,
-    ...(news.author ? {
-      author: { '@type': 'Person', name: news.author },
-    } : {}),
+    author: { '@type': 'Person', name: publicAuthorName(news.author) },
     publisher: {
       '@type': 'Organization',
       name: 'Nexus News',
@@ -99,7 +99,7 @@ export default async function Page({ params }: PageProps) {
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: jsonLdScript(jsonLd) }}
       />
       <ArticleClient news={news} />
     </>

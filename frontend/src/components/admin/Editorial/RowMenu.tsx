@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { MoreHorizontal, ExternalLink, Link2 } from "lucide-react";
 import { toast } from "sonner";
+import { safeHttpUrl } from "./safeLinks";
 
 export default function RowMenu({ url }: { url: string }) {
   const [open, setOpen] = useState(false);
@@ -35,7 +36,7 @@ export default function RowMenu({ url }: { url: string }) {
           className="absolute right-0 top-full mt-1 z-20 w-40 rounded-lg border border-white/10 bg-neutral-900 shadow-lg py-1"
         >
           <a
-            href={url} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}
+            href={safeHttpUrl(url) ?? undefined} target="_blank" rel="noreferrer" onClick={() => setOpen(false)}
             className="flex items-center gap-2 px-3 py-1.5 text-xs text-neutral-300 hover:bg-white/5 hover:text-white"
           >
             <ExternalLink size={12} /> Ver fuente

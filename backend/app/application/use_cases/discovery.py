@@ -6,8 +6,10 @@ separation ProduceStory already established for the narrative pipeline.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from app.domain.shared.errors import NotFoundError
 from app.domain.shared.ids import DiscoveryItemId, StoryId
@@ -264,3 +266,69 @@ class AssignDiscoveryItem:
 def _domain_of(url: str) -> str:
     from urllib.parse import urlparse
     return urlparse(url).netloc or url
+
+
+class RunQueuedDiscoveryJobs:
+    """Worker side of serverless discovery (GitHub Actions, automation/run_discovery_jobs.py).
+
+    Runs every QUEUED job over the configured sources. A stop request is honoured between
+    sources: the job is re-read from storage, and once it is CANCELLING the worker keeps what
+    it saved and marks it CANCELLED. A job stopped before it started is closed without
+    running. One failing feed no longer fails the whole search: the job only fails when
+    every source failed."""
+
+    def __init__(
+        self,
+        jobs: DiscoveryJobRepository,
+        fetch_records: Callable[[str], list[dict]],
+        save_record: Callable[[dict, str], bool],
+        now: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+    ) -> None:
+        self._jobs = jobs
+        self._fetch = fetch_records
+        self._save = save_record
+        self._now = now
+
+    def execute(self, sources: list[str]) -> int:
+        processed = 0
+        for job in self._jobs.list_recent(limit=100):
+            if job.status == DiscoveryJobStatus.CANCELLING and job.started_at is None:
+                job.cancel(items_found=0, finished_at=self._now())
+                self._jobs.save(job)
+                continue
+            if job.status != DiscoveryJobStatus.QUEUED:
+                continue
+            self._run(job, sources)
+            processed += 1
+        return processed
+
+    def _stop_requested(self, job_id: str) -> bool:
+        current = self._jobs.find_by_id(job_id)
+        return current is not None and current.status == DiscoveryJobStatus.CANCELLING
+
+    def _run(self, job: DiscoveryJob, sources: list[str]) -> None:
+        job.start()
+        self._jobs.save(job)
+        saved = 0
+        errors: list[str] = []
+        for source in sources:
+            if self._stop_requested(job.id):
+                job.cancel(items_found=saved, finished_at=self._now())
+                self._jobs.save(job)
+                return
+            source_name = urlparse(source).hostname or source
+            try:
+                for record in self._fetch(source):
+                    if self._save(record, source_name):
+                        saved += 1
+            except Exception as exc:  # noqa: BLE001 -- one broken feed must not stop the others
+                errors.append(f"{source_name}: {exc}")
+        if self._stop_requested(job.id):
+            job.cancel(items_found=saved, finished_at=self._now())
+        elif sources and len(errors) == len(sources):
+            job.fail("; ".join(errors)[:1000], self._now())
+        elif not sources:
+            job.fail("No hay fuentes configuradas (SCRAPER_SOURCES)", self._now())
+        else:
+            job.complete(items_found=saved, finished_at=self._now())
+        self._jobs.save(job)

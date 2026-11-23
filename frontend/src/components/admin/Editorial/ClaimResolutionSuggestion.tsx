@@ -11,7 +11,7 @@
 import { useState } from "react";
 import { AlertCircle, Check, Sparkles, X } from "lucide-react";
 import { toast } from "sonner";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
 
 interface Proposal {
   claimId: string;
@@ -49,7 +49,7 @@ export default function ClaimResolutionSuggestion({
   const requestResolution = async () => {
     setState({ kind: "loading" });
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifactId}/claims/${claimId}/resolve`), { method: "POST" });
+      const res = await apiFetch(`/api/artifacts/${artifactId}/claims/${claimId}/resolve`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.detail || body?.message || `HTTP ${res.status}`);

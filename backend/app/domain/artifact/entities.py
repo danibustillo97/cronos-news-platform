@@ -297,6 +297,14 @@ class Artifact:
             raise InvalidStateTransition("Artifact", self.status.value, ArtifactStatus.APPROVED.value)
         self.status = ArtifactStatus.APPROVED
 
+    def reopen_for_review(self) -> None:
+        """Sends an approved (not yet scheduled or published) artifact back to Revisión so a
+        typo or a late fact can still be fixed before publishing. It returns as VALIDATED --
+        the automated checks already passed -- and needs a new human approval."""
+        if self.status != ArtifactStatus.APPROVED:
+            raise InvalidStateTransition("Artifact", self.status.value, ArtifactStatus.VALIDATED.value)
+        self.status = ArtifactStatus.VALIDATED
+
     def reject(self, reason: str) -> None:
         if self.status not in (ArtifactStatus.VALIDATED, ArtifactStatus.REVIEW_REQUIRED):
             raise InvalidStateTransition("Artifact", self.status.value, ArtifactStatus.REJECTED.value)

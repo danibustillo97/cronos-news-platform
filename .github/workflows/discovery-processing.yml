@@ -29,4 +29,5 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SCRAPER_SOURCES: ${{ secrets.SCRAPER_SOURCES }}
+          JOB_EXECUTION: github
         run: python automation/run_discovery_jobs.py
