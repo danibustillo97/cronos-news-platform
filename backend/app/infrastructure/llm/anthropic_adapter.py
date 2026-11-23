@@ -41,7 +41,7 @@ _STATUS_CHECK_TIMEOUT_SECONDS = 15.0
 class AnthropicArtifactGenerator:
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
         self._api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        self._model = model or os.getenv("ANTHROPIC_MODEL", _DEFAULT_MODEL)
+        self._model = model or os.getenv("ANTHROPIC_MODEL") or _DEFAULT_MODEL
 
     def generate(self, request: ArtifactGenerationRequest) -> ArtifactGenerationResult:
         if not self._api_key:

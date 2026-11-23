@@ -30,6 +30,18 @@ from app.infrastructure.persistence.supabase.ad_banner_repository import Supabas
 from app.infrastructure.media.ad_banner_storage_adapter import SupabaseAdBannerStorageAdapter
 from app.infrastructure.lab.local.discovery_reader import LocalDiscoveryContentReader
 from app.infrastructure.runtime.discovery_runner_adapter import DiscoveryRunnerAdapter
+from app.infrastructure.runtime.github_discovery_runner import GitHubActionsDiscoveryRunner
+from app.infrastructure.serverless import is_serverless
+from app.infrastructure.persistence.supabase.editorial_automation_repository import SupabaseEditorialAutomationRepository
+from app.infrastructure.persistence.supabase.content_profile_repository import SupabaseContentProfileRepository
+from app.application.use_cases.content_profile import GetContentProfile, UpdateContentProfile
+from app.application.use_cases.editorial_board import (
+    CheckArticleOriginality, CreateArticle, GetEditorialBoard, SetFeatureImage, UploadArticleImage, WriteDiscoveryItem,
+)
+from app.infrastructure.media.article_image_storage_adapter import SupabaseArticleImageStorage
+from app.application.use_cases.editorial_automation import (
+    GetEditorialAutomation, RunEditorialAutopilot, UpdateEditorialAutomation,
+)
 from app.infrastructure.llm.anthropic_adapter import AnthropicArtifactGenerator
 from app.infrastructure.llm.claude_code_adapter import ClaudeCodeArtifactGenerator
 from app.infrastructure.llm.provider_resolver import ArtifactProviderResolver
@@ -110,6 +122,8 @@ class Container:
         self.studio_project_repo = SupabaseStudioProjectRepository(client)
         self.ad_banner_repo = SupabaseAdBannerRepository(client)
         self.ad_banner_storage = SupabaseAdBannerStorageAdapter(client)
+        self.editorial_automation_repo = SupabaseEditorialAutomationRepository(client)
+        self.content_profile_repo = SupabaseContentProfileRepository(client)
 
         reader = default_reader()
         self.lab_editorial = LocalEditorialIntelligenceAdapter(reader)
@@ -127,7 +141,7 @@ class Container:
         self.storage = LocalLabStorageAdapter()
         self.runtime = LocalRuntimeAdapter()
         self.discovery_content_reader = LocalDiscoveryContentReader()
-        self.discovery_runner = DiscoveryRunnerAdapter()
+        self.discovery_runner = _discovery_runner()
         self.anthropic_generator = AnthropicArtifactGenerator()
         self.claude_code_generator = ClaudeCodeArtifactGenerator()
         self.artifact_provider_resolver = ArtifactProviderResolver(self.anthropic_generator, self.claude_code_generator)
@@ -216,6 +230,33 @@ class Container:
         self.update_studio_project = UpdateStudioProject(self.studio_project_repo)
         self.list_studio_project_versions = ListStudioProjectVersions(self.studio_project_repo)
         self.duplicate_studio_project = DuplicateStudioProject(self.studio_project_repo)
+
+        self.get_editorial_board = GetEditorialBoard(self.discovery_repo, self.artifact_repo, self.artifact_job_repo)
+        self.write_discovery_item = WriteDiscoveryItem(
+            self.discovery_repo, self.decide_discovery_item, self.open_manual_discovery_editor, self.trigger_artifact,
+        )
+        self.create_article = CreateArticle(self.story_repo, self.artifact_repo)
+        self.upload_article_image = UploadArticleImage(self.artifact_repo, SupabaseArticleImageStorage(client))
+        self.set_feature_image = SetFeatureImage(self.artifact_repo)
+        self.check_article_originality = CheckArticleOriginality(self.artifact_repo, self.discovery_repo)
+        self.get_content_profile = GetContentProfile(self.content_profile_repo)
+        self.update_content_profile = UpdateContentProfile(self.content_profile_repo)
+        self.get_editorial_automation = GetEditorialAutomation(self.editorial_automation_repo)
+        self.update_editorial_automation = UpdateEditorialAutomation(
+            self.editorial_automation_repo, self.artifact_provider_resolver,
+        )
+        self.run_editorial_autopilot = RunEditorialAutopilot(
+            self.editorial_automation_repo, self.discovery_repo, self.artifact_job_repo,
+            self.decide_discovery_item, self.trigger_artifact, self.run_artifact_job,
+        )
+
+
+def _discovery_runner():
+    """DISCOVERY_RUNNER=github|runtime. Default: GitHub Actions on Vercel
+    (no Local Runtime reachable there), the Local Runtime elsewhere."""
+    import os
+    choice = (os.getenv("DISCOVERY_RUNNER") or ("github" if is_serverless() else "runtime")).strip().lower()
+    return GitHubActionsDiscoveryRunner() if choice == "github" else DiscoveryRunnerAdapter()
 
 
 @lru_cache(maxsize=1)

@@ -54,7 +54,7 @@ def _binary_path() -> str | None:
 
 class ClaudeCodeArtifactGenerator:
     def __init__(self, model: str | None = None) -> None:
-        self._model = model or os.getenv("CLAUDE_CODE_MODEL", _DEFAULT_MODEL)
+        self._model = model or os.getenv("CLAUDE_CODE_MODEL") or _DEFAULT_MODEL
 
     def generate(self, request: ArtifactGenerationRequest) -> ArtifactGenerationResult:
         binary = _binary_path()

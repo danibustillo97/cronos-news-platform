@@ -11,7 +11,7 @@ from app.presentation.error_handlers import register_error_handlers
 from app.presentation.auth import require_admin
 from app.presentation.api import (
     stories, compositions, discovery, categories, assets, runtime, settings, artifacts, published_content,
-    artifact_providers, ads, sports, location, studio,
+    artifact_providers, ads, sports, location, studio, editorial,
 )
 from app.presentation.api.stories import productions_router
 
@@ -52,6 +52,7 @@ app.include_router(sports.router)
 app.include_router(location.router)
 app.include_router(studio.router, dependencies=[require_admin()])
 app.include_router(productions_router, dependencies=[require_admin()])
+app.include_router(editorial.router, dependencies=[require_admin()])
 
 
 @app.get("/health")

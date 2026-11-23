@@ -66,13 +66,13 @@ export default function ProviderPickerModal({
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-neutral-950 border border-white/10 rounded-2xl w-full max-w-sm p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white">Procesar en Artifact</h3>
+          <h3 className="text-sm font-bold text-white">Redactar con IA</h3>
           <button onClick={onCancel} className="text-neutral-500 hover:text-white">
             <X size={16} />
           </button>
         </div>
 
-        <div className="text-[11px] text-neutral-500 uppercase tracking-wider">Proveedor</div>
+        <div className="text-[11px] text-neutral-500 uppercase tracking-wider">Servicio de IA</div>
 
         {loading ? (
           <div className="flex items-center gap-2 text-neutral-400 text-sm py-4 justify-center">

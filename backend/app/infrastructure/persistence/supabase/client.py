@@ -31,7 +31,10 @@ def _load_env_file() -> None:
             continue
         key, _, value = line.partition("=")
         key = key.strip()
-        if key and key not in os.environ:
+        # Real (non-empty) env vars always win; an EMPTY one counts as unset --
+        # e.g. a CI/shell that exports SUPABASE_SERVICE_ROLE_KEY="" must not
+        # silently hide the value in backend/.env and fall back to anon.
+        if key and not os.environ.get(key) and value.strip():
             os.environ[key] = value.strip()
 
 

@@ -13,24 +13,42 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertCircle, Check, ChevronLeft, ChevronRight, Eye, FileCheck2, Loader2, RefreshCw, Search, Sparkles, Trash2, X,
+  AlertCircle, Check, ChevronLeft, ChevronRight, FileCheck2, Loader2, RefreshCw, Search, Sparkles, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiUrl } from "@/studio/lab/api-client";
-import RevisionEditor, { type RevisionDraft } from "./RevisionEditor";
+import { type RevisionDraft } from "./revisionDraft";
+import PortalBlockEditor from "./blocks/PortalBlockEditor";
 import RevisionInspector, { type SeoDraft } from "./RevisionInspector";
 import ArtifactDrawer from "./ArtifactDrawer";
 import ArtifactQueueRow from "./ArtifactQueueRow";
 import ArchivedDrawer from "./ArchivedDrawer";
-import ArticlePreviewModal from "./ArticlePreviewModal";
 import ProviderPickerModal from "./ProviderPickerModal";
 import { type Claim } from "./ClaimCard";
 import { type MediaRequirement } from "./MediaRequirementBlock";
+import { StatusPill } from "./EditorialStatus";
 
 interface Category { id: string; name: string; }
 interface CategoryGroup { id: string; name: string; categories: Category[]; }
 
-interface ValidationIssue { check: string; detail: string; }
+interface ValidationIssue { check: string; detail: string; severity?: "BLOCKING" | "WARNING"; }
+
+const ISSUE_ES: Record<string, string> = {
+  title: "Falta el titular",
+  excerpt: "Falta la entradilla",
+  summary: "Falta el resumen",
+  content_html: "El cuerpo tiene un formato que el portal no acepta",
+  seo_title: "Falta el título SEO",
+  seo_description: "Falta la meta descripción",
+  slug: "La URL (slug) no es válida: solo minúsculas, números y guiones",
+  sources: "No hay fuente registrada",
+  category: "Elige una categoría",
+  evidence: "Faltan afirmaciones verificables",
+  multimedia: "Falta la imagen de portada",
+};
+export function issueInSpanish(issue: ValidationIssue): string {
+  return ISSUE_ES[issue.check] ?? issue.detail;
+}
 
 interface ArtifactDetail {
   id: string;
@@ -76,12 +94,18 @@ function toSeoDraft(a: ArtifactDetail): SeoDraft {
 }
 
 export default function RevisionWorkspace({
-  manualQueue = [], onManualQueueConsumed, onGoToDiscovery,
+  manualQueue = [], onManualQueueConsumed, onGoToDiscovery, focusArtifactId, onClose, onChanged,
 }: {
   manualQueue?: string[];
   onManualQueueConsumed?: () => void;
   onGoToDiscovery?: () => void;
+  /** Focus mode (opened from the board): one article, full screen, with publish actions. */
+  focusArtifactId?: string;
+  onClose?: () => void;
+  /** Called after any status change so the board can refresh. */
+  onChanged?: () => void;
 }) {
+  const focusMode = Boolean(focusArtifactId);
   const [queue, setQueue] = useState<ArtifactDetail[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +128,6 @@ export default function RevisionWorkspace({
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [queueSearch, setQueueSearch] = useState("");
   const [archivedOpen, setArchivedOpen] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [manualQueueIds, setManualQueueIds] = useState<string[]>([]);
   const [manualQueueIndex, setManualQueueIndex] = useState(0);
   const [openingManualItem, setOpeningManualItem] = useState(false);
@@ -159,7 +182,7 @@ export default function RevisionWorkspace({
     })();
   }, []);
 
-  useEffect(() => { fetchQueue(); }, [fetchQueue]);
+  useEffect(() => { if (!focusMode) void fetchQueue(); }, [fetchQueue, focusMode]);
 
   const doSave = useCallback(async (saveAsDraft?: boolean): Promise<boolean> => {
     const artifact = selectedRef.current;
@@ -238,6 +261,90 @@ export default function RevisionWorkspace({
       setLoadingDetail(false);
     }
   }, [flushPendingSave]);
+
+  useEffect(() => {
+    if (focusArtifactId) void selectArticle({ id: focusArtifactId } as ArtifactDetail);
+  }, [focusArtifactId, selectArticle]);
+
+  const reloadSelected = useCallback(async () => {
+    const current = selectedRef.current;
+    if (!current) return;
+    const res = await fetch(apiUrl(`/api/artifacts/${current.id}`));
+    if (res.ok) {
+      const full: ArtifactDetail = await res.json();
+      setSelected(full);
+      setQueue((prev) => prev.map((a) => (a.id === full.id ? full : a)));
+    }
+  }, []);
+
+  const [publishing, setPublishing] = useState(false);
+
+  const runArticleAction = async (path: string, init: RequestInit, success: string) => {
+    const artifact = selectedRef.current;
+    if (!artifact) return false;
+    if (!await flushPendingSave()) return false;
+    setPublishing(true);
+    try {
+      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}${path}`), init);
+      if (!res.ok) throw await responseError(res);
+      toast.success(success);
+      await reloadSelected();
+      onChanged?.();
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo completar la acción");
+      return false;
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const cancelSchedule = () => runArticleAction("/schedule/cancel", { method: "POST" }, "Programación cancelada");
+  /**
+   * One-click publish: save → submit (if draft) → approve → publish/schedule.
+   * The editorial states still exist and are still enforced by the backend;
+   * the editor just doesn't have to walk them by hand.
+   */
+  const publishFlow = async (when?: Date): Promise<boolean> => {
+    const artifact = selectedRef.current;
+    if (!artifact) return false;
+    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
+    setPublishing(true);
+    const call = async (path: string, init?: RequestInit): Promise<ArtifactDetail> => {
+      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}${path}`), init);
+      if (!res.ok) throw await responseError(res);
+      return res.json();
+    };
+    try {
+      if (!await doSave(artifact.status === "DRAFT")) return false;
+      let current = await call("");
+      if (current.status === "DRAFT") current = await call("/submit", { method: "POST" });
+      if (current.status === "REVIEW_REQUIRED") {
+        setSelected(current);
+        const blocking = current.validationIssues.filter((i) => (i.severity ?? "BLOCKING") === "BLOCKING");
+        throw new Error(`Falta corregir: ${(blocking.length ? blocking : current.validationIssues).map(issueInSpanish).join(" · ")}`);
+      }
+      if (current.status === "VALIDATED") {
+        current = await call("/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision: "APPROVE" }) });
+      }
+      if (current.status !== "APPROVED") throw new Error(`No se puede publicar desde el estado ${current.status}`);
+      if (when) {
+        await call("/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scheduledAt: when.toISOString() }) });
+        toast.success(`Programada para el ${when.toLocaleString("es", { dateStyle: "medium", timeStyle: "short" })}`);
+      } else {
+        await call("/publish", { method: "POST" });
+        toast.success("Publicada: ya está en el portal");
+      }
+      await reloadSelected();
+      onChanged?.();
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo publicar");
+      return false;
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   const openManualDiscoveryItem = useCallback(async (itemId: string) => {
     setOpeningManualItem(true);
@@ -344,7 +451,13 @@ export default function RevisionWorkspace({
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
-      toast.success("Revisión aprobada -- listo para Publicar");
+      toast.success("Aprobada: ya puedes publicarla o programarla");
+      onChanged?.();
+      if (focusMode) {
+        setInspectorOpen(false);
+        await reloadSelected();
+        return;
+      }
       setQueue((prev) => prev.filter((a) => a.id !== artifact.id));
       setSelected(null);
       setDraft(null);
@@ -375,7 +488,8 @@ export default function RevisionWorkspace({
       const updated: ArtifactDetail = await res.json();
       setSelected(updated);
       setQueue((prev) => prev.map((item) => item.id === updated.id ? updated : item));
-      toast.success(updated.status === "VALIDATED" ? "Enviado a revisión" : "Enviado; requiere completar validaciones");
+      toast.success(updated.status === "VALIDATED" ? "Lista para revisar" : "Enviada a revisión: hay avisos por resolver");
+      onChanged?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo enviar a revisión");
     } finally {
@@ -400,7 +514,12 @@ export default function RevisionWorkspace({
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
-      toast.success("Artículo eliminado de Revisión");
+      toast.success("Enviada a la papelera");
+      onChanged?.();
+      if (focusMode) {
+        onClose?.();
+        return;
+      }
       setQueue((prev) => prev.filter((a) => a.id !== artifact.id));
       setSelected(null);
       setDraft(null);
@@ -422,9 +541,11 @@ export default function RevisionWorkspace({
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storyId: artifact.storyId, provider: providerId }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast.success("Reintentando Artifact");
-      setArtifactDrawerOpen(true);
+      if (!res.ok) throw await responseError(res);
+      toast.success("La IA está volviendo a redactar esta noticia");
+      onChanged?.();
+      if (focusMode) onClose?.();
+      else setArtifactDrawerOpen(true);
     } catch (err) {
       toast.error(err instanceof Error ? `No se pudo reintentar: ${err.message}` : "No se pudo reintentar");
     }
@@ -439,8 +560,8 @@ export default function RevisionWorkspace({
 
   return (
     <div className="flex h-full min-h-0">
-      {/* LISTA -- independent scroll */}
-      <div className={`${mobilePane === "list" ? "flex" : "hidden"} md:flex w-full md:w-[280px] lg:w-[310px] flex-shrink-0 flex-col border-r border-white/10 h-full min-h-0 bg-[#0b0b0b]`}>
+      {/* LISTA -- independent scroll (hidden in focus mode: the board is the list) */}
+      <div className={`${focusMode ? "hidden" : mobilePane === "list" ? "flex" : "hidden md:flex"} w-full md:w-[280px] lg:w-[310px] flex-shrink-0 flex-col border-r border-white/10 h-full min-h-0 bg-[#0b0b0b]`}>
         <div className="flex-shrink-0 border-b border-white/10 px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -510,7 +631,17 @@ export default function RevisionWorkspace({
         {selected && draft ? (
           <>
             <div className="flex flex-shrink-0 flex-wrap items-center gap-3 border-b border-white/10 px-4 py-2.5">
-              <button onClick={() => setMobilePane("list")} className="md:hidden text-xs text-neutral-400 hover:text-white">← Lista</button>
+              {focusMode ? (
+                <button
+                  onClick={async () => { if (await flushPendingSave()) onClose?.(); }}
+                  className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-neutral-300 hover:bg-white/10 hover:text-white"
+                >
+                  <ChevronLeft size={14} /> Tablero
+                </button>
+              ) : (
+                <button onClick={() => setMobilePane("list")} className="md:hidden text-xs text-neutral-400 hover:text-white">← Lista</button>
+              )}
+              {focusMode && <StatusPill status={selected.status} issues={selected.validationIssues.length} />}
 
               <div className="flex items-center gap-1.5 text-[11.5px]">
                 {saveStatus === "saving" && <span className="flex items-center gap-1.5 text-neutral-400"><Loader2 size={12} className="animate-spin" /> Guardando…</span>}
@@ -539,19 +670,13 @@ export default function RevisionWorkspace({
 
               <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
                 <button
-                  onClick={() => setPreviewOpen(true)}
-                  className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10"
-                >
-                  <Eye size={13} /> Vista previa
-                </button>
-                <button
                   onClick={flushPendingSave}
                   disabled={saveStatus === "saving"}
                   className="flex items-center gap-1.5 text-[12px] font-bold px-3.5 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-500 disabled:opacity-50"
                 >
                   {selected.status === "DRAFT" ? "Guardar borrador" : "Guardar"}
                 </button>
-                {selected.status === "DRAFT" && (
+                {!focusMode && selected.status === "DRAFT" && (
                   <button
                     onClick={() => void submitForReview()}
                     disabled={submitting || saveStatus === "saving" || openingManualItem}
@@ -559,6 +684,15 @@ export default function RevisionWorkspace({
                   >
                     {submitting ? <Loader2 className="animate-spin" size={13} /> : <FileCheck2 size={13} />}
                     Enviar a revisión
+                  </button>
+                )}
+                {focusMode && selected.status === "SCHEDULED" && (
+                  <button
+                    onClick={() => void cancelSchedule()}
+                    disabled={publishing}
+                    className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-white/5 text-neutral-200 hover:bg-white/10 disabled:opacity-50"
+                  >
+                    Cancelar programación
                   </button>
                 )}
                 <button
@@ -576,12 +710,16 @@ export default function RevisionWorkspace({
                   <a href={selected.sources[0].sourceUrl} target="_blank" rel="noreferrer" className="truncate hover:text-white hover:underline">
                     {selected.sources[0].sourceName ?? selected.sources[0].sourceDomain}
                   </a>
-                  <span className="ml-auto hidden sm:inline text-neutral-700">ID Discovery: {selected.storyId}</span>
                 </div>
               )}
-              <RevisionEditor
+              <PortalBlockEditor
+                key={selected.id}
                 draft={draft} onFieldChange={onFieldChange} categoryGroups={categoryGroups}
                 mediaRequirements={selected.mediaRequirements} artifactId={selected.id} onMediaChanged={onMediaChanged}
+                readOnly={selected.status === "PUBLISHED" || selected.status === "PUBLISHING"}
+                seo={seoDraft} onSeoChange={onSeoChange} sources={selected.sources}
+                status={selected.status} onPublish={focusMode ? publishFlow : undefined} publishing={publishing}
+                blockingIssues={selected.validationIssues.filter((i) => (i.severity ?? "BLOCKING") === "BLOCKING").map(issueInSpanish)}
               />
             </div>
           </>
@@ -590,7 +728,7 @@ export default function RevisionWorkspace({
             {loadingDetail ? "Cargando…" : (
               <>
                 <Sparkles size={22} />
-                <p className="text-sm">Elegí un artículo de la lista para empezar a revisar.</p>
+                <p className="text-sm">Elige un artículo de la lista para empezar.</p>
               </>
             )}
           </div>
@@ -627,15 +765,6 @@ export default function RevisionWorkspace({
       )}
 
       {archivedOpen && <ArchivedDrawer onClose={() => setArchivedOpen(false)} />}
-
-      {previewOpen && selected && draft && (
-        <ArticlePreviewModal
-          title={draft.title} subtitle={draft.subtitle} excerpt={draft.excerpt} contentHtml={draft.contentHtml}
-          featuredImageUrl={selected.mediaRequirements.find((m) => m.kind === "FEATURE_IMAGE")?.assetUrl ?? null}
-          mediaRequirements={selected.mediaRequirements} artifactId={selected.id}
-          onClose={() => setPreviewOpen(false)}
-        />
-      )}
 
       {artifactDrawerOpen && selected && (
         <ArtifactDrawer

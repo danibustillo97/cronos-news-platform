@@ -338,6 +338,22 @@ class Artifact:
             raise ValueError(f"No media requirement {placeholder_id!r} on this Artifact")
         self.media_requirements = updated
 
+    def set_feature_image(self, url: str | None, caption: str | None = None, alt_text: str | None = None) -> None:
+        """Block editor's cover image: a public URL (Supabase Storage or an
+        external photo), stored as the FEATURE_IMAGE's external_url --
+        exactly what PublishArtifact sends to the portal. None removes it."""
+        if self.status in (ArtifactStatus.PUBLISHED, ArtifactStatus.ARCHIVED):
+            raise InvalidStateTransition("Artifact", self.status.value, "edited")
+        others = [m for m in self.media_requirements if m.kind != MediaKind.FEATURE_IMAGE]
+        current = next((m for m in self.media_requirements if m.kind == MediaKind.FEATURE_IMAGE), None)
+        feature = MediaRequirement(
+            placeholder_id=current.placeholder_id if current else "FEATURE_IMAGE", kind=MediaKind.FEATURE_IMAGE,
+            prompt=current.prompt if current else "", asset_id=None, external_url=url,
+            caption=caption if caption is not None else (current.caption if current else None),
+            alt_text=alt_text if alt_text is not None else (current.alt_text if current else None),
+        )
+        self.media_requirements = [feature, *others]
+
     def update_media_prompt(
         self, placeholder_id: str, prompt: str | None = None,
         caption: str | _Unset | None = _UNSET, alt_text: str | _Unset | None = _UNSET,

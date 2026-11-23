@@ -24,6 +24,7 @@ import re
 from pathlib import Path
 
 from app.domain.artifact.entities import ProviderId
+from app.infrastructure.serverless import ReadOnlyEnvironmentError, is_serverless
 
 _ENV_FILE = Path(__file__).resolve().parents[3] / ".env"  # backend/.env
 
@@ -65,6 +66,11 @@ class EnvFileCredentialsStore:
 
     @staticmethod
     def _write_line(env_var: str, value: str) -> None:
+        if is_serverless():
+            raise ReadOnlyEnvironmentError(
+                f"Saving {env_var} from the admin panel",
+                "Set it as an Environment Variable in the Vercel backend project and redeploy.",
+            )
         pattern = re.compile(rf"^{re.escape(env_var)}=.*$", re.MULTILINE)
         line = f"{env_var}={value}"
         if _ENV_FILE.exists():

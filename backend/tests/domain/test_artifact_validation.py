@@ -315,3 +315,13 @@ def test_feature_image_embedded_in_body_warns():
 def test_feature_image_not_embedded_has_no_separation_warning():
     result = validate_artifact(_valid_artifact(), valid_category_names={"cat-futbol"})
     assert not any("must stay separate" in i.detail for i in result.issues)
+
+
+def test_block_editor_html_is_valid_and_own_reporting_can_be_approved():
+    a = _valid_artifact(sources=[], claims=[])
+    a.content_html = ("<article><p>Uno <b>dos</b> <i>tres</i><br>cuatro <s>x</s> <sup>2</sup></p><hr />"
+                      "<figure><img src=\"https://cdn/x.jpg\" alt=\"A\" /><figcaption>Pie</figcaption></figure></article>")
+    result = validate_artifact(a)
+    assert not any(i.check == "content_html" for i in result.issues)
+    assert result.ok  # missing sources/claims are warnings: an original story can be published
+    assert any(i.check == "sources" for i in result.issues)

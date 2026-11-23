@@ -238,6 +238,35 @@ class SupabaseArtifactJobRepository:
             raise
         return [self._to_entity(row) for row in (res.data or [])]
 
+    def claim_queued(self, job_id: str, now: datetime) -> ArtifactJob | None:
+        try:
+            res = (
+                self._client.table("artifact_jobs")
+                .update({"status": ArtifactJobStatus.RUNNING.value, "started_at": now.isoformat()})
+                .eq("id", job_id).eq("status", ArtifactJobStatus.QUEUED.value).select("*").execute()
+            )
+        except Exception as exc:
+            raise_if_schema_missing(exc, "artifact_jobs")
+            raise
+        rows = res.data or []
+        return self._to_entity(rows[0]) if rows else None
+
+    def fail_stale_running(self, started_before: datetime, now: datetime) -> int:
+        try:
+            res = (
+                self._client.table("artifact_jobs")
+                .update({
+                    "status": ArtifactJobStatus.FAILED.value, "finished_at": now.isoformat(),
+                    "error": "El worker se interrumpió antes de terminar (timeout o caída). Reintenta la generación.",
+                })
+                .eq("status", ArtifactJobStatus.RUNNING.value).lt("started_at", started_before.isoformat())
+                .select("id").execute()
+            )
+        except Exception as exc:
+            raise_if_schema_missing(exc, "artifact_jobs")
+            raise
+        return len(res.data or [])
+
     def list_recent(self, limit: int = 20) -> list[ArtifactJob]:
         try:
             res = self._client.table("artifact_jobs").select("*").order("created_at", desc=True).limit(limit).execute()

@@ -84,6 +84,8 @@ _SLUG_PATTERN = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
 # generation prompt (see MediaRequirement's own docstring).
 _ALLOWED_HTML_TAGS = {
     "article", "p", "h2", "h3", "ul", "ol", "li", "blockquote", "strong", "em", "a", "u", "code", "pre", "img",
+    # emitted by the block editor (separator, line break, inline formatting) and rendered by the portal
+    "hr", "br", "b", "i", "s", "sup", "sub",
     "figure", "figcaption", "div", "iframe", "video", "table", "thead", "tbody", "tr", "th", "td", "colgroup", "col",
 }
 _TAG_PATTERN = re.compile(r"</?([a-zA-Z0-9]+)[^>]*>")
@@ -171,9 +173,15 @@ def validate_artifact(artifact: Artifact, valid_category_names: set[str] | None 
             "slug", f"{artifact.seo.slug!r} is not a valid slug (lowercase, hyphens only)", _BLOCKING,
         ))
 
+    # Own reporting ("+ Nueva noticia"): no external source AND no extracted
+    # claims is a legitimate original story -- both become WARNINGs (the
+    # editor's SEO panel still checks attribution). Only ONE of the two
+    # missing means an incomplete draft (e.g. AI output) and stays BLOCKING.
+    own_reporting = not artifact.sources and not artifact.claims
+    provenance_severity = _WARNING if own_reporting else _BLOCKING
     if not artifact.sources:
         issues.append(ValidationIssue(
-            "sources", "no sources recorded -- an Artifact must trace back to real material", _BLOCKING,
+            "sources", "no sources recorded -- an Artifact must trace back to real material", provenance_severity,
         ))
 
     if artifact.category_id is None:
@@ -195,7 +203,7 @@ def validate_artifact(artifact: Artifact, valid_category_names: set[str] | None 
             _WARNING,
         ))
     if not artifact.claims:
-        issues.append(ValidationIssue("evidence", "no claims recorded -- nothing to trace back to sources", _BLOCKING))
+        issues.append(ValidationIssue("evidence", "no claims recorded -- nothing to trace back to sources", provenance_severity))
 
     has_feature_image_need = any(m.kind == MediaKind.FEATURE_IMAGE for m in artifact.media_requirements)
     if not has_feature_image_need:

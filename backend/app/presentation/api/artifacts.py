@@ -4,6 +4,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Qu
 from pydantic import BaseModel
 
 from app.container import Container, get_container
+from app.infrastructure.serverless import dispatch_workflow, is_serverless
 from app.application.use_cases.artifact import (
     ArchiveArtifactInput, CancelArtifactScheduleInput, MarkClaimReviewedInput, ProposeClaimResolutionInput,
     ProposeSeoFixInput, PublishArtifactInput, ReviewArtifactInput, RunArtifactJobInput, ScheduleArtifactInput,
@@ -42,6 +43,17 @@ def _resolve_asset_urls(container: Container, artifacts: list[Artifact]) -> dict
     return info
 
 
+def _run_or_hand_off(background_tasks: BackgroundTasks, workflow_file: str, task, task_input) -> None:
+    """Local/long-lived server: run the job in-process after responding.
+    Serverless (Vercel): the instance may freeze once the response is sent,
+    so the job stays QUEUED and the GitHub Actions worker runs it --
+    dispatched right away when configured, otherwise on its next cron."""
+    if is_serverless():
+        background_tasks.add_task(dispatch_workflow, workflow_file)
+        return
+    background_tasks.add_task(task, task_input)
+
+
 @router.post("/jobs", response_model=ArtifactJobOut)
 def trigger_artifact(
     body: TriggerArtifactRequest, background_tasks: BackgroundTasks, container: Container = Depends(get_container),
@@ -50,7 +62,7 @@ def trigger_artifact(
     real LLM call (10-60+ seconds) runs as a background task so this
     request never blocks on it -- poll GET /jobs/{id} for real progress."""
     job = container.trigger_artifact.execute(TriggerArtifactInput(story_id=body.story_id, provider=body.provider))
-    background_tasks.add_task(container.run_artifact_job.execute, RunArtifactJobInput(job_id=job.id))
+    _run_or_hand_off(background_tasks, "artifact-processing.yml", container.run_artifact_job.execute, RunArtifactJobInput(job_id=job.id))
     return artifact_job_out(job)
 
 
@@ -253,7 +265,10 @@ def generate_media(
     job = container.trigger_media_generation.execute(
         TriggerMediaGenerationInput(artifact_id=artifact_id, placeholder_id=placeholder_id)
     )
-    background_tasks.add_task(container.run_media_generation_job.execute, RunMediaGenerationJobInput(job_id=job.id))
+    _run_or_hand_off(
+        background_tasks, "media-processing.yml",
+        container.run_media_generation_job.execute, RunMediaGenerationJobInput(job_id=job.id),
+    )
     return media_generation_job_out(job)
 
 

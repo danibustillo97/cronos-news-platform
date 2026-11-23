@@ -75,7 +75,7 @@ Todo chequeo de `nexus.ps1` es real (endpoint HTTP o puerto ligado) — nunca un
 cd frontend && npm install && npm run dev
 
 # Backend
-cd backend && python -m venv venv && ./venv/Scripts/pip install -r requirements.txt && ./venv/Scripts/python -m uvicorn app.presentation.main:app --reload
+cd backend && python -m venv venv && ./venv/Scripts/pip install -r requirements-dev.txt && ./venv/Scripts/python -m uvicorn app.presentation.main:app --reload
 
 # Local Runtime
 cd automation/runtime && python -m venv venv && ./venv/Scripts/pip install -r requirements.txt && ./venv/Scripts/python -m uvicorn app.main:app --port 8801

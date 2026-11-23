@@ -19,6 +19,7 @@ from app.domain.distribution.entities import DistributionPlan, Platform
 from app.domain.asset.entities import Asset, MediaGenerationJob, MediaGenerationResult
 from app.domain.category.entities import CategoryGroup
 from app.domain.settings.entities import SiteSeoSettings
+from app.domain.automation.entities import EditorialAutomationSettings
 from app.domain.intelligence.entities import (
     EditorialIntelligence, StoryIntelligence, NarrativeDirection, AudioDirection,
     MediaPlan, SequencePlan, AnimationPlan, RenderResult, AssemblyResult,
@@ -91,6 +92,13 @@ class CategoryRepository(Protocol):
     def list_tree(self) -> list[CategoryGroup]: ...
 
 
+class EditorialAutomationRepository(Protocol):
+    """Singleton switch for the editorial autopilot. get() never raises
+    for a missing row/table -- it returns the safe default (OFF)."""
+    def get(self) -> EditorialAutomationSettings: ...
+    def save(self, settings: EditorialAutomationSettings) -> None: ...
+
+
 class SiteSettingsRepository(Protocol):
     """Singleton config -- get_seo always returns a value (the row is
     seeded by the schema migration itself), never None."""
@@ -140,6 +148,14 @@ class StudioProjectRepository(Protocol):
 
 class ArtifactJobRepository(Protocol):
     def find_by_id(self, job_id: str) -> ArtifactJob | None: ...
+    def claim_queued(self, job_id: str, now: datetime) -> ArtifactJob | None:
+        """Atomically QUEUED -> RUNNING. None if another worker already took
+        it (or it isn't QUEUED) -- guarantees one LLM call per job."""
+        ...
+    def fail_stale_running(self, started_before: datetime, now: datetime) -> int:
+        """RUNNING jobs whose worker died (timeout/crash) -> FAILED, so they
+        never stay stuck forever. Returns how many were recovered."""
+        ...
     def find_latest_for_story(self, story_id: str) -> ArtifactJob | None: ...
     def list_for_story(self, story_id: str, limit: int = 20) -> list[ArtifactJob]:
         """Every attempt for this story, newest first -- the real retry
