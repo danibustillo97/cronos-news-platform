@@ -1,40 +1,84 @@
 'use client'
 
-// Arquitectura de navegación híbrida (ver brief 2026-09): rutas reales
-// fijas para las secciones que tienen experiencia propia -- el navbar NO
-// crece con la taxonomía (esa la resuelve /explorar, alimentada por
-// /api/categories). Deportes deja de ser un filtro de categoría más y
-// pasa a ser el hub real (/deportes), con su propio toolbar de
-// competiciones/vistas -- ver app/deportes/page.tsx.
-
 import React, { useState, useEffect } from 'react'
 import { Menu, X, Search, Zap, Sun, Moon } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { usePortalTheme } from '@/context/ThemeContext'
+import { apiUrl } from '@/studio/lab/api-client'
 
-const NAV_LINKS: { name: string; href: string }[] = [
-  { name: 'Inicio', href: '/' },
-  { name: 'Política', href: '/categoria/politica' },
-  { name: 'Mundo', href: '/categoria/mundo' },
-  { name: 'Empresas', href: '/categoria/empresas' },
-  { name: 'Sociedad', href: '/categoria/sociedad' },
-  { name: 'Deportes', href: '/deportes' },
-  { name: 'Explorar', href: '/explorar' },
-]
+interface SportCategory {
+  id: string
+  name: string
+  slug: string
+  sortOrder: number
+  active: boolean
+}
+
+interface CategoryGroup {
+  name: string
+  slug: string
+  active: boolean
+  categories: SportCategory[]
+}
+
+interface CategoriesResponse {
+  groups?: CategoryGroup[]
+}
+
+interface NavLink {
+  name: string
+  href: string
+}
 
 export default function ModernNavbar() {
   const { theme, toggleTheme } = usePortalTheme()
   const isDark = theme === 'dark'
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
-  const navLinks = NAV_LINKS
+  const [sportCategories, setSportCategories] = useState<SportCategory[]>([])
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 10)
     window.addEventListener('scroll', onScroll)
     return () => window.removeEventListener('scroll', onScroll)
   }, [])
+
+  useEffect(() => {
+    let cancelled = false
+
+    fetch(apiUrl('/api/categories'), { next: { revalidate: 300 } })
+      .then((response) => {
+        if (!response.ok) throw new Error(`No se pudieron cargar las categorías: ${response.status}`)
+        return response.json() as Promise<CategoriesResponse>
+      })
+      .then((data) => {
+        if (cancelled) return
+        const groups = data.groups ?? []
+        const sportsGroup = groups.find((group) =>
+          group.active && (group.slug.toLowerCase() === 'deportes' || group.name.toLowerCase() === 'deportes')
+        )
+        const categories = (sportsGroup?.categories ?? [])
+          .filter((category) => category.active)
+          .sort((a, b) => a.sortOrder - b.sortOrder)
+        setSportCategories(categories)
+      })
+      .catch((error) => {
+        console.error('[ModernNavbar] Error cargando categorías deportivas:', error)
+        if (!cancelled) setSportCategories([])
+      })
+
+    return () => { cancelled = true }
+  }, [])
+
+  const navLinks: NavLink[] = [
+    { name: 'Inicio', href: '/' },
+    ...sportCategories.map((category) => ({
+      name: category.name,
+      href: `/categoria/${category.slug}`,
+    })),
+    { name: 'Deportes', href: '/deportes' },
+  ]
 
   return (
     <>
@@ -55,17 +99,17 @@ export default function ModernNavbar() {
                 NEXUS
               </span>
               <span className={`text-[8px] font-bold uppercase tracking-[0.16em] whitespace-nowrap ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>
-                Noticias que importan
+                Sport
               </span>
             </span>
           </Link>
 
-          <nav className="hidden md:flex items-center gap-6">
-            {navLinks.map(link => (
+          <nav aria-label="Categorías deportivas" className="hidden md:flex min-w-0 items-center gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {navLinks.map((link) => (
               <Link
                 key={link.name}
                 href={link.href}
-                className={`text-[11px] font-bold uppercase tracking-[0.12em] transition-colors ${
+                className={`shrink-0 text-[11px] font-bold uppercase tracking-[0.12em] transition-colors ${
                   isDark ? 'text-white/70 hover:text-white' : 'text-[#666] hover:text-[#161616]'
                 }`}
               >
@@ -74,7 +118,7 @@ export default function ModernNavbar() {
             ))}
           </nav>
 
-          <div className={`hidden md:flex items-center gap-3 ${isDark ? 'text-white/80' : 'text-neutral-600'}`}>
+          <div className={`hidden md:flex shrink-0 items-center gap-3 ${isDark ? 'text-white/80' : 'text-neutral-600'}`}>
             <button aria-label="Buscar" className="hover:text-[#FACC15] transition">
               <Search size={17} />
             </button>
@@ -118,8 +162,8 @@ export default function ModernNavbar() {
             transition={{ duration: 0.2, ease: 'easeOut' }}
             className={`fixed inset-0 z-40 pt-20 px-6 md:hidden ${isDark ? 'bg-neutral-950' : 'bg-white'}`}
           >
-            <nav className="flex flex-col gap-6">
-              {navLinks.map(link => (
+            <nav aria-label="Categorías deportivas" className="flex flex-col gap-6 overflow-y-auto max-h-[calc(100dvh-6rem)]">
+              {navLinks.map((link) => (
                 <Link
                   key={link.name}
                   href={link.href}

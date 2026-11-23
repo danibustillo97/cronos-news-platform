@@ -13,6 +13,7 @@
 
 import type { NewsView } from '@/types/news'
 import type { Match } from '@/types/sports'
+import { publicAuthorName } from './byline'
 
 export type PostFormat = 'article' | 'photo' | 'video' | 'audio' | 'live' | 'gallery' | 'data' | 'mixed'
 
@@ -57,7 +58,7 @@ export interface Coverage {
 }
 
 function creatorFromName(name: string, allNews: NewsView[]): Creator {
-  const authored = allNews.filter((n) => (n.author || 'Nexus News') === name)
+  const authored = allNews.filter((n) => publicAuthorName(n.author) === name)
   const categories = new Map<string, number>()
   for (const n of authored) {
     if (!n.category) continue
@@ -77,7 +78,7 @@ export function newsToPost(item: NewsView, allNews: NewsView[]): Post {
   return {
     id: item.id,
     format: 'article',
-    creator: creatorFromName(item.author || 'Nexus News', allNews),
+    creator: creatorFromName(publicAuthorName(item.author), allNews),
     title: item.title,
     excerpt: item.excerpt ?? null,
     category: item.category ?? null,
@@ -103,7 +104,7 @@ function estimateReadMinutesLocal(...texts: (string | null | undefined)[]): numb
 // "seguidores" (no existe ese dato). `min` filtra ruido de un autor con
 // una sola nota ocasional.
 export function topCreators(allNews: NewsView[], limit = 6, min = 1): Creator[] {
-  const names = new Set(allNews.map((n) => n.author || 'Nexus News'))
+  const names = new Set(allNews.map((n) => publicAuthorName(n.author)))
   return Array.from(names)
     .map((name) => creatorFromName(name, allNews))
     .filter((c) => c.postCount >= min)

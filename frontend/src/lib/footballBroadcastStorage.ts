@@ -1,29 +1,21 @@
 import { supabase } from "./supabaseClient";
 
-export interface FootballPlayer {
+// One durable football match workspace per user (table football_broadcast_matches, RLS by user_id).
+// The payload is owned by the broadcaster; this module only moves it in and out of Supabase.
+
+export interface StoredFootballBroadcast<T> {
   id: string;
-  dorsal: number;
   name: string;
-  position: "POR" | "DEF" | "MED" | "ATA";
-  starter: boolean;
-  captain: boolean;
+  competition: string;
+  payload: T;
 }
 
-export interface FootballBroadcastPayload {
-  scoreboard: unknown;
-  lineups: { home: FootballPlayer[]; away: FootballPlayer[] };
-  events: Array<{ id: string; type: string; team: "home" | "away"; minute: number; label: string }>;
-  metrics: Record<string, number>;
-  widgets: unknown[];
-  scenes: unknown[];
-  audit?: Array<{ id: string; action: string; team?: "home" | "away"; minute: number; createdAt: string }>;
-}
-
-export async function saveFootballBroadcast(
+/** Upserts the workspace and returns its id, or null when nobody is signed in. */
+export async function saveFootballBroadcast<T>(
   id: string | null,
   name: string,
   competition: string,
-  payload: FootballBroadcastPayload,
+  payload: T,
 ): Promise<string | null> {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
@@ -46,12 +38,8 @@ export async function saveFootballBroadcast(
   return data.id;
 }
 
-export async function loadLatestFootballBroadcast(): Promise<{
-  id: string;
-  name: string;
-  competition: string;
-  payload: FootballBroadcastPayload;
-} | null> {
+/** Latest workspace of the signed-in user, or null (no session or nothing saved yet). */
+export async function loadLatestFootballBroadcast<T>(): Promise<StoredFootballBroadcast<T> | null> {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError) throw userError;
   if (!userData.user) return null;
@@ -63,10 +51,5 @@ export async function loadLatestFootballBroadcast(): Promise<{
     .limit(1)
     .maybeSingle();
   if (error) throw error;
-  return data as {
-    id: string;
-    name: string;
-    competition: string;
-    payload: FootballBroadcastPayload;
-  } | null;
+  return data as StoredFootballBroadcast<T> | null;
 }

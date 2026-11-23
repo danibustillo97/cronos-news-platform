@@ -17,6 +17,7 @@ import BroadcasterView from "@/components/admin/Broadcaster/BroadcasterView";
 import EditorialView from "@/components/admin/Editorial/EditorialView";
 import { DistributionView } from "@/components/admin/Distribution/DistributionView";
 import { useProduction } from "@/studio/lab/ProductionContext";
+import { useAdminSessionSync } from "@/lib/adminSession";
 
 import { View } from "@/types/admin";
 
@@ -30,6 +31,7 @@ function isNavigableView(value: string | null): value is View {
 
 export default function AdminPage() {
   const { activeView, setActiveView } = useProduction();
+  useAdminSessionSync();
   const [loading, setLoading] = useState(true);
 
   const router = useRouter();
@@ -94,7 +96,7 @@ export default function AdminPage() {
       case "dashboard": return <AdminDashboard />;
       case "editorial": return <EditorialView />;
       case "nexus_studio": return <NexusStudioView />;
-      case "broadcaster": return <BroadcasterView />;
+      case "broadcaster": return null; // rendered once, always mounted, outside this switch
       case "distribution": return <DistributionView />;
       case "tags_seo": return <AdminSeoTags />;
       case "providers": return <AdminProviders />;
@@ -130,11 +132,12 @@ export default function AdminPage() {
         )}
 
         <main className={`min-h-0 flex-1 ${fullBleed ? 'overflow-hidden' : visibleView === "dashboard" ? 'p-3 sm:p-4 overflow-y-auto' : 'p-6 overflow-y-auto'}`}>
+          {/* Always mounted: leaving the view must not cut a live broadcast or a recording. */}
+          <div className={visibleView === "broadcaster" ? "h-full" : "hidden"}>
+            <BroadcasterView active={visibleView === "broadcaster"} />
+          </div>
           {visibleView === "broadcaster" || visibleView === "nexus_studio" ? (
-            <div className="relative h-full">
-              <div className={visibleView === "broadcaster" ? "h-full" : "hidden"}><BroadcasterView /></div>
-              <div className={visibleView === "nexus_studio" ? "h-full" : "hidden"}><NexusStudioView /></div>
-            </div>
+            <div className={visibleView === "nexus_studio" ? "h-full" : "hidden"}><NexusStudioView /></div>
           ) : (
             <AnimatePresence mode="wait">
               <motion.div

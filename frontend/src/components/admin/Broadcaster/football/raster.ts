@@ -5,9 +5,10 @@ interface Entry {
   ready: boolean;
 }
 
-const cache = new Map<string, Entry>();
+// Keyed by the design object itself: footballDesignFor returns the same object until the
+// design changes, so lookups are O(1) instead of hashing a large HTML string every frame.
+const cache = new WeakMap<DesignOutput, Entry>();
 const lastReady = new Map<string, HTMLImageElement>();
-const MAX_ENTRIES = 80;
 
 function toSvgUrl(design: DesignOutput): string {
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${design.width}" height="${design.height}"><foreignObject width="100%" height="100%"><div xmlns="http://www.w3.org/1999/xhtml" style="width:${design.width}px;height:${design.height}px"><style>.nx{position:relative;box-sizing:border-box}.nx *{box-sizing:border-box}</style>${design.html}</div></foreignObject></svg>`;
@@ -19,19 +20,19 @@ function toSvgUrl(design: DesignOutput): string {
  * previously ready frame for the same widget is returned so the canvas never flickers.
  */
 export function getDesignImage(widgetId: string, design: DesignOutput): HTMLImageElement | null {
-  const key = `${widgetId}|${design.html}`;
-  let entry = cache.get(key);
+  let entry = cache.get(design);
   if (!entry) {
-    if (cache.size >= MAX_ENTRIES) cache.delete(cache.keys().next().value as string);
     const image = new Image();
-    entry = { image, ready: false };
-    const created = entry;
+    const created: Entry = { image, ready: false };
     image.onload = () => { created.ready = true; };
-    image.onerror = () => { created.ready = false; };
     image.src = toSvgUrl(design);
-    cache.set(key, entry);
+    cache.set(design, created);
+    entry = created;
   }
   if (entry.ready) {
+    // Temporary widgets (goal, cards…) get fresh ids, so keep only the most recent ones.
+    lastReady.delete(widgetId);
+    if (lastReady.size >= 100) lastReady.delete(lastReady.keys().next().value as string);
     lastReady.set(widgetId, entry.image);
     return entry.image;
   }

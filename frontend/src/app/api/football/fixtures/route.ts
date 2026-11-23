@@ -1,6 +1,21 @@
 import { NextResponse } from "next/server";
 
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer";
+// A 30-day search fans out one request per day; keep the burst on ESPN bounded.
+const UPSTREAM_CONCURRENCY = 6;
+
+async function mapLimited<T, R>(items: T[], limit: number, task: (item: T) => Promise<R>): Promise<R[]> {
+  const results = new Array<R>(items.length);
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const index = next++;
+      results[index] = await task(items[index]);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+  return results;
+}
 
 function team(competitor: any) {
   const t = competitor?.team ?? {};
@@ -35,11 +50,15 @@ export async function GET(request: Request) {
   }
   try {
     const queries = days.length ? days.map((day) => `?dates=${day}`) : [""];
-    const results = await Promise.all(queries.map(async (query) => {
-      const response = await fetch(`${ESPN}/${league}/scoreboard${query}`, { next: { revalidate: 30 } });
-      if (!response.ok) return { events: [] as any[], leagues: [] as any[], failed: true };
-      return { ...(await response.json()), failed: false };
-    }));
+    const results = await mapLimited(queries, UPSTREAM_CONCURRENCY, async (query) => {
+      try {
+        const response = await fetch(`${ESPN}/${league}/scoreboard${query}`, { next: { revalidate: 30 } });
+        if (!response.ok) return { events: [] as any[], leagues: [] as any[], failed: true };
+        return { ...(await response.json()), failed: false };
+      } catch {
+        return { events: [] as any[], leagues: [] as any[], failed: true };
+      }
+    });
     if (results.every((item) => item.failed)) throw new Error("ESPN no respondió");
     const seen = new Set<string>();
     const events = results.flatMap((item) => item.events ?? []).filter((event: any) => !seen.has(String(event.id)) && seen.add(String(event.id)));

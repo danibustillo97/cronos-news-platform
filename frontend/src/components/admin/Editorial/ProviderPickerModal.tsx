@@ -7,9 +7,10 @@
 // can't be selected; there is no client-side fallback logic here, the
 // backend enforces the same rule again when the job is actually created.
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { X, RefreshCw, CheckCircle2, AlertCircle, XCircle, Settings } from "lucide-react";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
 
 interface ProviderInfo {
   id: string;
@@ -23,6 +24,20 @@ interface ProviderInfo {
 }
 
 const USABLE = new Set(["CONNECTED", "AVAILABLE"]);
+// "Recordar" skips this dialog on the next sends (one click from Discovery to Artifact).
+const REMEMBER_KEY = "nexus-artifact-provider";
+
+function rememberedProvider(): string | null {
+  try { return window.localStorage.getItem(REMEMBER_KEY); } catch { return null; }
+}
+function setRememberedProvider(value: string | null) {
+  try {
+    if (value) window.localStorage.setItem(REMEMBER_KEY, value);
+    else window.localStorage.removeItem(REMEMBER_KEY);
+  } catch {
+    // storage unavailable: the dialog simply keeps asking
+  }
+}
 
 function StatusIcon({ status }: { status: ProviderInfo["status"] }) {
   if (status === "CONNECTED" || status === "AVAILABLE") return <CheckCircle2 size={14} className="text-green-400" />;
@@ -45,21 +60,41 @@ export default function ProviderPickerModal({
   const [providers, setProviders] = useState<ProviderInfo[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
+  const [remember, setRemember] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const confirmRef = useRef(onConfirm);
+  confirmRef.current = onConfirm;
 
   useEffect(() => {
+    let cancelled = false;
     (async () => {
       setLoading(true);
       try {
-        const res = await fetch(apiUrl("/api/artifact-providers"));
+        const res = await apiFetch("/api/artifact-providers");
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
+        if (cancelled) return;
         const list: ProviderInfo[] = data.providers ?? [];
         setProviders(list);
-        const usable = list.find((p) => USABLE.has(p.status));
-        setSelected(usable?.id ?? null);
+        const usable = list.filter((p) => USABLE.has(p.status));
+        const saved = rememberedProvider();
+        const remembered = usable.find((p) => p.id === saved);
+        if (remembered) {
+          // Remembered and usable right now: send without asking (the toast offers to change it).
+          toast.success(`Enviando con ${remembered.label}`, {
+            action: { label: "Cambiar", onClick: () => { setRememberedProvider(null); toast.info("La próxima vez se preguntará el proveedor"); } },
+          });
+          confirmRef.current(remembered.id);
+          return;
+        }
+        setSelected((usable.find((p) => p.isDefault) ?? usable[0])?.id ?? null);
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : "No se pudieron cargar los proveedores");
       } finally {
-        setLoading(false);
+        if (!cancelled) setLoading(false);
       }
     })();
+    return () => { cancelled = true; };
   }, []);
 
   return (
@@ -116,12 +151,23 @@ export default function ProviderPickerModal({
           </div>
         )}
 
+        {error && <p role="alert" className="text-[11px] text-red-400">{error}</p>}
+
+        <label className="flex items-center gap-2 text-[11px] text-neutral-400">
+          <input type="checkbox" checked={remember} onChange={(event) => setRemember(event.target.checked)} className="accent-white" />
+          Recordar y no volver a preguntar
+        </label>
+
         <div className="flex items-center justify-end gap-2 pt-2">
           <button onClick={onCancel} className="text-xs font-semibold px-3 py-1.5 rounded-lg text-neutral-400 hover:text-white">
             Cancelar
           </button>
           <button
-            onClick={() => selected && onConfirm(selected)}
+            onClick={() => {
+              if (!selected) return;
+              if (remember) setRememberedProvider(selected);
+              onConfirm(selected);
+            }}
             disabled={!selected}
             className="text-xs font-semibold px-4 py-1.5 rounded-lg bg-white text-black hover:bg-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed"
           >

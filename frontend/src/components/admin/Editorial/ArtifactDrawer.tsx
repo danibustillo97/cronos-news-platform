@@ -11,9 +11,10 @@
 // (title/evidence/SEO/etc. checks -- see validate_artifact()) once one
 // exists.
 
-import { useEffect, useRef, useState } from "react";
-import { X, RefreshCw, Clock, AlertTriangle, RotateCcw, Sliders } from "lucide-react";
-import { apiUrl } from "@/studio/lab/api-client";
+import { useEffect, useState } from "react";
+import { X, RefreshCw, AlertTriangle, RotateCcw, Sliders } from "lucide-react";
+import { apiFetch } from "@/studio/lab/api-client";
+import { pollJob } from "./pollJob";
 import StatusPill from "./StatusPill";
 import { ARTIFACT_JOB_STATUS } from "./statusMeta";
 
@@ -64,41 +65,30 @@ export default function ArtifactDrawer({
   const [artifact, setArtifact] = useState<Artifact | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
   useEffect(() => {
-    let cancelled = false;
-
-    const fetchJob = async () => {
-      try {
-        const res = await fetch(apiUrl(`/api/artifacts/jobs/by-story/${storyId}`));
-        if (res.status === 404) {
-          if (!cancelled) setNotFound(true);
-          return;
-        }
-        if (!res.ok) return;
-        const data: ArtifactJob = await res.json();
-        if (cancelled) return;
-        setJob(data);
-        if (data.artifactId) {
-          const artRes = await fetch(apiUrl(`/api/artifacts/${data.artifactId}`));
-          if (artRes.ok && !cancelled) setArtifact(await artRes.json());
-        }
-        if (data.status !== "RUNNING" && data.status !== "QUEUED" && pollRef.current) {
-          clearInterval(pollRef.current);
-          pollRef.current = null;
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
+    const controller = new AbortController();
+    const load = async (): Promise<ArtifactJob | null> => {
+      const res = await apiFetch(`/api/artifacts/jobs/by-story/${storyId}`);
+      if (res.status === 404) {
+        setNotFound(true);
+        controller.abort(); // nothing to follow
+        return null;
       }
+      if (!res.ok) return null;
+      const data: ArtifactJob = await res.json();
+      if (data.artifactId) {
+        const artRes = await apiFetch(`/api/artifacts/${data.artifactId}`);
+        if (artRes.ok && !controller.signal.aborted) setArtifact(await artRes.json());
+      }
+      return data;
     };
-
-    fetchJob();
-    pollRef.current = setInterval(fetchJob, 3000);
-    return () => {
-      cancelled = true;
-      if (pollRef.current) clearInterval(pollRef.current);
-    };
+    void pollJob<ArtifactJob>({
+      fetchStatus: load,
+      isDone: (current) => current.status !== "RUNNING" && current.status !== "QUEUED",
+      onUpdate: (current) => { setJob(current); setLoading(false); },
+      signal: controller.signal,
+    }).catch(() => undefined).finally(() => setLoading(false));
+    return () => controller.abort();
   }, [storyId]);
 
   const meta = job ? ARTIFACT_JOB_STATUS[job.status] : null;

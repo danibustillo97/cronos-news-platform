@@ -250,7 +250,7 @@ function goal(m: FootballScoreboard, p: Palette): DesignOutput {
   return { html, width: 1100, height: 250 };
 }
 
-function lower(m: FootballScoreboard, p: Palette, title: string, subtitle: string): DesignOutput {
+function lower(p: Palette, title: string, subtitle: string): DesignOutput {
   const html = `<div class="nx" style="width:700px;height:96px;display:flex;align-items:center;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:3px;box-shadow:0 12px 30px rgba(0,0,0,.45),inset 0 0 0 1px ${HAIR};overflow:hidden">
   <div style="width:96px;align-self:stretch;display:grid;place-items:center;background:${p.accent};color:${onColor(p.accent)};${NUM};font-size:44px;font-weight:700">${esc(subtitle.match(/\d+/)?.[0] ?? "")}</div>
   <div style="flex:1;padding:0 26px;min-width:0">
@@ -261,7 +261,7 @@ function lower(m: FootballScoreboard, p: Palette, title: string, subtitle: strin
   return { html, width: 700, height: 96 };
 }
 
-function varCheck(m: FootballScoreboard, p: Palette, title: string, subtitle: string): DesignOutput {
+function varCheck(m: FootballScoreboard, title: string, subtitle: string): DesignOutput {
   const color = "#4cb3ff";
   const html = `<div class="nx" style="width:560px;height:88px;display:flex;align-items:center;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:3px;box-shadow:0 12px 30px rgba(0,0,0,.45),inset 0 0 0 1px ${color}66;overflow:hidden">
   <div style="width:112px;align-self:stretch;display:grid;place-items:center;background:${color};color:#04121c;${NUM};font-size:44px;font-weight:800;letter-spacing:.04em">VAR</div>
@@ -521,8 +521,8 @@ function renderBase(variant: GraphicVariant, match: FootballScoreboard, title: s
     case "editorial": return editorial(match, p);
     case "live": return live(match, p);
     case "goal": return goal(match, p);
-    case "lower": return lower(match, p, title, subtitle);
-    case "var": return varCheck(match, p, title, subtitle);
+    case "lower": return lower(p, title, subtitle);
+    case "var": return varCheck(match, title, subtitle);
     case "events": return events(match, p);
     case "prematch": return prematch(match, p);
     case "lineup-home": return lineup(match, p, "home");

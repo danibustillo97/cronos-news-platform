@@ -11,13 +11,14 @@ import SectionBand from '@/components/news/SectionBand'
 import PostCard from '@/components/platform/PostCard'
 import { newsToPost, topCreators, type Post } from '@/lib/platform'
 import type { NewsView } from '@/types/news'
+import { publicAuthorName } from '@/lib/byline'
 
 export default function CreatorSpotlight({ news, isDark, onOpen }: { news: NewsView[]; isDark: boolean; onOpen: (item: NewsView) => void }) {
   const creators = topCreators(news, 4, 1)
   if (creators.length === 0) return null
 
   const latestByCreator: Post[] = creators
-    .map((creator) => news.filter((n) => (n.author || 'Nexus News') === creator.name).sort((a, b) => +new Date(b.published_at) - +new Date(a.published_at))[0])
+    .map((creator) => news.filter((n) => publicAuthorName(n.author) === creator.name).sort((a, b) => +new Date(b.published_at) - +new Date(a.published_at))[0])
     .filter((n): n is NewsView => Boolean(n))
     .map((n) => newsToPost(n, news))
 

@@ -387,3 +387,21 @@ def test_job_fail_records_real_error():
     j.fail("LLM provider unavailable", datetime.now(timezone.utc))
     assert j.status == ArtifactJobStatus.FAILED
     assert j.error == "LLM provider unavailable"
+
+
+def test_reopen_returns_an_approved_artifact_to_review():
+    a = _artifact(ArtifactStatus.APPROVED)
+    a.reopen_for_review()
+    assert a.status == ArtifactStatus.VALIDATED
+    a.approve()
+    assert a.status == ArtifactStatus.APPROVED
+
+
+@pytest.mark.parametrize("status", [
+    ArtifactStatus.DRAFT, ArtifactStatus.VALIDATED, ArtifactStatus.SCHEDULED,
+    ArtifactStatus.PUBLISHING, ArtifactStatus.PUBLISHED, ArtifactStatus.ARCHIVED,
+])
+def test_reopen_is_only_allowed_from_approved(status):
+    a = _artifact(status)
+    with pytest.raises(InvalidStateTransition):
+        a.reopen_for_review()

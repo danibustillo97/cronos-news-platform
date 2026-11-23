@@ -276,3 +276,85 @@ def test_list_discovery_items_delegates_to_repository():
     item = _seed_item(items)
     result = ListDiscoveryItems(items).execute(DiscoveryFilters())
     assert result == [item]
+
+
+# --- RunQueuedDiscoveryJobs (serverless worker) ----------------------------------------
+
+from app.application.use_cases.discovery import RunQueuedDiscoveryJobs  # noqa: E402
+
+
+def _queued_job(job_id="job-1"):
+    return DiscoveryJob(id=job_id, status=DiscoveryJobStatus.QUEUED, params={}, created_at=datetime.now(timezone.utc))
+
+
+def _worker(jobs, feeds, saved_links=None, on_fetch=None):
+    saved_links = saved_links if saved_links is not None else []
+
+    def fetch(source):
+        if on_fetch:
+            on_fetch(source)
+        result = feeds[source]
+        if isinstance(result, Exception):
+            raise result
+        return result
+
+    def save(record, source_name):
+        saved_links.append(record["link"])
+        return True
+
+    return RunQueuedDiscoveryJobs(jobs, fetch, save)
+
+
+def test_worker_runs_queued_jobs_over_every_source():
+    jobs = InMemoryJobRepo()
+    jobs.save(_queued_job())
+    feeds = {"https://a.com/rss": [{"link": "a1"}, {"link": "a2"}], "https://b.com/rss": [{"link": "b1"}]}
+    assert _worker(jobs, feeds).execute(list(feeds)) == 1
+    job = jobs.find_by_id("job-1")
+    assert job.status == DiscoveryJobStatus.COMPLETED
+    assert job.items_found == 3
+
+
+def test_worker_stops_between_sources_when_a_stop_was_requested():
+    jobs = InMemoryJobRepo()
+    jobs.save(_queued_job())
+    feeds = {"https://a.com/rss": [{"link": "a1"}], "https://b.com/rss": [{"link": "b1"}]}
+
+    def request_stop_after_first(source):
+        if source == "https://a.com/rss":
+            jobs.find_by_id("job-1").request_cancel()
+
+    _worker(jobs, feeds, on_fetch=request_stop_after_first).execute(list(feeds))
+    job = jobs.find_by_id("job-1")
+    assert job.status == DiscoveryJobStatus.CANCELLED
+    assert job.items_found == 1
+
+
+def test_worker_closes_a_job_stopped_before_it_started():
+    jobs = InMemoryJobRepo()
+    job = _queued_job()
+    job.request_cancel()
+    jobs.save(job)
+    assert _worker(jobs, {}).execute(["https://a.com/rss"]) == 0
+    assert jobs.find_by_id("job-1").status == DiscoveryJobStatus.CANCELLED
+
+
+def test_one_broken_feed_does_not_fail_the_search_but_all_broken_does():
+    jobs = InMemoryJobRepo()
+    jobs.save(_queued_job("ok"))
+    feeds = {"https://a.com/rss": RuntimeError("timeout"), "https://b.com/rss": [{"link": "b1"}]}
+    _worker(jobs, feeds).execute(list(feeds))
+    assert jobs.find_by_id("ok").status == DiscoveryJobStatus.COMPLETED
+
+    jobs.save(_queued_job("bad"))
+    _worker(jobs, {"https://a.com/rss": RuntimeError("timeout")}).execute(["https://a.com/rss"])
+    failed = jobs.find_by_id("bad")
+    assert failed.status == DiscoveryJobStatus.FAILED
+    assert "a.com" in failed.error
+
+
+def test_worker_without_sources_fails_with_a_clear_reason():
+    jobs = InMemoryJobRepo()
+    jobs.save(_queued_job())
+    _worker(jobs, {}).execute([])
+    assert "SCRAPER_SOURCES" in jobs.find_by_id("job-1").error

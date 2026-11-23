@@ -126,10 +126,14 @@ class FakeCategoryRepo:
 
 
 class FakePublisher:
-    def __init__(self, news_id="news-1", error=None):
+    def __init__(self, news_id="news-1", error=None, taken_slugs=()):
         self._news_id = news_id
         self._error = error
+        self._taken = set(taken_slugs)
         self.calls = []
+
+    def reserve_slug(self, slug, artifact_id):
+        return f"{slug}-2" if slug in self._taken else slug
 
     def publish(self, artifact, category_name, image_url, content_html):
         if self._error:

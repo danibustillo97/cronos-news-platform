@@ -392,6 +392,11 @@ class ArtifactPublishingPort(Protocol):
     one -- and raises on any failure instead of pretending it worked."""
     def publish(self, artifact: Artifact, category_name: str | None, image_url: str | None, content_html: str) -> str: ...
 
+    def reserve_slug(self, slug: str, artifact_id: str) -> str:
+        """The slug to publish under: `slug` itself, or the first free variant when another
+        article already owns it (the public URL must stay unique)."""
+        ...
+
 
 class MediaGenerationPort(Protocol):
     """PHASE 7: the one real image-generation call for an Artifact's

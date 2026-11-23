@@ -9,7 +9,7 @@
 
 import { useEffect, useState } from "react";
 import { Trash2, X } from "lucide-react";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
 
 interface ArchivedArtifact {
   id: string;
@@ -24,7 +24,7 @@ export default function ArchivedDrawer({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(apiUrl("/api/artifacts?status=ARCHIVED&limit=100"));
+        const res = await apiFetch("/api/artifacts?status=ARCHIVED&limit=100");
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         setItems(data.artifacts ?? []);

@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertOctagon, AlertTriangle, Check, CheckCircle2, ChevronDown, ImageIcon, Info,
-  RotateCcw, Settings2, Sliders, Sparkles, ThumbsUp, Trash2,
+  RotateCcw, Send, Settings2, Sliders, Sparkles, ThumbsUp, Trash2,
 } from "lucide-react";
 import StatusPill from "./StatusPill";
 import ClaimCard, { type Claim } from "./ClaimCard";
@@ -64,7 +64,7 @@ type Tab = "inspector" | "historial";
 
 export default function RevisionInspector({
   artifactId, status, job, jobHistory, validationIssues, claims, seoDraft, onSeoChange, mediaRequirements,
-  onMarkClaimReviewed, onResolveClaim, onApprove, approving, onRetry, onChooseProvider, onArchive, archiving, onApplySeoFix,
+  onMarkClaimReviewed, onResolveClaim, onApprove, onApproveAndPublish, approving, onRetry, onChooseProvider, onArchive, archiving, onApplySeoFix,
 }: {
   artifactId: string;
   status: string;
@@ -78,6 +78,7 @@ export default function RevisionInspector({
   onMarkClaimReviewed: (claimId: string, reviewed: boolean) => void;
   onResolveClaim: (claimId: string, label: string, sourceUrls: string[]) => void;
   onApprove: () => void;
+  onApproveAndPublish?: () => void;
   approving: boolean;
   onRetry: () => void;
   onChooseProvider: () => void;
@@ -414,6 +415,15 @@ export default function RevisionInspector({
               <span className="flex items-center gap-2"><ThumbsUp size={14} /> Aprobar revisión</span>
               {!canApprove && <span className="text-[10.5px] font-normal opacity-90">{blockingCount} bloqueo{blockingCount === 1 ? "" : "s"} por corregir</span>}
             </button>
+            {canApprove && onApproveAndPublish && (
+              <button
+                onClick={onApproveAndPublish}
+                disabled={approving}
+                className="w-full flex items-center justify-center gap-2 text-xs font-semibold px-4 py-2 rounded-lg bg-blue-500/15 text-blue-200 hover:bg-blue-500/25 disabled:opacity-50"
+              >
+                <Send size={13} /> Aprobar y publicar ahora
+              </button>
+            )}
           </section>
         </div>
       )}
