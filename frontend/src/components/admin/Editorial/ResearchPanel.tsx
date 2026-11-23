@@ -13,7 +13,7 @@ import { applyNewsFilters } from "./newsQuery";
 import { rankMatches } from "./paletteSearch";
 import { internalLink, snippetAround, sourceQuote } from "./research";
 import { safeHttpUrl } from "./safeLinks";
-import { sourceLabel, type DiscoveryItem } from "./DiscoveryRow";
+import { sourceLabel, type DiscoveryItem } from "./discoveryModel";
 
 interface PublishedHit { id: string; title: string; slug: string; category: string | null }
 

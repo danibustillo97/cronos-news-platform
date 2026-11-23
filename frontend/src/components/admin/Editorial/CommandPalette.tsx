@@ -11,7 +11,7 @@ import { apiFetch } from "@/studio/lab/api-client";
 import { applyNewsFilters } from "./newsQuery";
 import { rankMatches } from "./paletteSearch";
 import { STATUS_LABEL, type NewsStatus } from "./newsRules";
-import { sourceLabel, type DiscoveryItem } from "./DiscoveryRow";
+import { sourceLabel, type DiscoveryItem } from "./discoveryModel";
 
 export type PaletteCommand =
   | { kind: "open-news"; id: string }

@@ -13,10 +13,10 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertCircle, Check, ChevronLeft, ChevronRight, FileCheck2, Loader2, RefreshCw, Search, Sparkles, Trash2, X,
+  AlertCircle, BookOpen, Check, ChevronLeft, ChevronRight, FileCheck2, Loader2, RefreshCw, Search, Sparkles, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiUrl } from "@/studio/lab/api-client";
+import { apiFetch } from "@/studio/lab/api-client";
 import { type RevisionDraft } from "./revisionDraft";
 import PortalBlockEditor from "./blocks/PortalBlockEditor";
 import RevisionInspector, { type SeoDraft } from "./RevisionInspector";
@@ -29,6 +29,9 @@ import type { Editor } from "@tiptap/react";
 import { type Claim } from "./ClaimCard";
 import { type MediaRequirement } from "./MediaRequirementBlock";
 import { StatusPill } from "./EditorialStatus";
+import { responseError } from "./apiErrors";
+import { createAutosave, type Autosave, type AutosaveStatus } from "./autosave";
+import { safeHttpUrl } from "./safeLinks";
 
 interface Category { id: string; name: string; }
 interface CategoryGroup { id: string; name: string; categories: Category[]; }
@@ -98,7 +101,8 @@ function toSeoDraft(a: ArtifactDetail): SeoDraft {
 }
 
 export default function RevisionWorkspace({
-  manualQueue = [], onManualQueueConsumed, onGoToDiscovery, focusArtifactId, onClose, onChanged,
+  active = true, openRequest = null, manualQueue = [], onManualQueueConsumed, onGoToDiscovery,
+  focusArtifactId, onClose, onChanged,
 }: {
   active?: boolean;
   /** Opens an artifact from outside (the Ctrl/⌘+K palette). */
@@ -301,7 +305,7 @@ export default function RevisionWorkspace({
   const reloadSelected = useCallback(async () => {
     const current = selectedRef.current;
     if (!current) return;
-    const res = await fetch(apiUrl(`/api/artifacts/${current.id}`));
+    const res = await apiFetch(`/api/artifacts/${current.id}`);
     if (res.ok) {
       const full: ArtifactDetail = await res.json();
       setSelected(full);
@@ -317,7 +321,7 @@ export default function RevisionWorkspace({
     if (!await flushPendingSave()) return false;
     setPublishing(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}${path}`), init);
+      const res = await apiFetch(`/api/artifacts/${artifact.id}${path}`, init);
       if (!res.ok) throw await responseError(res);
       toast.success(success);
       await reloadSelected();
@@ -340,15 +344,14 @@ export default function RevisionWorkspace({
   const publishFlow = async (when?: Date): Promise<boolean> => {
     const artifact = selectedRef.current;
     if (!artifact) return false;
-    if (saveTimerRef.current) { clearTimeout(saveTimerRef.current); saveTimerRef.current = null; }
     setPublishing(true);
     const call = async (path: string, init?: RequestInit): Promise<ArtifactDetail> => {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}${path}`), init);
+      const res = await apiFetch(`/api/artifacts/${artifact.id}${path}`, init);
       if (!res.ok) throw await responseError(res);
       return res.json();
     };
     try {
-      if (!await doSave(artifact.status === "DRAFT")) return false;
+      if (!await flushPendingSave()) return false;
       let current = await call("");
       if (current.status === "DRAFT") current = await call("/submit", { method: "POST" });
       if (current.status === "REVIEW_REQUIRED") {
@@ -515,7 +518,7 @@ export default function RevisionWorkspace({
       if (focusMode) {
         setInspectorOpen(false);
         await reloadSelected();
-        return;
+        return true;
       }
       setQueue((prev) => prev.filter((a) => a.id !== artifact.id));
       setSelected(null);
