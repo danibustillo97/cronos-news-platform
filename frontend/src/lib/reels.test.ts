@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Match } from '@/types/sports'
 import type { FeedStory } from './feedComposer'
 import type { StandingsRowData } from './standings'
-import { autoFacts, briefSlides, composeReels, matchesForSlot, slideDurationMs, type ReelItem } from './reels'
+import { autoFacts, briefSlides, composeReels, interleavePolls, matchesForSlot, slideDurationMs, type ReelItem } from './reels'
 
 const NOW = new Date('2026-11-24T18:00:00')
 const iso = (min: number) => new Date(NOW.getTime() + min * 60_000).toISOString()
@@ -83,6 +83,31 @@ describe('composeReels', () => {
     const empty = composeReels({ stories: [] })
     expect(empty.length).toBeGreaterThan(5)
     expect(empty.some((i) => i.type === 'news')).toBe(false)
+  })
+})
+
+describe('interleavePolls', () => {
+  it('distributes every published poll through the feed instead of leaving them to filler priority', () => {
+    const base = composeReels({ stories: Array.from({ length: 16 }, (_, i) => story('feed-' + (i + 1))), pollSlots: 0 })
+    const items = interleavePolls(base, 3)
+    const pollIndexes = items.flatMap((item, index) => item.type === 'poll' ? [index] : [])
+    expect(pollIndexes).toHaveLength(3)
+    expect(pollIndexes[0]).toBeLessThan(pollIndexes[1])
+    expect(pollIndexes[1]).toBeLessThan(pollIndexes[2])
+    const storyBefore = pollIndexes.map((index) => items.slice(0, index).filter((item) => item.type === 'news' || item.type === 'brief').length)
+    expect(storyBefore).toEqual([4, 8, 12])
+  })
+
+  it('keeps all debates visible when a first page has fewer stories than polls', () => {
+    const base = composeReels({ stories: [story('one'), story('two')], pollSlots: 0 })
+    const items = interleavePolls(base, 4)
+    expect(items.filter((item) => item.type === 'poll')).toHaveLength(4)
+    expect(items.map((item) => item.key).filter((key) => key.startsWith('poll-'))).toEqual(['poll-0', 'poll-1', 'poll-2', 'poll-3'])
+  })
+
+  it('does not create empty poll slots', () => {
+    const base = composeReels({ stories: [story('one')], pollSlots: 0 })
+    expect(interleavePolls(base, 0)).toEqual(base)
   })
 })
 
