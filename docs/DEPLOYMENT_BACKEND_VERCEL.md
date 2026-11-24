@@ -19,66 +19,69 @@ Navegador ──► Vercel: frontend (Next.js)
   `BACKEND_PUBLIC_URL`; no se necesita CORS para ese flujo.
 - Los trabajos largos (scraping, IA, generación multimedia y publicaciones programadas) se procesan
   mediante GitHub Actions y Supabase, no como tareas en segundo plano dentro de la función web.
-- Vercel soporta FastAPI en Python 3.13 y lo ejecuta como una función serverless. Consulta la
-  [documentación oficial de FastAPI en Vercel](https://vercel.com/docs/frameworks/backend/fastapi).
+- Vercel detecta FastAPI automáticamente y sirve la instancia ASGI exportada desde un entrypoint
+  reconocido. No se necesita una reescritura global hacia `/api/index`: esa reescritura altera
+  el path que recibe FastAPI y hace que rutas como `/health` respondan 404.
+- Consulta la [documentación oficial de FastAPI en Vercel](https://vercel.com/docs/frameworks/backend/fastapi).
 
-## Estado del código
+## Configuración del proyecto
 
-La rama ya contiene los archivos necesarios para desplegar el backend:
+- Nombre: `cronos-backend`.
+- Git repository: `danibustillo97/cronos-news-platform`.
+- Root Directory: `backend`.
+- Framework Preset: `FastAPI`.
+- Production Branch: `master`; las ramas feature generan Preview Deployments.
+- No configures Build Command, Output Directory ni Install Command personalizados.
+
+Archivos relevantes:
 
 - `backend/api/index.py`: entrypoint que exporta la instancia ASGI `app`.
-- `backend/vercel.json`: configura la función y reescribe las rutas hacia el entrypoint.
+- `backend/vercel.json`: ajusta la duración máxima de la función y excluye archivos que no deben empaquetarse. No define rewrites.
 - `backend/requirements.txt`: dependencias de runtime; no instala pytest ni dependencias de desarrollo.
 - `backend/.python-version`: fija Python 3.13.
 - `backend/.vercelignore`: excluye entornos virtuales, tests y archivos `.env`.
 
-## Crear el proyecto backend en Vercel
+## Variables de entorno del backend
 
-1. Abre [Vercel New Project](https://vercel.com/new) y selecciona el repositorio
-   `danibustillo97/cronos-news-platform`.
-2. Asigna un nombre como `cronos-backend`.
-3. En **Root Directory**, selecciona `backend`. Mantén ese directorio como raíz del proyecto backend.
-4. Framework Preset: **FastAPI** si Vercel lo detecta; de lo contrario deja la detección automática.
-5. No configures un Build Command, Output Directory ni Install Command personalizado.
-   Vercel debe instalar `backend/requirements.txt` y detectar `api/index.py`.
-6. En **Production Branch**, usa `master`. Los pushes a
-   `feature/social-media-studio-v2` deben generar Preview Deployments.
-7. Añade las variables de entorno siguientes antes del primer deploy y despliega.
+Configúralas en **Settings → Environment Variables** del proyecto backend. Guarda las credenciales
+como variables sensibles; nunca las copies al proyecto frontend.
 
-## Variables de entorno del proyecto backend
-
-Configúralas en **Settings → Environment Variables** del proyecto backend. Las variables marcadas
-como secretas deben guardarse como Environment Variables sensibles.
-
-| Variable | Valor / uso |
+| Variable | Alcance / uso |
 |---|---|
-| `SUPABASE_URL` | URL del proyecto Supabase |
-| `SUPABASE_SECRET_KEY` | Secret key de Supabase para escrituras privilegiadas |
-| `SUPABASE_PUBLISHABLE_KEY` | Publishable key para validar sesiones |
-| `JOB_EXECUTION` | `github` |
-| `ASSET_STORAGE` | `supabase` |
-| `ASSET_STORAGE_BUCKET` | `media` (el bucket debe existir) |
-| `GITHUB_DISPATCH_TOKEN` | PAT fine-grained, solo este repo, permiso Actions: Read and write |
+| `SUPABASE_URL` | URL del proyecto Supabase; requerida |
+| `SUPABASE_PUBLISHABLE_KEY` | Validar sesiones de usuario; requerida para rutas autenticadas |
+| `SUPABASE_SECRET_KEY` | Operaciones privilegiadas de escritura del backend; requerida para las funciones que escriben |
 | `GITHUB_REPOSITORY` | `danibustillo97/cronos-news-platform` |
 | `GITHUB_DISPATCH_REF` | `master` en Production; `feature/social-media-studio-v2` en Preview |
-| `DISCOVERY_RUNNER` | `github` |
-| `ANTHROPIC_API_KEY` | Si se generan artículos con Anthropic |
-| `ARTIFACT_PROVIDER` | `anthropic` |
-| `ADMIN_EMAILS` / `ADMIN_USER_IDS` | Los mismos valores autorizados por el frontend |
-| `CORS_ALLOWED_ORIGINS` | Solo si clientes de navegador llaman directamente al backend |
+| `GITHUB_DISPATCH_TOKEN` | PAT fine-grained, limitado a este repo, permiso Actions: Read and write; requerido para despachar workers de inmediato |
+| `DISCOVERY_RUNNER` | `github` para que Discovery use GitHub Actions |
+| `ARTIFACT_PROVIDER` | `auto` (valor predeterminado); puede fijarse a `anthropic` si se configura la clave |
+| `ANTHROPIC_API_KEY` | Opcional; habilita generación con Anthropic |
+| `ANTHROPIC_MODEL` | Opcional; modelo Anthropic |
+| `ADMIN_EMAILS` / `ADMIN_USER_IDS` | Opcional cuando el usuario ya tiene rol admin/editor en Supabase `app_metadata`; si se usan, deben contener los administradores autorizados |
+| `CORS_ALLOWED_ORIGINS` | Solo si clientes de navegador llaman directamente al backend desde otros orígenes |
+| `RUNTIME_BASE_URL` | Solo si el backend debe llamar al Local Runtime desplegado fuera de Vercel |
 
-No agregues `NEXT_PUBLIC_*` con secretos. Nunca pongas `SUPABASE_SECRET_KEY` ni
-`GITHUB_DISPATCH_TOKEN` en el proyecto frontend.
+La integración con GitHub Actions requiere `GITHUB_DISPATCH_TOKEN` para iniciar workers mediante
+`workflow_dispatch`. Si no se configura, el backend puede servir endpoints, pero los trabajos
+que dependen del despacho inmediato no podrán iniciarse desde esa vía.
+
+En Vercel, el entorno serverless se detecta mediante la variable de plataforma `VERCEL`; no es
+necesario inventar o añadir `JOB_EXECUTION`, `ASSET_STORAGE`, `ASSET_STORAGE_BUCKET` ni
+`CRONOS_SERVERLESS` como requisitos generales del despliegue.
 
 ## Conectar el frontend al backend
 
-En el proyecto Vercel del frontend, configura:
+En el proyecto Vercel del frontend configura:
 
-- `BACKEND_PUBLIC_URL` = dominio HTTPS del proyecto backend, sin slash final.
-- Deja `NEXT_PUBLIC_API_BASE_URL` sin definir en Preview y Production para que el navegador use
-  el proxy same-origin `/api/*`.
+- `BACKEND_PUBLIC_URL` = dominio HTTPS del backend, sin slash final.
+- En Preview, asigna el dominio de Preview de la rama correspondiente.
+- Deja `NEXT_PUBLIC_API_BASE_URL` sin definir para que el navegador use el proxy same-origin `/api/*`.
 
 El frontend ya implementa ese proxy en `frontend/src/app/api/[...path]/route.ts`.
+El proxy reenvía el token de sesión de Supabase como Bearer token. La protección administrativa
+se aplica en FastAPI mediante `require_admin()`; por eso el proyecto API no debe tener Vercel
+Authentication/SSO que bloquee las llamadas servidor-a-servidor del proxy.
 
 ## Verificación posterior al despliegue
 
@@ -86,10 +89,10 @@ Revisa estos endpoints directamente en el dominio del backend:
 
 - `/health` → debe responder `{"status":"ok"}`.
 - `/docs` → debe mostrar Swagger UI.
-- `/diagnostics/env` → debe mostrar estado configured/missing, nunca los valores de secretos.
+- `/diagnostics/env` → debe mostrar estado configured/missing, nunca valores de secretos.
 
-Después configura `BACKEND_PUBLIC_URL` en el frontend y prueba el flujo desde el dominio del portal.
-No consideres el despliegue completo hasta validar también una ruta pública y una ruta protegida.
+Después prueba el proxy desde el dominio del frontend y valida una ruta pública, más una ruta
+administrativa con un usuario autorizado.
 
 ## Consideraciones de serverless
 
@@ -104,4 +107,3 @@ No consideres el despliegue completo hasta validar también una ruta pública y 
 Los archivos del filesystem de una función no son almacenamiento persistente. Los assets de producción
 deben ir a Supabase Storage. Local Runtime y LAB siguen requiriendo un host separado si se necesitan
 desde la nube.
-
