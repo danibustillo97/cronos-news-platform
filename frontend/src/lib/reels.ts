@@ -162,6 +162,57 @@ export function composeReels<S extends FeedStory>(input: ReelsInput<S>): ReelIte
   return withAds
 }
 
+/**
+ * Inserts every public poll/debate at predictable intervals through the
+ * already composed feed. Polls no longer compete with low-priority fillers,
+ * so several published debates cannot silently disappear below the first screen.
+ */
+export function interleavePolls<S extends FeedStory>(
+  items: ReelItem<S>[],
+  pollCount: number,
+): ReelItem<S>[] {
+  const cleanItems = items.filter((item) => item.type !== 'poll')
+  const count = Math.max(0, Math.floor(pollCount))
+  if (count === 0) return cleanItems
+
+  const storyCount = cleanItems.reduce(
+    (total, item) => total + (item.type === 'news' || item.type === 'brief' ? 1 : 0),
+    0,
+  )
+  if (storyCount === 0) {
+    return [
+      ...cleanItems,
+      ...Array.from({ length: count }, (_, slot) => ({ type: 'poll' as const, key: 'poll-' + slot, slot })),
+    ]
+  }
+
+  const scheduledCount = Math.min(count, storyCount)
+  const byStory = new Map<number, ReelItem<S>[]>()
+  for (let slot = 0; slot < scheduledCount; slot += 1) {
+    const storyPosition = Math.ceil(((slot + 1) * storyCount) / (scheduledCount + 1))
+    const scheduled = byStory.get(storyPosition) ?? []
+    scheduled.push({ type: 'poll', key: 'poll-' + slot, slot } as ReelItem<S>)
+    byStory.set(storyPosition, scheduled)
+  }
+
+  const out: ReelItem<S>[] = []
+  let seenStories = 0
+  for (const item of cleanItems) {
+    out.push(item)
+    if (item.type === 'news' || item.type === 'brief') {
+      seenStories += 1
+      out.push(...(byStory.get(seenStories) ?? []))
+    }
+  }
+
+  // If there are more debates than story cards in this loaded page, keep the
+  // remainder visible at the end rather than dropping published content.
+  for (let slot = scheduledCount; slot < count; slot += 1) {
+    out.push({ type: 'poll', key: 'poll-' + slot, slot } as ReelItem<S>)
+  }
+  return out
+}
+
 // --------------------------------------------------------- En 30 segundos
 
 export type BriefSlide =

@@ -58,13 +58,13 @@ export function PollCard({ poll: initial, compact = false, bare = false }: { pol
   const leader = leaderId(poll)
 
   return (
-    <Tag id={`encuesta-${poll.id}`} className={`flex h-full flex-col gap-4 ${bare ? '' : 'rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] p-5'}`}>
+    <Tag id={`encuesta-${poll.id}`} className={`box-border flex h-full w-full min-w-0 max-w-full flex-col gap-4 break-words ${bare ? '' : 'rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] p-4 sm:p-5'}`}>
       {!bare && (
         <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]">
           <Vote size={14} aria-hidden="true" /> Encuesta
         </span>
       )}
-      <h3 className={`font-bold leading-snug text-[var(--nx-ink)] ${compact ? 'text-base' : 'text-lg'}`}>{poll.question}</h3>
+      <h3 className={`min-w-0 break-words [overflow-wrap:anywhere] font-bold leading-snug text-[var(--nx-ink)] ${compact ? 'text-base' : 'text-lg'}`}>{poll.question}</h3>
       {poll.context && !compact && <p className="text-sm leading-relaxed text-[var(--nx-ink-2)]">{poll.context}</p>}
 
       <ul className="flex flex-col gap-2" aria-live="polite">
@@ -124,13 +124,13 @@ export function DebateCard({ poll: initial, hero = false, bare = false }: { poll
     const mine = voted === o.id
     const win = showResults && leader === o.id
     return (
-      <div className={`flex min-w-0 flex-1 flex-col gap-3 rounded-xl p-4 sm:p-5 ${align === 'left' ? 'bg-[#FACC15]/[0.10] ring-1 ring-inset ring-[#FACC15]/30' : 'bg-[var(--nx-surface-2)] ring-1 ring-inset ring-[var(--nx-line)]'}`}>
+      <div className={`box-border flex w-full min-w-0 flex-col gap-3 rounded-xl p-3.5 sm:p-5 ${align === 'left' ? 'bg-[#FACC15]/[0.10] ring-1 ring-inset ring-[#FACC15]/30' : 'bg-[var(--nx-surface-2)] ring-1 ring-inset ring-[var(--nx-line)]'}`}>
         <div className="flex items-baseline justify-between gap-2">
           <span className={`text-[11px] font-bold uppercase tracking-[0.14em] ${align === 'left' ? 'text-[var(--nx-accent-text)]' : 'text-[var(--nx-muted)]'}`}>{align === 'left' ? 'Lado A' : 'Lado B'}</span>
           {showResults && <span className={`text-2xl font-bold tabular-nums ${win ? 'text-[var(--nx-ink)]' : 'text-[var(--nx-muted)]'}`}>{pct}%</span>}
         </div>
-        <h4 className="text-lg font-bold leading-snug text-[var(--nx-ink)]">{o.label}</h4>
-        {o.argument && <p className="text-sm leading-relaxed text-[var(--nx-ink-2)]">{o.argument}</p>}
+        <h4 className="min-w-0 break-words [overflow-wrap:anywhere] text-base font-bold leading-snug text-[var(--nx-ink)] sm:text-lg">{o.label}</h4>
+        {o.argument && <p className="min-w-0 break-words [overflow-wrap:anywhere] text-[13px] leading-relaxed text-[var(--nx-ink-2)] sm:text-sm">{o.argument}</p>}
         <div className="mt-auto pt-1">
           {showResults ? (
             mine ? <span className="inline-flex min-h-[44px] items-center gap-1.5 text-sm font-semibold text-[var(--nx-accent-text)]"><Check size={15} aria-hidden="true" /> Tu voto</span> : null
@@ -151,16 +151,16 @@ export function DebateCard({ poll: initial, hero = false, bare = false }: { poll
   }
 
   return (
-    <Tag id={`encuesta-${poll.id}`} className={`flex h-full flex-col gap-4 ${bare ? '' : `rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] ${hero ? 'p-5 sm:p-7' : 'p-5'}`}`}>
+    <Tag id={`encuesta-${poll.id}`} className={`nx-debate-card box-border flex h-full w-full min-w-0 max-w-full flex-col gap-4 break-words ${bare ? '' : `rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] ${hero ? 'p-4 sm:p-6' : 'p-4 sm:p-5'}`}`}>
       <div className={`flex flex-wrap items-center justify-between gap-2 ${bare ? 'hidden' : ''}`}>
         <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]">
           <Swords size={14} aria-hidden="true" /> {hero ? 'El debate del día' : 'Debate'}
         </span>
         <span className="text-xs text-[var(--nx-muted)]">{closesLabel(poll, now)}</span>
       </div>
-      <div className={hero ? 'max-w-3xl' : ''}>
-        <h3 className={`text-balance font-bold leading-[1.2] tracking-[-0.01em] text-[var(--nx-ink)] ${hero ? 'text-[clamp(1.25rem,1.05rem+0.9vw,1.75rem)]' : 'text-lg'}`}>{poll.question}</h3>
-        {poll.context && <p className="mt-2 text-sm leading-relaxed text-[var(--nx-ink-2)]">{poll.context}</p>}
+      <div className="w-full min-w-0">
+        <h3 className={`min-w-0 break-words [overflow-wrap:anywhere] text-balance font-bold leading-[1.2] tracking-[-0.01em] text-[var(--nx-ink)] ${hero ? 'text-[clamp(1.2rem,4.8vw,1.75rem)]' : 'text-base sm:text-lg'}`}>{poll.question}</h3>
+        {poll.context && <p className="mt-2 min-w-0 break-words [overflow-wrap:anywhere] text-[13px] leading-relaxed text-[var(--nx-ink-2)] sm:text-sm">{poll.context}</p>}
       </div>
 
       {/* Barra en vivo: siempre visible si ya hay votos, para invitar a participar */}
@@ -171,9 +171,9 @@ export function DebateCard({ poll: initial, hero = false, bare = false }: { poll
         </div>
       )}
 
-      <div className="flex flex-col gap-3 sm:flex-row" aria-live="polite">
+      <div className="grid w-full min-w-0 grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)]" aria-live="polite">
         {side(a, pa, 'left')}
-        <span aria-hidden className="hidden self-center text-xs font-bold uppercase tracking-[0.2em] text-[var(--nx-muted)] sm:block">vs</span>
+        <span aria-hidden className="hidden self-center text-xs font-bold uppercase tracking-[0.2em] text-[var(--nx-muted)] md:block">vs</span>
         {side(b, pb, 'right')}
       </div>
       <ErrorLine show={state === 'error'} />
