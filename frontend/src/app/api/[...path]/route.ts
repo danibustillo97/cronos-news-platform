@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server'
 
 export const runtime = 'nodejs'
+// AI suggestions (headline, SEO, claim resolution) answer in 5-30 s: give the proxy room on Vercel.
+export const maxDuration = 60
 
 function backendBaseUrl(): string {
   const configured = process.env.NEXT_PUBLIC_API_BASE_URL

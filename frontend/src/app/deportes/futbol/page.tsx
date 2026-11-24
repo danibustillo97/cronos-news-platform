@@ -8,7 +8,7 @@
 import { Suspense, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import ModernNavbar from '@/components/ui/ModernNavbar'
+import ModernNavbar from '@/components/portal/PortalNavbar'
 import Footer from '@/components/layout/Footer'
 import FilterToolbar from '@/components/ui/FilterToolbar'
 import MatchRow from '@/components/news/MatchRow'

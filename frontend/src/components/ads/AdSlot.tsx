@@ -82,6 +82,10 @@ export default function AdSlot({ position, className = '' }: { position: AdPosit
   const { choice } = useConsent()
   const config = getAdProviderConfig()
   const slotId = config.adsenseSlots[position]
+  const adsense = choice === 'accepted' && config.adsenseEnabled && Boolean(config.adsensePublisherId) && Boolean(slotId)
+  // Reserve the ad's height only while loading or when something will render:
+  // an empty slot must collapse instead of leaving a blank box on the page.
+  if (!loading && !banner && !adsense) return null
 
   return (
     <div style={{ minHeight: MIN_HEIGHT_BY_POSITION[position] }} className={className} data-ad-position={position}>

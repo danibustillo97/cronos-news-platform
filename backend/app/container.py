@@ -4,6 +4,7 @@ from here, never from app.infrastructure directly.
 """
 from __future__ import annotations
 
+import os
 from functools import lru_cache
 
 from app.infrastructure.persistence.supabase.client import get_supabase_client
@@ -30,10 +31,28 @@ from app.infrastructure.persistence.supabase.ad_banner_repository import Supabas
 from app.infrastructure.media.ad_banner_storage_adapter import SupabaseAdBannerStorageAdapter
 from app.infrastructure.lab.local.discovery_reader import LocalDiscoveryContentReader
 from app.infrastructure.runtime.discovery_runner_adapter import DiscoveryRunnerAdapter
+from app.infrastructure.runtime.github_discovery_runner import GitHubActionsDiscoveryRunner
+from app.infrastructure.serverless import is_serverless
+from app.infrastructure.persistence.supabase.editorial_automation_repository import SupabaseEditorialAutomationRepository
+from app.infrastructure.persistence.supabase.content_profile_repository import SupabaseContentProfileRepository
+from app.infrastructure.persistence.supabase.portal_layout_repository import SupabasePortalLayoutRepository
+from app.application.use_cases.content_profile import GetContentProfile, UpdateContentProfile
+from app.application.use_cases.editorial_board import (
+    CheckArticleOriginality, CreateArticle, GetEditorialBoard, SetFeatureImage, UploadArticleImage, WriteDiscoveryItem,
+)
+from app.infrastructure.media.article_image_storage_adapter import SupabaseArticleImageStorage
+from app.application.use_cases.editorial_automation import (
+    GetEditorialAutomation, RunEditorialAutopilot, UpdateEditorialAutomation,
+)
 from app.infrastructure.llm.anthropic_adapter import AnthropicArtifactGenerator
 from app.infrastructure.llm.claude_code_adapter import ClaudeCodeArtifactGenerator
 from app.infrastructure.llm.provider_resolver import ArtifactProviderResolver
-from app.infrastructure.config.env_credentials_store import EnvFileCredentialsStore
+from app.infrastructure.config.env_credentials_store import EnvFileCredentialsStore, EnvOnlyCredentialsStore
+from app.infrastructure.runtime.github_dispatch import (
+    ARTIFACT_WORKFLOW, MEDIA_WORKFLOW, GitHubDiscoveryRunner, GitHubWorkflowDispatcher, github_job_execution,
+)
+from app.infrastructure.media.supabase_asset_storage import HybridAssetStorage, SupabaseAssetStorage
+from app.infrastructure.media.cloudflare_media_generation_adapter import CloudflareMediaGenerationAdapter, cloudflare_configured
 from app.infrastructure.publishing.legacy_news_publisher import SupabaseLegacyNewsPublisher
 from app.infrastructure.media.runtime_media_generation_adapter import RuntimeMediaGenerationAdapter
 from app.infrastructure.lab.local.editorial_intelligence_adapter import LocalEditorialIntelligenceAdapter
@@ -89,6 +108,12 @@ from app.application.use_cases.studio import (
 
 
 class Container:
+    def wake_worker(self, kind: str) -> bool:
+        """Serverless mode: starts the GitHub Actions worker for a just-queued job right away
+        (otherwise it waits for the workflow's next scheduled run)."""
+        workflow = {"artifact": ARTIFACT_WORKFLOW, "media": MEDIA_WORKFLOW}[kind]
+        return self.job_dispatcher.dispatch(workflow)
+
     def __init__(self) -> None:
         client = get_supabase_client()
 
@@ -110,6 +135,9 @@ class Container:
         self.studio_project_repo = SupabaseStudioProjectRepository(client)
         self.ad_banner_repo = SupabaseAdBannerRepository(client)
         self.ad_banner_storage = SupabaseAdBannerStorageAdapter(client)
+        self.editorial_automation_repo = SupabaseEditorialAutomationRepository(client)
+        self.content_profile_repo = SupabaseContentProfileRepository(client)
+        self.portal_layout_repo = SupabasePortalLayoutRepository(client)
 
         reader = default_reader()
         self.lab_editorial = LocalEditorialIntelligenceAdapter(reader)
@@ -124,16 +152,30 @@ class Container:
         self.export_reader = LabExportReader()
 
         self.publishing_availability = EnvPublishingAvailability()
-        self.storage = LocalLabStorageAdapter()
+        # Serverless (Vercel + GitHub Actions + Supabase) vs local dev, chosen by environment:
+        # see app/infrastructure/runtime/github_dispatch.py and docs/DEPLOYMENT_VERCEL.md.
+        self.github_jobs = github_job_execution()
+        self.job_dispatcher = GitHubWorkflowDispatcher()
+        local_storage = LocalLabStorageAdapter()
+        self.storage = (
+            HybridAssetStorage(SupabaseAssetStorage(client), local_storage)
+            if os.getenv("ASSET_STORAGE", "local").strip().lower() == "supabase" else local_storage
+        )
         self.runtime = LocalRuntimeAdapter()
         self.discovery_content_reader = LocalDiscoveryContentReader()
-        self.discovery_runner = DiscoveryRunnerAdapter()
+        self.discovery_runner = _discovery_runner()
         self.anthropic_generator = AnthropicArtifactGenerator()
         self.claude_code_generator = ClaudeCodeArtifactGenerator()
         self.artifact_provider_resolver = ArtifactProviderResolver(self.anthropic_generator, self.claude_code_generator)
-        self.artifact_credentials_store = EnvFileCredentialsStore()
+        self.artifact_credentials_store = (
+            EnvOnlyCredentialsStore() if self.github_jobs or os.getenv("VERCEL") else EnvFileCredentialsStore()
+        )
         self.artifact_publisher = SupabaseLegacyNewsPublisher(client)
-        self.media_generator = RuntimeMediaGenerationAdapter()
+        # Direct Cloudflare call when configured (works on any worker); else the local runtime.
+        self.media_generator = (
+            CloudflareMediaGenerationAdapter(self.storage)
+            if cloudflare_configured() and hasattr(self.storage, "save_generated") else RuntimeMediaGenerationAdapter()
+        )
 
         self.list_active_productions = ListActiveProductions(self.production_repo, self.story_repo)
         self.produce_story = ProduceStory(
@@ -216,6 +258,33 @@ class Container:
         self.update_studio_project = UpdateStudioProject(self.studio_project_repo)
         self.list_studio_project_versions = ListStudioProjectVersions(self.studio_project_repo)
         self.duplicate_studio_project = DuplicateStudioProject(self.studio_project_repo)
+
+        self.get_editorial_board = GetEditorialBoard(self.discovery_repo, self.artifact_repo, self.artifact_job_repo)
+        self.write_discovery_item = WriteDiscoveryItem(
+            self.discovery_repo, self.decide_discovery_item, self.open_manual_discovery_editor, self.trigger_artifact,
+        )
+        self.create_article = CreateArticle(self.story_repo, self.artifact_repo)
+        self.upload_article_image = UploadArticleImage(self.artifact_repo, SupabaseArticleImageStorage(client))
+        self.set_feature_image = SetFeatureImage(self.artifact_repo)
+        self.check_article_originality = CheckArticleOriginality(self.artifact_repo, self.discovery_repo)
+        self.get_content_profile = GetContentProfile(self.content_profile_repo)
+        self.update_content_profile = UpdateContentProfile(self.content_profile_repo)
+        self.get_editorial_automation = GetEditorialAutomation(self.editorial_automation_repo)
+        self.update_editorial_automation = UpdateEditorialAutomation(
+            self.editorial_automation_repo, self.artifact_provider_resolver,
+        )
+        self.run_editorial_autopilot = RunEditorialAutopilot(
+            self.editorial_automation_repo, self.discovery_repo, self.artifact_job_repo,
+            self.decide_discovery_item, self.trigger_artifact, self.run_artifact_job,
+        )
+
+
+def _discovery_runner():
+    """DISCOVERY_RUNNER=github|runtime. Default: GitHub Actions on Vercel
+    (no Local Runtime reachable there), the Local Runtime elsewhere."""
+    import os
+    choice = (os.getenv("DISCOVERY_RUNNER") or ("github" if is_serverless() else "runtime")).strip().lower()
+    return GitHubActionsDiscoveryRunner() if choice == "github" else DiscoveryRunnerAdapter()
 
 
 @lru_cache(maxsize=1)

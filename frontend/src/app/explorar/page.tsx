@@ -10,7 +10,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import ModernNavbar from '@/components/ui/ModernNavbar'
+import ModernNavbar from '@/components/portal/PortalNavbar'
 import Footer from '@/components/layout/Footer'
 import { apiUrl } from '@/studio/lab/api-client'
 import { usePortalTheme } from '@/context/ThemeContext'

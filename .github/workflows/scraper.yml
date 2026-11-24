@@ -1,8 +1,11 @@
 name: Editorial Scraper
 
+# Cada 10 min: trae noticias (RSS/Atom -> discovery_items) y, si el
+# "Modo automático" está encendido en el panel, la IA redacta borradores.
+# Con el modo apagado el paso del piloto no hace nada (redacción manual).
 on:
   schedule:
-    - cron: "*/30 * * * *"
+    - cron: "*/10 * * * *"
   workflow_dispatch:
 
 permissions:
@@ -15,7 +18,10 @@ concurrency:
 jobs:
   scrape:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -24,9 +30,21 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements.txt
       - run: python -m pip install -r backend/requirements.txt
-      - name: Ingest configured RSS/Atom candidates
+
+      - name: Ingest RSS/Atom candidates
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SCRAPER_SOURCES: ${{ secrets.SCRAPER_SOURCES }}
+          # Opcionales (Settings -> Secrets and variables -> Actions -> Variables)
+          SCRAPER_MAX_AGE_HOURS: ${{ vars.SCRAPER_MAX_AGE_HOURS }}
+          SCRAPER_MAX_ITEMS_PER_SOURCE: ${{ vars.SCRAPER_MAX_ITEMS_PER_SOURCE }}
+          SCRAPER_MAX_NEW_ITEMS: ${{ vars.SCRAPER_MAX_NEW_ITEMS }}
+          SCRAPER_FETCH_FULL_TEXT: ${{ vars.SCRAPER_FETCH_FULL_TEXT }}
         run: python automation/scraper.py
+
+      # Corre aunque el scraper haya fallado: puede haber candidatas de antes.
+      - name: Editorial autopilot (solo si el modo automático está encendido)
+        if: ${{ !cancelled() }}
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          ANTHROPIC_MODEL: ${{ vars.ANTHROPIC_MODEL }}
+        run: python automation/run_editorial_autopilot.py

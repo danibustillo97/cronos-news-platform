@@ -13,24 +13,47 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertCircle, Check, ChevronLeft, ChevronRight, Eye, FileCheck2, Loader2, RefreshCw, Search, Sparkles, Trash2, X,
+  AlertCircle, BookOpen, Check, ChevronLeft, ChevronRight, FileCheck2, ListChecks, Loader2, MoreHorizontal, RefreshCw, Search, Sparkles, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
-import { apiUrl } from "@/studio/lab/api-client";
-import RevisionEditor, { type RevisionDraft } from "./RevisionEditor";
+import { apiFetch } from "@/studio/lab/api-client";
+import { type RevisionDraft } from "./revisionDraft";
+import PortalBlockEditor from "./blocks/PortalBlockEditor";
 import RevisionInspector, { type SeoDraft } from "./RevisionInspector";
 import ArtifactDrawer from "./ArtifactDrawer";
 import ArtifactQueueRow from "./ArtifactQueueRow";
 import ArchivedDrawer from "./ArchivedDrawer";
-import ArticlePreviewModal from "./ArticlePreviewModal";
 import ProviderPickerModal from "./ProviderPickerModal";
+import ResearchPanel from "./ResearchPanel";
+import type { Editor } from "@tiptap/react";
 import { type Claim } from "./ClaimCard";
 import { type MediaRequirement } from "./MediaRequirementBlock";
+import { StatusPill } from "./EditorialStatus";
+import { responseError } from "./apiErrors";
+import { createAutosave, type Autosave, type AutosaveStatus } from "./autosave";
+import { safeHttpUrl } from "./safeLinks";
 
 interface Category { id: string; name: string; }
 interface CategoryGroup { id: string; name: string; categories: Category[]; }
 
-interface ValidationIssue { check: string; detail: string; }
+interface ValidationIssue { check: string; detail: string; severity?: "BLOCKING" | "WARNING"; }
+
+const ISSUE_ES: Record<string, string> = {
+  title: "Falta el titular",
+  excerpt: "Falta la entradilla",
+  summary: "Falta el resumen",
+  content_html: "El cuerpo tiene un formato que el portal no acepta",
+  seo_title: "Falta el título SEO",
+  seo_description: "Falta la meta descripción",
+  slug: "La URL (slug) no es válida: solo minúsculas, números y guiones",
+  sources: "No hay fuente registrada",
+  category: "Elige una categoría",
+  evidence: "Faltan afirmaciones verificables",
+  multimedia: "Falta la imagen de portada",
+};
+export function issueInSpanish(issue: ValidationIssue): string {
+  return ISSUE_ES[issue.check] ?? issue.detail;
+}
 
 interface ArtifactDetail {
   id: string;
@@ -60,9 +83,11 @@ interface ArtifactJob {
 
 const AUTOSAVE_DELAY_MS = 1000;
 
-async function responseError(response: Response): Promise<Error> {
-  const body = await response.json().catch(() => null);
-  return new Error(body?.message || body?.detail || `HTTP ${response.status}`);
+interface SaveSnapshot {
+  artifactId: string;
+  draft: RevisionDraft;
+  seo: SeoDraft;
+  saveAsDraft: boolean;
 }
 
 function toDraft(a: ArtifactDetail): RevisionDraft {
@@ -76,12 +101,22 @@ function toSeoDraft(a: ArtifactDetail): SeoDraft {
 }
 
 export default function RevisionWorkspace({
-  manualQueue = [], onManualQueueConsumed, onGoToDiscovery,
+  active = true, openRequest = null, manualQueue = [], onManualQueueConsumed, onGoToDiscovery,
+  focusArtifactId, onClose, onChanged,
 }: {
+  active?: boolean;
+  /** Opens an artifact from outside (the Ctrl/⌘+K palette). */
+  openRequest?: { id: string; nonce: number } | null;
   manualQueue?: string[];
   onManualQueueConsumed?: () => void;
   onGoToDiscovery?: () => void;
+  /** Focus mode (opened from the board): one article, full screen, with publish actions. */
+  focusArtifactId?: string;
+  onClose?: () => void;
+  /** Called after any status change so the board can refresh. */
+  onChanged?: () => void;
 }) {
+  const focusMode = Boolean(focusArtifactId);
   const [queue, setQueue] = useState<ArtifactDetail[]>([]);
   const [loadingQueue, setLoadingQueue] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -94,7 +129,7 @@ export default function RevisionWorkspace({
 
   const [draft, setDraft] = useState<RevisionDraft | null>(null);
   const [seoDraft, setSeoDraft] = useState<SeoDraft | null>(null);
-  const [saveStatus, setSaveStatus] = useState<"idle" | "saving" | "saved" | "error">("idle");
+  const [saveStatus, setSaveStatus] = useState<AutosaveStatus>("idle");
 
   const [categoryGroups, setCategoryGroups] = useState<CategoryGroup[]>([]);
   const [approving, setApproving] = useState(false);
@@ -102,9 +137,11 @@ export default function RevisionWorkspace({
   const [artifactDrawerOpen, setArtifactDrawerOpen] = useState(false);
   const [mobilePane, setMobilePane] = useState<"list" | "editor">("list");
   const [inspectorOpen, setInspectorOpen] = useState(false);
+  const [researchOpen, setResearchOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [bodyEditor, setBodyEditor] = useState<Editor | null>(null);
   const [queueSearch, setQueueSearch] = useState("");
   const [archivedOpen, setArchivedOpen] = useState(false);
-  const [previewOpen, setPreviewOpen] = useState(false);
   const [manualQueueIds, setManualQueueIds] = useState<string[]>([]);
   const [manualQueueIndex, setManualQueueIndex] = useState(0);
   const [openingManualItem, setOpeningManualItem] = useState(false);
@@ -118,17 +155,15 @@ export default function RevisionWorkspace({
   draftRef.current = draft;
   const seoDraftRef = useRef<SeoDraft | null>(null);
   seoDraftRef.current = seoDraft;
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skipNextSaveRef = useRef(false);
 
   const fetchQueue = useCallback(async () => {
     setLoadingQueue(true);
     setError(null);
     try {
       const [draftRes, reviewRes, validatedRes] = await Promise.all([
-        fetch(apiUrl("/api/artifacts?status=DRAFT&limit=50")),
-        fetch(apiUrl("/api/artifacts?status=REVIEW_REQUIRED&limit=50")),
-        fetch(apiUrl("/api/artifacts?status=VALIDATED&limit=50")),
+        apiFetch("/api/artifacts?status=DRAFT&limit=50"),
+        apiFetch("/api/artifacts?status=REVIEW_REQUIRED&limit=50"),
+        apiFetch("/api/artifacts?status=VALIDATED&limit=50"),
       ]);
       if (!draftRes.ok) throw await responseError(draftRes);
       if (!reviewRes.ok) throw await responseError(reviewRes);
@@ -151,7 +186,7 @@ export default function RevisionWorkspace({
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(apiUrl("/api/categories"));
+        const res = await apiFetch("/api/categories");
         if (res.ok) setCategoryGroups((await res.json()).groups ?? []);
       } catch {
         // Category select just stays sparse -- not fatal.
@@ -159,90 +194,198 @@ export default function RevisionWorkspace({
     })();
   }, []);
 
-  useEffect(() => { fetchQueue(); }, [fetchQueue]);
+  useEffect(() => { if (!focusMode) void fetchQueue(); }, [fetchQueue, focusMode]);
 
-  const doSave = useCallback(async (saveAsDraft?: boolean): Promise<boolean> => {
+  // One autosave queue for the open article: edits are never lost or reordered, a failed
+  // save stays pending, and approve/switch/submit wait for it (see autosave.ts).
+  const autosaveRef = useRef<Autosave<SaveSnapshot> | null>(null);
+  if (!autosaveRef.current) {
+    autosaveRef.current = createAutosave<SaveSnapshot>({
+      delayMs: AUTOSAVE_DELAY_MS,
+      onStatus: setSaveStatus,
+      onError: (err) => toast.error(err instanceof Error ? `No se guardaron los cambios: ${err.message}` : "No se guardaron los cambios", { id: "revision-save-error" }),
+      save: async ({ artifactId, draft: d, seo: s, saveAsDraft }) => {
+        const res = await apiFetch(`/api/artifacts/${artifactId}`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: d.title, subtitle: d.subtitle || null, excerpt: d.excerpt, summary: d.summary,
+            contentHtml: d.contentHtml,
+            categoryId: d.categoryId, tags: d.tags, seoTitle: s.seoTitle, seoDescription: s.seoDescription,
+            slug: s.slug, canonicalUrl: s.canonicalUrl || null,
+            saveAsDraft,
+          }),
+        });
+        if (!res.ok) throw await responseError(res);
+        const updated: ArtifactDetail = await res.json();
+        // The backend re-validates on save (status/validationIssues can change from a fixed
+        // field): reflect that in the open editor and in its queue row.
+        if (selectedRef.current?.id === updated.id) setSelected(updated);
+        setQueue((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
+      },
+    });
+  }
+  const autosave = autosaveRef.current;
+
+  const scheduleSave = useCallback(() => {
     const artifact = selectedRef.current;
     const d = draftRef.current;
     const s = seoDraftRef.current;
-    if (!artifact || !d || !s) return false;
-    setSaveStatus("saving");
-    try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}`), {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: d.title, subtitle: d.subtitle || null, excerpt: d.excerpt, summary: d.summary,
-          contentHtml: d.contentHtml,
-          categoryId: d.categoryId, tags: d.tags, seoTitle: s.seoTitle, seoDescription: s.seoDescription,
-          slug: s.slug, canonicalUrl: s.canonicalUrl || null,
-          saveAsDraft: saveAsDraft ?? artifact.status === "DRAFT",
-        }),
-      });
-      if (!res.ok) throw await responseError(res);
-      const updated: ArtifactDetail = await res.json();
-      // The backend may have re-validated (status/validationIssues can
-      // change from a fixed field) -- reflect that real result, don't
-      // just assume the save succeeded silently. Both the open editor AND
-      // its row in the queue need the fresh title/status/warning count --
-      // otherwise the list keeps showing a warning that's already fixed.
-      if (selectedRef.current?.id === updated.id) setSelected(updated);
-      setQueue((prev) => prev.map((a) => (a.id === updated.id ? updated : a)));
-      setSaveStatus("saved");
-      return true;
-    } catch (err) {
-      setSaveStatus("error");
-      toast.error(err instanceof Error ? `No se guardaron los cambios: ${err.message}` : "No se guardaron los cambios");
-      return false;
-    }
-  }, []);
+    if (!artifact || !d || !s) return;
+    autosave.schedule({ artifactId: artifact.id, draft: d, seo: s, saveAsDraft: artifact.status === "DRAFT" });
+  }, [autosave]);
 
-  const scheduleSave = useCallback(() => {
-    if (skipNextSaveRef.current) { skipNextSaveRef.current = false; return; }
-    if (saveTimerRef.current) clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => { void doSave(); }, AUTOSAVE_DELAY_MS);
-  }, [doSave]);
+  const flushPendingSave = useCallback(() => autosave.flush(), [autosave]);
 
-  const flushPendingSave = useCallback(async (): Promise<boolean> => {
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-      return doSave();
-    }
-    return true;
-  }, [doSave]);
+  // Ctrl/⌘+S saves now (autosave runs anyway; this answers "is it saved?" instantly).
+  useEffect(() => {
+    if (!active) return;
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "s" && selectedRef.current) {
+        event.preventDefault();
+        void autosave.flush().then((ok) => { if (ok) toast.success("Cambios guardados", { id: "revision-saved" }); });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [active, autosave]);
+
+  // Leaving the editorial view or the page must not drop the last edits.
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => {
+      if (!autosave.isDirty()) return;
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => {
+      window.removeEventListener("beforeunload", warn);
+      void autosave.flush();
+    };
+  }, [autosave]);
 
   const selectArticle = useCallback(async (item: ArtifactDetail) => {
     if (selectedRef.current?.id === item.id) return;
-    if (!await flushPendingSave()) return;
+    if (!await flushPendingSave()
+      && !window.confirm("Los últimos cambios de este artículo no se pudieron guardar. ¿Descartarlos y abrir el otro?")) return;
+    autosave.reset();
     setLoadingDetail(true);
     setJob(null);
     setJobHistory([]);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${item.id}`));
+      const res = await apiFetch(`/api/artifacts/${item.id}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const full: ArtifactDetail = await res.json();
-      skipNextSaveRef.current = true;
+      selectedRef.current = full;
+      draftRef.current = toDraft(full);
+      seoDraftRef.current = toSeoDraft(full);
       setSelected(full);
-      setDraft(toDraft(full));
-      setSeoDraft(toSeoDraft(full));
-      setSaveStatus("idle");
+      setDraft(draftRef.current);
+      setSeoDraft(seoDraftRef.current);
       setMobilePane("editor");
-      const jobRes = await fetch(apiUrl(`/api/artifacts/jobs/by-story/${full.storyId}`));
+      const jobRes = await apiFetch(`/api/artifacts/jobs/by-story/${full.storyId}`);
       if (jobRes.ok) setJob(await jobRes.json());
-      const historyRes = await fetch(apiUrl(`/api/artifacts/jobs/by-story/${full.storyId}/history`));
+      const historyRes = await apiFetch(`/api/artifacts/jobs/by-story/${full.storyId}/history`);
       if (historyRes.ok) setJobHistory((await historyRes.json()).jobs ?? []);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo cargar el artículo");
     } finally {
       setLoadingDetail(false);
     }
-  }, [flushPendingSave]);
+  }, [autosave, flushPendingSave]);
+
+  useEffect(() => {
+    if (openRequest) void selectArticle({ id: openRequest.id } as ArtifactDetail);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRequest?.nonce]);
+
+  useEffect(() => {
+    if (focusArtifactId) void selectArticle({ id: focusArtifactId } as ArtifactDetail);
+  }, [focusArtifactId, selectArticle]);
+
+  const reloadSelected = useCallback(async () => {
+    const current = selectedRef.current;
+    if (!current) return;
+    const res = await apiFetch(`/api/artifacts/${current.id}`);
+    if (res.ok) {
+      const full: ArtifactDetail = await res.json();
+      setSelected(full);
+      setQueue((prev) => prev.map((a) => (a.id === full.id ? full : a)));
+    }
+  }, []);
+
+  const [publishing, setPublishing] = useState(false);
+
+  const runArticleAction = async (path: string, init: RequestInit, success: string) => {
+    const artifact = selectedRef.current;
+    if (!artifact) return false;
+    if (!await flushPendingSave()) return false;
+    setPublishing(true);
+    try {
+      const res = await apiFetch(`/api/artifacts/${artifact.id}${path}`, init);
+      if (!res.ok) throw await responseError(res);
+      toast.success(success);
+      await reloadSelected();
+      onChanged?.();
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo completar la acción");
+      return false;
+    } finally {
+      setPublishing(false);
+    }
+  };
+
+  const cancelSchedule = () => runArticleAction("/schedule/cancel", { method: "POST" }, "Programación cancelada");
+  /**
+   * One-click publish: save → submit (if draft) → approve → publish/schedule.
+   * The editorial states still exist and are still enforced by the backend;
+   * the editor just doesn't have to walk them by hand.
+   */
+  const publishFlow = async (when?: Date): Promise<boolean> => {
+    const artifact = selectedRef.current;
+    if (!artifact) return false;
+    setPublishing(true);
+    const call = async (path: string, init?: RequestInit): Promise<ArtifactDetail> => {
+      const res = await apiFetch(`/api/artifacts/${artifact.id}${path}`, init);
+      if (!res.ok) throw await responseError(res);
+      return res.json();
+    };
+    try {
+      if (!await flushPendingSave()) return false;
+      let current = await call("");
+      if (current.status === "DRAFT") current = await call("/submit", { method: "POST" });
+      if (current.status === "REVIEW_REQUIRED") {
+        setSelected(current);
+        const blocking = current.validationIssues.filter((i) => (i.severity ?? "BLOCKING") === "BLOCKING");
+        throw new Error(`Falta corregir: ${(blocking.length ? blocking : current.validationIssues).map(issueInSpanish).join(" · ")}`);
+      }
+      if (current.status === "VALIDATED") {
+        current = await call("/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision: "APPROVE" }) });
+      }
+      if (current.status !== "APPROVED") throw new Error(`No se puede publicar desde el estado ${current.status}`);
+      if (when) {
+        await call("/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ scheduledAt: when.toISOString() }) });
+        toast.success(`Programada para el ${when.toLocaleString("es", { dateStyle: "medium", timeStyle: "short" })}`);
+      } else {
+        await call("/publish", { method: "POST" });
+        toast.success("Publicada: ya está en el portal");
+      }
+      await reloadSelected();
+      onChanged?.();
+      return true;
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo publicar");
+      return false;
+    } finally {
+      setPublishing(false);
+    }
+  };
 
   const openManualDiscoveryItem = useCallback(async (itemId: string) => {
     setOpeningManualItem(true);
     try {
-      const res = await fetch(apiUrl(`/api/discovery/items/${itemId}/manual-editor`), { method: "POST" });
+      const res = await apiFetch(`/api/discovery/items/${itemId}/manual-editor`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || body?.detail || `HTTP ${res.status}`);
@@ -271,12 +414,17 @@ export default function RevisionWorkspace({
     void openManualDiscoveryItem(manualQueue[0]).finally(() => onManualQueueConsumed?.());
   }, [manualQueue, manualQueueKey, onManualQueueConsumed, openManualDiscoveryItem]);
 
+  // Refs are updated synchronously so the snapshot handed to autosave is always the newest one.
   const onFieldChange = (patch: Partial<RevisionDraft>) => {
-    setDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+    if (!draftRef.current) return;
+    draftRef.current = { ...draftRef.current, ...patch };
+    setDraft(draftRef.current);
     scheduleSave();
   };
   const onSeoChange = (patch: Partial<SeoDraft>) => {
-    setSeoDraft((prev) => (prev ? { ...prev, ...patch } : prev));
+    if (!seoDraftRef.current) return;
+    seoDraftRef.current = { ...seoDraftRef.current, ...patch };
+    setSeoDraft(seoDraftRef.current);
     scheduleSave();
   };
 
@@ -294,7 +442,7 @@ export default function RevisionWorkspace({
 
   const onMediaChanged = useCallback(async () => {
     if (!selectedRef.current) return;
-    const res = await fetch(apiUrl(`/api/artifacts/${selectedRef.current.id}`));
+    const res = await apiFetch(`/api/artifacts/${selectedRef.current.id}`);
     if (res.ok) {
       const full: ArtifactDetail = await res.json();
       setSelected(full);
@@ -309,7 +457,7 @@ export default function RevisionWorkspace({
     const artifact = selectedRef.current;
     if (!artifact) return;
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}/claims/${claimId}/review`), {
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/claims/${claimId}/review`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -331,27 +479,58 @@ export default function RevisionWorkspace({
     [reviewClaim],
   );
 
-  const onApprove = async () => {
+  // One step from Revisión to the site: approve, then publish right away (with confirmation).
+  const onApproveAndPublish = async () => {
     const artifact = selectedRef.current;
     if (!artifact) return;
-    if (!await flushPendingSave()) return;
+    if (!window.confirm(`¿Aprobar y publicar «${draftRef.current?.title ?? artifact.title}» ahora? Quedará visible en el sitio de inmediato.`)) return;
+    const approved = await onApprove();
+    if (!approved) return;
+    try {
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/publish`, { method: "POST" });
+      if (!res.ok) throw await responseError(res);
+      const published: ArtifactDetail = await res.json();
+      toast.success("Publicado -- ya está en nexusnews.info", {
+        action: { label: "Ver", onClick: () => window.open(`https://www.nexusnews.info/noticia/${published.seo.slug}`, "_blank", "noopener") },
+      });
+    } catch (err) {
+      toast.error(err instanceof Error ? `Aprobado, pero no se pudo publicar: ${err.message}. Publícalo desde la Cola.` : "Aprobado, pero no se pudo publicar");
+    }
+  };
+
+  const onApprove = async (): Promise<boolean> => {
+    const artifact = selectedRef.current;
+    if (!artifact) return false;
+    if (!await flushPendingSave()) {
+      toast.error("No se puede aprobar: hay cambios sin guardar. Revisa la conexión y vuelve a intentarlo.");
+      return false;
+    }
     setApproving(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}/review`), {
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/review`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision: "APPROVE" }),
       });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
-      toast.success("Revisión aprobada -- listo para Publicar");
+      toast.success("Aprobada: ya puedes publicarla o programarla");
+      onChanged?.();
+      if (focusMode) {
+        setInspectorOpen(false);
+        await reloadSelected();
+        return true;
+      }
       setQueue((prev) => prev.filter((a) => a.id !== artifact.id));
       setSelected(null);
       setDraft(null);
       setSeoDraft(null);
       setMobilePane("list");
+      setInspectorOpen(false);
+      return true;
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo aprobar la revisión");
+      return false;
     } finally {
       setApproving(false);
     }
@@ -360,14 +539,13 @@ export default function RevisionWorkspace({
   const submitForReview = async () => {
     const artifact = selectedRef.current;
     if (!artifact || artifact.status !== "DRAFT" || submitting) return;
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
+    if (!await flushPendingSave()) {
+      toast.error("No se puede enviar: hay cambios sin guardar.");
+      return;
     }
-    if (!await doSave(true)) return;
     setSubmitting(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}/submit`), { method: "POST" });
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/submit`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || body?.detail || `HTTP ${res.status}`);
@@ -375,7 +553,8 @@ export default function RevisionWorkspace({
       const updated: ArtifactDetail = await res.json();
       setSelected(updated);
       setQueue((prev) => prev.map((item) => item.id === updated.id ? updated : item));
-      toast.success(updated.status === "VALIDATED" ? "Enviado a revisión" : "Enviado; requiere completar validaciones");
+      toast.success(updated.status === "VALIDATED" ? "Lista para revisar" : "Enviada a revisión: hay avisos por resolver");
+      onChanged?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo enviar a revisión");
     } finally {
@@ -395,12 +574,17 @@ export default function RevisionWorkspace({
     if (!artifact) return;
     setArchiving(true);
     try {
-      const res = await fetch(apiUrl(`/api/artifacts/${artifact.id}/archive`), { method: "POST" });
+      const res = await apiFetch(`/api/artifacts/${artifact.id}/archive`, { method: "POST" });
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.message || `HTTP ${res.status}`);
       }
-      toast.success("Artículo eliminado de Revisión");
+      toast.success("Enviada a la papelera");
+      onChanged?.();
+      if (focusMode) {
+        onClose?.();
+        return;
+      }
       setQueue((prev) => prev.filter((a) => a.id !== artifact.id));
       setSelected(null);
       setDraft(null);
@@ -418,13 +602,15 @@ export default function RevisionWorkspace({
     setProviderPickerOpen(false);
     if (!artifact) return;
     try {
-      const res = await fetch(apiUrl("/api/artifacts/jobs"), {
+      const res = await apiFetch("/api/artifacts/jobs", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ storyId: artifact.storyId, provider: providerId }),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      toast.success("Reintentando Artifact");
-      setArtifactDrawerOpen(true);
+      if (!res.ok) throw await responseError(res);
+      toast.success("La IA está volviendo a redactar esta noticia");
+      onChanged?.();
+      if (focusMode) onClose?.();
+      else setArtifactDrawerOpen(true);
     } catch (err) {
       toast.error(err instanceof Error ? `No se pudo reintentar: ${err.message}` : "No se pudo reintentar");
     }
@@ -438,9 +624,9 @@ export default function RevisionWorkspace({
   }, [queue, queueSearch]);
 
   return (
-    <div className="flex h-full min-h-0">
-      {/* LISTA -- independent scroll */}
-      <div className={`${mobilePane === "list" ? "flex" : "hidden"} md:flex w-full md:w-[280px] lg:w-[310px] flex-shrink-0 flex-col border-r border-white/10 h-full min-h-0 bg-[#0b0b0b]`}>
+    <div className="touch-safe-inputs flex h-full min-h-0">
+      {/* LISTA -- independent scroll (hidden in focus mode: the board is the list) */}
+      <div className={`${focusMode ? "hidden" : mobilePane === "list" ? "flex" : "hidden md:flex"} w-full md:w-[280px] lg:w-[310px] flex-shrink-0 flex-col border-r border-white/10 h-full min-h-0 bg-[#0b0b0b]`}>
         <div className="flex-shrink-0 border-b border-white/10 px-4 py-4">
           <div className="flex items-center justify-between">
             <div>
@@ -509,14 +695,30 @@ export default function RevisionWorkspace({
       <div className={`${mobilePane === "editor" ? "flex" : "hidden"} md:flex flex-1 min-w-0 flex-col h-full min-h-0`}>
         {selected && draft ? (
           <>
-            <div className="flex flex-shrink-0 flex-wrap items-center gap-3 border-b border-white/10 px-4 py-2.5">
-              <button onClick={() => setMobilePane("list")} className="md:hidden text-xs text-neutral-400 hover:text-white">← Lista</button>
+            <div className="flex flex-shrink-0 items-center gap-2 border-b border-white/10 px-2 py-2 sm:gap-3 sm:px-4 sm:py-2.5 md:flex-wrap">
+              {focusMode ? (
+                <button
+                  onClick={async () => { if (await flushPendingSave()) onClose?.(); }}
+                  aria-label="Volver al tablero"
+                  className="flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-medium text-neutral-300 hover:bg-white/10 hover:text-white sm:h-auto sm:py-1.5"
+                >
+                  <ChevronLeft size={16} /> <span className="hidden sm:inline">Tablero</span>
+                </button>
+              ) : (
+                <button onClick={() => setMobilePane("list")} className="flex h-9 items-center px-2 text-xs text-neutral-400 hover:text-white md:hidden">← Lista</button>
+              )}
+              {focusMode && <span className="hidden sm:contents"><StatusPill status={selected.status} issues={selected.validationIssues.length} /></span>}
 
-              <div className="flex items-center gap-1.5 text-[11.5px]">
+              <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11.5px]">
+                {saveStatus === "pending" && <span className="text-neutral-400"><span className="hidden sm:inline">Cambios sin guardar…</span><span className="sm:hidden">Sin guardar</span></span>}
                 {saveStatus === "saving" && <span className="flex items-center gap-1.5 text-neutral-400"><Loader2 size={12} className="animate-spin" /> Guardando…</span>}
-                {saveStatus === "saved" && <span className="flex items-center gap-1.5 text-green-400"><Check size={12} /> Guardado hace unos segundos</span>}
-                {saveStatus === "error" && <span className="flex items-center gap-1.5 text-red-400"><AlertCircle size={12} /> Error al guardar</span>}
-                {saveStatus === "idle" && <span className="text-neutral-500">Sin cambios</span>}
+                {saveStatus === "saved" && <span className="flex items-center gap-1.5 text-green-400"><Check size={12} /> Guardado</span>}
+                {saveStatus === "error" && (
+                  <button type="button" onClick={() => void flushPendingSave()} className="flex items-center gap-1.5 text-red-400 hover:text-red-300">
+                    <AlertCircle size={12} /> <span className="hidden sm:inline">Error al guardar ·</span> Reintentar
+                  </button>
+                )}
+                {saveStatus === "idle" && <span className="hidden text-neutral-500 sm:inline">Sin cambios</span>}
               </div>
 
               <span className="hidden sm:inline text-[11.5px] text-neutral-600 ml-2">
@@ -537,21 +739,49 @@ export default function RevisionWorkspace({
                 </div>
               )}
 
-              <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
-                <button
-                  onClick={() => setPreviewOpen(true)}
-                  className="flex items-center gap-1.5 text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10"
-                >
-                  <Eye size={13} /> Vista previa
-                </button>
+              <div className="ml-auto flex flex-shrink-0 items-center justify-end gap-1.5 md:flex-wrap">
                 <button
                   onClick={flushPendingSave}
                   disabled={saveStatus === "saving"}
-                  className="flex items-center gap-1.5 text-[12px] font-bold px-3.5 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-500 disabled:opacity-50"
+                  className="flex h-9 items-center gap-1.5 rounded-lg bg-red-600 px-3.5 text-[12px] font-bold text-white hover:bg-red-500 disabled:opacity-50 md:h-auto md:py-1.5"
                 >
-                  {selected.status === "DRAFT" ? "Guardar borrador" : "Guardar"}
+                  {selected.status === "DRAFT" ? <><span className="hidden sm:inline">Guardar borrador</span><span className="sm:hidden">Guardar</span></> : "Guardar"}
                 </button>
-                {selected.status === "DRAFT" && (
+                <div className="relative md:hidden">
+                  <button onClick={() => setMoreOpen((o) => !o)} aria-label="Más acciones" aria-expanded={moreOpen}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-neutral-300 hover:bg-white/5">
+                    <MoreHorizontal size={16} />
+                  </button>
+                  {moreOpen && (
+                    <>
+                      <button aria-label="Cerrar menú" className="fixed inset-0 z-40 cursor-default" onClick={() => setMoreOpen(false)} />
+                      <div className="absolute right-0 top-full z-50 mt-1.5 w-60 rounded-xl border border-white/10 bg-neutral-900 p-1 shadow-2xl">
+                        {!focusMode && selected.status === "DRAFT" && (
+                          <button onClick={() => { setMoreOpen(false); void submitForReview(); }} disabled={submitting || saveStatus === "saving" || openingManualItem}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-left text-[13px] text-green-300 hover:bg-white/5 disabled:opacity-50">
+                            {submitting ? <Loader2 className="animate-spin" size={15} /> : <FileCheck2 size={15} />} Enviar a revisión
+                          </button>
+                        )}
+                        {focusMode && selected.status === "SCHEDULED" && (
+                          <button onClick={() => { setMoreOpen(false); void cancelSchedule(); }} disabled={publishing}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-left text-[13px] text-neutral-200 hover:bg-white/5 disabled:opacity-50">
+                            <X size={15} /> Cancelar programación
+                          </button>
+                        )}
+                        <button onClick={() => { setMoreOpen(false); setResearchOpen((open) => !open); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-left text-[13px] text-neutral-200 hover:bg-white/5">
+                          <BookOpen size={15} /> {researchOpen ? "Cerrar búsqueda" : "Buscar información"}
+                        </button>
+                        <button onClick={() => { setMoreOpen(false); setInspectorOpen(true); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-left text-[13px] text-neutral-200 hover:bg-white/5">
+                          <ListChecks size={15} /> Detalles y revisión
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="hidden items-center gap-1.5 md:contents">
+                {!focusMode && selected.status === "DRAFT" && (
                   <button
                     onClick={() => void submitForReview()}
                     disabled={submitting || saveStatus === "saving" || openingManualItem}
@@ -561,27 +791,48 @@ export default function RevisionWorkspace({
                     Enviar a revisión
                   </button>
                 )}
+                {focusMode && selected.status === "SCHEDULED" && (
+                  <button
+                    onClick={() => void cancelSchedule()}
+                    disabled={publishing}
+                    className="text-[12px] font-semibold px-3 py-1.5 rounded-lg bg-white/5 text-neutral-200 hover:bg-white/10 disabled:opacity-50"
+                  >
+                    Cancelar programación
+                  </button>
+                )}
+                <button
+                  onClick={() => setResearchOpen((open) => !open)}
+                  aria-pressed={researchOpen}
+                  className={`flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] font-medium ${researchOpen ? "border-white/30 bg-white/10 text-white" : "border-white/10 text-neutral-300 hover:bg-white/5 hover:text-white"}`}
+                >
+                  <BookOpen size={12} /> Buscar información
+                </button>
                 <button
                   onClick={() => setInspectorOpen(true)}
                   className="rounded-lg border border-white/10 px-2.5 py-1.5 text-[11px] font-medium text-neutral-300 hover:bg-white/5 hover:text-white"
                 >
                   Detalles y revisión
                 </button>
+                </div>
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {selected.sources[0] && (
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-white/[0.015] text-[11px] text-neutral-500">
-                  <span className="font-semibold text-neutral-400">Fuente original:</span>
-                  <a href={selected.sources[0].sourceUrl} target="_blank" rel="noreferrer" className="truncate hover:text-white hover:underline">
+                <div className="flex min-w-0 items-center gap-2 border-b border-white/5 bg-white/[0.015] px-3 py-2 text-[11px] text-neutral-500 sm:px-4">
+                  <span className="flex-shrink-0 font-semibold text-neutral-400">Fuente<span className="hidden sm:inline"> original</span>:</span>
+                  <a href={safeHttpUrl(selected.sources[0].sourceUrl) ?? undefined} target="_blank" rel="noreferrer" className="truncate hover:text-white hover:underline">
                     {selected.sources[0].sourceName ?? selected.sources[0].sourceDomain}
                   </a>
-                  <span className="ml-auto hidden sm:inline text-neutral-700">ID Discovery: {selected.storyId}</span>
                 </div>
               )}
-              <RevisionEditor
+              <PortalBlockEditor
+                key={selected.id}
                 draft={draft} onFieldChange={onFieldChange} categoryGroups={categoryGroups}
                 mediaRequirements={selected.mediaRequirements} artifactId={selected.id} onMediaChanged={onMediaChanged}
+                readOnly={selected.status === "PUBLISHED" || selected.status === "PUBLISHING"}
+                seo={seoDraft} onSeoChange={onSeoChange} sources={selected.sources}
+                status={selected.status} onPublish={focusMode ? publishFlow : undefined} publishing={publishing}
+                blockingIssues={selected.validationIssues.filter((i) => (i.severity ?? "BLOCKING") === "BLOCKING").map(issueInSpanish)}
               />
             </div>
           </>
@@ -590,7 +841,7 @@ export default function RevisionWorkspace({
             {loadingDetail ? "Cargando…" : (
               <>
                 <Sparkles size={22} />
-                <p className="text-sm">Elegí un artículo de la lista para empezar a revisar.</p>
+                <p className="text-sm">Elige un artículo de la lista para empezar.</p>
               </>
             )}
           </div>
@@ -602,18 +853,18 @@ export default function RevisionWorkspace({
         inspectorOpen && (
           <div className="fixed inset-0 z-40 flex justify-end">
             <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px]" onClick={() => setInspectorOpen(false)} />
-            <div className="relative h-full w-full max-w-md overflow-y-auto border-l border-white/10 bg-neutral-950 shadow-2xl">
+            <div className="relative h-full w-full overflow-y-auto overscroll-contain border-l border-white/10 bg-neutral-950 pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-w-md">
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-neutral-950/95 px-4 py-3 backdrop-blur">
                 <span className="text-sm font-semibold text-white">Detalles y revisión</span>
-                <button onClick={() => setInspectorOpen(false)} aria-label="Cerrar detalles">
-                  <X size={16} className="text-neutral-500 hover:text-white" />
+                <button onClick={() => setInspectorOpen(false)} aria-label="Cerrar detalles" className="-mr-2 rounded-full p-2">
+                  <X size={18} className="text-neutral-500 hover:text-white" />
                 </button>
               </div>
               <RevisionInspector
                 artifactId={selected.id}
                 status={selected.status} job={job} jobHistory={jobHistory} validationIssues={selected.validationIssues} claims={selected.claims}
                 seoDraft={seoDraft} onSeoChange={onSeoChange} mediaRequirements={selected.mediaRequirements}
-                onMarkClaimReviewed={onMarkClaimReviewed} onResolveClaim={onResolveClaim} onApprove={onApprove} approving={approving}
+                onMarkClaimReviewed={onMarkClaimReviewed} onResolveClaim={onResolveClaim} onApprove={() => void onApprove()} onApproveAndPublish={() => void onApproveAndPublish()} approving={approving}
                 onRetry={() => setProviderPickerOpen(true)} onChooseProvider={() => setProviderPickerOpen(true)}
                 onArchive={onArchiveArtifact} archiving={archiving} onApplySeoFix={onApplySeoFix}
               />
@@ -622,20 +873,21 @@ export default function RevisionWorkspace({
         )
       )}
 
+      {researchOpen && selected && (
+        <div className="touch-safe-inputs fixed inset-x-2 bottom-2 top-16 z-40 overflow-y-auto overscroll-contain rounded-xl shadow-2xl shadow-black/60 md:inset-x-auto md:bottom-4 md:right-4 md:top-28 md:z-30 md:w-[340px]">
+          <button onClick={() => setResearchOpen(false)} aria-label="Cerrar búsqueda"
+            className="absolute right-2 top-2 z-10 rounded-full bg-black/60 p-2 text-neutral-300 hover:text-white md:hidden">
+            <X size={16} />
+          </button>
+          <ResearchPanel key={selected.id} editor={bodyEditor} />
+        </div>
+      )}
+
       {providerPickerOpen && (
         <ProviderPickerModal onCancel={() => setProviderPickerOpen(false)} onConfirm={confirmRetry} />
       )}
 
       {archivedOpen && <ArchivedDrawer onClose={() => setArchivedOpen(false)} />}
-
-      {previewOpen && selected && draft && (
-        <ArticlePreviewModal
-          title={draft.title} subtitle={draft.subtitle} excerpt={draft.excerpt} contentHtml={draft.contentHtml}
-          featuredImageUrl={selected.mediaRequirements.find((m) => m.kind === "FEATURE_IMAGE")?.assetUrl ?? null}
-          mediaRequirements={selected.mediaRequirements} artifactId={selected.id}
-          onClose={() => setPreviewOpen(false)}
-        />
-      )}
 
       {artifactDrawerOpen && selected && (
         <ArtifactDrawer

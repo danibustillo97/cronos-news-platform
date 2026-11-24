@@ -16,9 +16,10 @@
 // simularlo con datos falsos.
 
 import Image from 'next/image'
-import { Clock, User } from 'lucide-react'
+import { Clock } from 'lucide-react'
 import { estimateReadMinutes } from '@/lib/readTime'
 import type { NewsView } from '@/types/news'
+import { publicAuthorName } from "@/lib/byline";
 
 export default function HeroEditorial({ item, src, onOpen }: { item: NewsView; src: string | null; onOpen: (item: NewsView) => void }) {
   const readMinutes = estimateReadMinutes(item.content, item.excerpt)
@@ -65,9 +66,9 @@ export default function HeroEditorial({ item, src, onOpen }: { item: NewsView; s
           {item.author && (
             <span className="flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-white/15 flex items-center justify-center text-[9px] font-bold text-white">
-                {item.author.slice(0, 1).toUpperCase()}
+                {publicAuthorName(item.author).slice(0, 1).toUpperCase()}
               </span>
-              {item.author}
+              {publicAuthorName(item.author)}
             </span>
           )}
         </div>

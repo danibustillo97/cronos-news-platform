@@ -1,26 +1,42 @@
 # GitHub Actions
 
-## Scheduled Artifact Publications
+GitHub Actions is CRONOS' worker tier: everything that takes longer than a web request runs
+here and stores its result in Supabase. The backend (Vercel) wakes the right workflow with
+`workflow_dispatch` the moment a job is queued (`GITHUB_DISPATCH_TOKEN`, see
+`DEPLOYMENT_BACKEND_VERCEL.md`); the cron schedule is the safety net. No workflow persists business
+state in GitHub Actions.
 
-Workflow: `.github/workflows/scheduled-publications.yml`
+| Workflow | Runs | Cron | Woken by |
+| --- | --- | --- | --- |
+| `discovery-processing.yml` | `automation/run_discovery_jobs.py`: queued "Buscar noticias" jobs; honours "Detener" between feeds | every 30 min | "Buscar noticias" |
+| `scraper.yml` | `automation/scraper.py`: periodic RSS/Atom ingestion into `discovery_items` (never publishes) | every 10 min | -- |
+| `artifact-processing.yml` | `automation/run_artifact_jobs.py`: AI drafts for stories sent to editorial | every 10 min | "Procesar en Artifact", "Reintentar" |
+| `media-processing.yml` | `automation/run_media_generation_jobs.py`: images via Cloudflare Workers AI, stored in Supabase Storage | every 15 min | "Generar imagen" |
+| `scheduled-publications.yml` | `automation/run_scheduled_publications.py`: publishes artifacts whose time has come | every 15 min | -- |
+| `ci.yml` | frontend TypeScript, ESLint, production build; Python syntax compilation only | pushes to `master`, pull requests | -- |
 
-- Schedule: every 15 minutes.
-- Trigger: cron or `workflow_dispatch`.
-- Timeout: 10 minutes.
-- Concurrency: one scheduled publication group.
-- Required secrets:
-  - `SUPABASE_URL`
-  - `SUPABASE_SERVICE_ROLE_KEY`
+Automated test suites are intentionally not run by GitHub Actions to reduce runner usage.
+Test files remain in the repository and can be executed manually when needed.
 
-The workflow installs the backend dependencies and invokes `automation/run_scheduled_publications.py`. It does not persist business state in GitHub Actions.
+Every worker has a `concurrency` group: a dispatch that arrives while a run is active waits
+instead of processing the same job twice.
 
-GitHub-hosted runners must not be assumed to support heavyweight FFmpeg or GPU rendering. Those operations remain local/LAB until a dedicated runner and Storage contract are configured.
+## Secrets and variables
 
-## Additional workflows
+Repository **secrets**:
 
-- `artifact-processing.yml`: processes existing `QUEUED` artifact jobs.
-- `media-processing.yml`: processes existing `QUEUED` media generation jobs; heavyweight Runtime configuration may be required.
-- `discovery-processing.yml`: processes queued discovery jobs directly with configured RSS/Atom sources.
-- `scraper.yml`: ingests configured RSS/Atom candidates into `discovery_items` and never publishes them automatically.
+- `SUPABASE_URL`, `SUPABASE_SECRET_KEY` -- every worker
+- `SCRAPER_SOURCES` -- comma-separated RSS/Atom feed URLs (discovery, scraper)
+- `ANTHROPIC_API_KEY` -- artifact processing
+- `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` -- media processing (Workers AI, model
+  `@cf/black-forest-labs/flux-1-schnell`)
 
-Discovery, scraper and scheduled publication workflows do not require `RUNTIME_BASE_URL`.
+Repository **variable** (optional): `ARTIFACT_PROVIDER` (default `anthropic`).
+
+Workers use `backend/requirements.txt` (runtime dependencies). The workflows do not install
+development dependencies or execute pytest/Vitest. The workers set `JOB_EXECUTION=github` and
+`ASSET_STORAGE=supabase` themselves; `RUNTIME_BASE_URL` is not required for cloud workers.
+Local LAB/Runtime features still need a separately reachable runtime.
+
+GitHub-hosted runners must not be assumed to support heavyweight FFmpeg or GPU rendering;
+LAB video productions stay on a local machine.

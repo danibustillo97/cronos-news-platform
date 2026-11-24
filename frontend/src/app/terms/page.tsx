@@ -1,5 +1,5 @@
 import { Metadata } from 'next';
-import ModernNavbar from '@/components/ui/ModernNavbar';
+import ModernNavbar from '@/components/portal/PortalNavbar';
 import Link from 'next/link';
 
 export const metadata: Metadata = {

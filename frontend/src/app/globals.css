@@ -776,3 +776,131 @@ body {
     display: none !important;
   }
 }
+
+/* Block editor (admin): placeholders for empty editable fields. Lives here so
+   the editor canvas uses the exact same .article-content typography as the portal. */
+.block-editor-field:empty::before {
+  content: attr(data-placeholder);
+  color: #9ca3af;
+  pointer-events: none;
+}
+.article-content [contenteditable="true"]:focus { outline: none; }
+
+/* iOS zooms the page when a focused form control is under 16px. Editor
+   screens opt in with .touch-safe-inputs so typing on a phone never zooms. */
+@media (pointer: coarse) {
+  .touch-safe-inputs input:not([type="checkbox"]):not([type="radio"]),
+  .touch-safe-inputs textarea,
+  .touch-safe-inputs select {
+    font-size: max(16px, 1em);
+  }
+}
+
+/* ------------------------------------------------------------------
+   NEXUS Portal (components/portal/*) -- tokens por tema. El wrapper
+   .nx-portal lleva data-theme="dark|light" (ThemeContext). Todos los
+   textos sobre --nx-bg / --nx-surface cumplen AA en ambos temas.
+   ------------------------------------------------------------------ */
+.nx-portal {
+  --nx-bg: #0A0A0A;
+  --nx-surface: #141414;
+  --nx-surface-2: #1D1D1D;
+  --nx-surface-3: #262626;
+  --nx-ink: #F5F5F3;
+  --nx-ink-2: #CFCFCB;
+  --nx-muted: #9A9A95;
+  --nx-line: rgba(255, 255, 255, 0.10);
+  --nx-line-strong: rgba(255, 255, 255, 0.18);
+  --nx-accent: #FACC15;
+  --nx-accent-text: #FACC15;
+  --nx-on-accent: #0A0A0A;
+  --nx-live: #DC2626;
+  --nx-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 20px 40px -24px rgba(0, 0, 0, 0.8);
+  --nx-header-h: 88px;
+  background: var(--nx-bg);
+  color: var(--nx-ink);
+  color-scheme: dark;
+}
+
+.nx-portal[data-theme="light"] {
+  --nx-bg: #F3F3EF;
+  --nx-surface: #FFFFFF;
+  --nx-surface-2: #EDEDE8;
+  --nx-surface-3: #E2E2DC;
+  --nx-ink: #101010;
+  --nx-ink-2: #2E2E2C;
+  --nx-muted: #5C5C58;
+  --nx-line: rgba(0, 0, 0, 0.10);
+  --nx-line-strong: rgba(0, 0, 0, 0.18);
+  --nx-accent-text: #8A5A00;
+  --nx-shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 18px 36px -24px rgba(0, 0, 0, 0.25);
+  color-scheme: light;
+}
+
+.nx-portal :focus-visible {
+  outline: 2px solid var(--nx-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.nx-section { scroll-margin-top: calc(var(--nx-header-h) + 12px); }
+
+.nx-snap-x {
+  scroll-snap-type: x mandatory;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.nx-snap-x::-webkit-scrollbar { display: none; }
+.nx-snap-x > * { scroll-snap-align: start; }
+
+.nx-thin-scroll { scrollbar-width: thin; scrollbar-color: var(--nx-line-strong) transparent; }
+
+.nx-live-dot { position: relative; display: inline-block; width: 8px; height: 8px; border-radius: 9999px; background: currentColor; }
+.nx-live-dot::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; background: currentColor;
+  animation: nx-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes nx-ping { 75%, 100% { transform: scale(2.4); opacity: 0; } }
+
+.nx-eq { display: inline-flex; align-items: flex-end; gap: 3px; height: 100%; }
+.nx-eq > span { width: 4px; border-radius: 2px; background: currentColor; height: 30%; }
+.nx-eq[data-playing="true"] > span { animation: nx-eq 1.1s ease-in-out infinite; }
+.nx-eq > span:nth-child(2) { animation-delay: -0.3s; height: 60%; }
+.nx-eq > span:nth-child(3) { animation-delay: -0.6s; height: 45%; }
+.nx-eq > span:nth-child(4) { animation-delay: -0.15s; height: 75%; }
+.nx-eq > span:nth-child(5) { animation-delay: -0.45s; height: 40%; }
+@keyframes nx-progress { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes nx-eq { 0%, 100% { height: 20%; } 50% { height: 100%; } }
+
+.nx-skeleton {
+  background: linear-gradient(100deg, var(--nx-surface) 30%, var(--nx-surface-2) 50%, var(--nx-surface) 70%);
+  background-size: 300% 100%;
+  animation: nx-shimmer 1.6s ease-in-out infinite;
+}
+@keyframes nx-shimmer { 0% { background-position: 100% 0; } 100% { background-position: 0 0; } }
+
+.nx-grain::before {
+  content: ""; position: absolute; inset: 0; pointer-events: none; opacity: 0.07; mix-blend-mode: overlay;
+  background-image: radial-gradient(rgba(255,255,255,0.6) 1px, transparent 1px);
+  background-size: 3px 3px;
+}
+
+.nx-range { -webkit-appearance: none; appearance: none; height: 44px; background: transparent; cursor: pointer; }
+.nx-range::-webkit-slider-runnable-track { height: 4px; border-radius: 9999px; background: var(--nx-line-strong); }
+.nx-range::-moz-range-track { height: 4px; border-radius: 9999px; background: var(--nx-line-strong); }
+.nx-range::-webkit-slider-thumb { -webkit-appearance: none; width: 16px; height: 16px; margin-top: -6px; border-radius: 9999px; background: var(--nx-accent); }
+.nx-range::-moz-range-thumb { width: 16px; height: 16px; border: 0; border-radius: 9999px; background: var(--nx-accent); }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .nx-portal *, .nx-portal *::before, .nx-portal *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+}
+
+/* Buscadores del portal: el contenedor marca el foco (focus-within), no el input. */
+.nx-portal input[type="search"]:focus-visible { outline: none; }
+.nx-portal input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }

@@ -10,7 +10,15 @@ its own real name appears as a substring in the item's text
 """
 from __future__ import annotations
 
+import re
+
 from app.domain.category.entities import CategoryGroup
+
+
+def _mentions(lowered_text: str, name: str) -> bool:
+    """Whole-word match: "DeFi" must not match "definición", "IA" not "media"."""
+    term = name.lower().strip()
+    return bool(term) and re.search(rf"(?<!\w){re.escape(term)}(?!\w)", lowered_text) is not None
 
 
 def classify(text: str, groups: list[CategoryGroup]) -> tuple[str | None, list[str]]:
@@ -28,11 +36,11 @@ def classify(text: str, groups: list[CategoryGroup]) -> tuple[str | None, list[s
     topics: list[str] = []
     for group in groups:
         for category in group.categories:
-            category_matches = category.name.lower() in lowered
+            category_matches = _mentions(lowered, category.name)
             if category_matches and category_id is None:
                 category_id = category.id
             for topic in category.topics:
-                if topic.name.lower() in lowered:
+                if _mentions(lowered, topic.name):
                     topics.append(topic.name)
                     if category_id is None:
                         category_id = category.id

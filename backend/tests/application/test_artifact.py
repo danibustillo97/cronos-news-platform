@@ -36,6 +36,20 @@ class InMemoryArtifactJobRepo:
     def find_by_id(self, job_id):
         return self.jobs.get(job_id)
 
+    def claim_queued(self, job_id, now):
+        job = self.jobs.get(job_id)
+        if job is None or job.status.value != "QUEUED":
+            return None
+        job.start()
+        return job
+
+    def fail_stale_running(self, started_before, now):
+        stale = [j for j in self.jobs.values()
+                 if j.status.value == "RUNNING" and j.started_at and j.started_at < started_before]
+        for j in stale:
+            j.fail("El worker se interrumpió antes de terminar (timeout o caída). Reintenta la generación.", now)
+        return len(stale)
+
     def find_latest_for_story(self, story_id):
         matches = [j for j in self.jobs.values() if str(j.story_id) == story_id]
         return max(matches, key=lambda j: j.created_at) if matches else None
@@ -112,10 +126,14 @@ class FakeCategoryRepo:
 
 
 class FakePublisher:
-    def __init__(self, news_id="news-1", error=None):
+    def __init__(self, news_id="news-1", error=None, taken_slugs=()):
         self._news_id = news_id
         self._error = error
+        self._taken = set(taken_slugs)
         self.calls = []
+
+    def reserve_slug(self, slug, artifact_id):
+        return f"{slug}-2" if slug in self._taken else slug
 
     def publish(self, artifact, category_name, image_url, content_html):
         if self._error:
@@ -1292,3 +1310,19 @@ def test_accepting_a_claim_resolution_persists_and_revalidates():
     assert updated.claims[0].label == EvidenceLabel.SOURCE_AVAILABILITY_CLAIM
     assert not any(i.check == "evidence" for i in updated.validation.issues)  # the warning is really gone
     assert artifacts.find_by_id(str(a.id)).claims[0].label == EvidenceLabel.SOURCE_AVAILABILITY_CLAIM  # persisted
+
+
+def test_claim_is_atomic_second_runner_does_not_regenerate():
+    from app.domain.artifact.entities import ArtifactJob
+    from datetime import datetime, timedelta, timezone
+    jobs = InMemoryArtifactJobRepo()
+    job = ArtifactJob(id="j1", story_id=StoryId.of("s1"), status=ArtifactJobStatus.QUEUED,
+                      created_at=datetime.now(timezone.utc))
+    jobs.save(job)
+    now = datetime.now(timezone.utc)
+    assert jobs.claim_queued("j1", now) is not None
+    assert jobs.claim_queued("j1", now) is None  # already RUNNING
+
+    jobs.jobs["j1"].started_at = now - timedelta(minutes=30)
+    assert jobs.fail_stale_running(now - timedelta(minutes=15), now) == 1
+    assert jobs.jobs["j1"].status == ArtifactJobStatus.FAILED

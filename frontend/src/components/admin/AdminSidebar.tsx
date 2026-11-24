@@ -11,6 +11,9 @@ interface AdminSidebarProps {
     activeView: string;
     setActiveView: (view: string) => void;
     onLogout: () => void;
+    /** Phones: the sidebar is a drawer opened from the top bar. */
+    mobileOpen?: boolean;
+    onMobileClose?: () => void;
 }
 
 // "editorial" is the ONE editorial space (Discovery/Ready/Publish live
@@ -28,16 +31,19 @@ const ITEMS = [
     { id: "ads",          label: "Publicidad",     icon: Megaphone },
 ];
 
-export default function AdminSidebar({ activeView, setActiveView, onLogout }: AdminSidebarProps) {
-    const [expanded, setExpanded] = useState(false);
+export default function AdminSidebar({ activeView, setActiveView, onLogout, mobileOpen = false, onMobileClose }: AdminSidebarProps) {
+    const [hovered, setHovered] = useState(false);
+    const expanded = hovered || mobileOpen;
 
     return (
+        <>
+        {mobileOpen && <div className="fixed inset-0 z-40 bg-black/60 backdrop-blur-[2px] md:hidden" onClick={onMobileClose} aria-hidden />}
         <motion.aside
-            onMouseEnter={() => setExpanded(true)}
-            onMouseLeave={() => setExpanded(false)}
+            onMouseEnter={() => setHovered(true)}
+            onMouseLeave={() => setHovered(false)}
             animate={{ width: expanded ? 184 : 52 }}
             transition={{ duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
-            className="fixed left-2 top-2 bottom-2 rounded-[20px] border border-white/[0.08] bg-[#0b0b0d]/95 text-white shadow-[0_16px_48px_rgba(0,0,0,0.42)] backdrop-blur-xl flex flex-col z-50 overflow-hidden"
+            className={`fixed left-2 top-2 bottom-2 rounded-[20px] border border-white/[0.08] bg-[#0b0b0d]/95 text-white shadow-[0_16px_48px_rgba(0,0,0,0.42)] backdrop-blur-xl ${mobileOpen ? "flex" : "hidden md:flex"} flex-col z-50 overflow-hidden`}
             style={{ willChange: "width" }}
         >
             {/* ── nav ── */}
@@ -47,7 +53,7 @@ export default function AdminSidebar({ activeView, setActiveView, onLogout }: Ad
                     return (
                         <button
                             key={item.id}
-                            onClick={() => setActiveView(item.id)}
+                            onClick={() => { setActiveView(item.id); onMobileClose?.(); }}
                             aria-label={item.label}
                             aria-current={isActive ? "page" : undefined}
                             title={!expanded ? item.label : undefined}
@@ -144,5 +150,6 @@ export default function AdminSidebar({ activeView, setActiveView, onLogout }: Ad
                 </Link>
             </div>
         </motion.aside>
+        </>
     );
 }

@@ -14,7 +14,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import ModernNavbar from '@/components/ui/ModernNavbar'
+import ModernNavbar from '@/components/portal/PortalNavbar'
 import Footer from '@/components/layout/Footer'
 import NewsCard from '@/components/news/NewsCard'
 import FilterToolbar from '@/components/ui/FilterToolbar'

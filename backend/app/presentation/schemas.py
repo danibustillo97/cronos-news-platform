@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 
@@ -174,6 +174,23 @@ class UpdateSeoSettingsRequest(CamelModel):
     site_title: str
     meta_description: str
     keywords: list[str]
+
+
+class EditorialAutomationOut(CamelModel):
+    enabled: bool
+    max_articles_per_run: int
+    max_articles_per_day: int
+    min_text_chars: int
+    updated_at: datetime | None = None
+    updated_by: str | None = None
+    provider: str = "anthropic"
+
+
+class UpdateEditorialAutomationRequest(CamelModel):
+    enabled: bool
+    max_articles_per_run: int = Field(default=2, ge=1, le=10)
+    max_articles_per_day: int = Field(default=10, ge=1, le=100)
+    min_text_chars: int = Field(default=400, ge=0, le=20000)
 
 
 class AdBannerOut(CamelModel):

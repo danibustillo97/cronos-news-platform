@@ -123,7 +123,8 @@ class OpenManualDiscoveryEditor:
         body = item.raw_text.strip()
         excerpt = body[:240].strip() or item.original_title.strip()
         summary = body[:1000].strip() or item.original_title.strip()
-        safe_body = html.escape(body or item.original_title.strip())
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()] or [item.original_title.strip()]
+        safe_body = "</p><p>".join(html.escape(p) for p in paragraphs)
         slug = _editorial_slug(item.original_title)
         first_image = next((material.url for material in item.materials if material.kind.value == "IMAGE"), None)
         source = SourceReference(
@@ -245,8 +246,13 @@ class RunArtifactJob:
         if job is None:
             raise NotFoundError("ArtifactJob", input.job_id)
 
-        job.start()
-        self._jobs.save(job)
+        # Atomic QUEUED -> RUNNING: the in-process background task and the
+        # GitHub Actions worker can both see the same QUEUED job; only the
+        # one that wins the claim calls the LLM (and spends tokens).
+        claimed = self._jobs.claim_queued(input.job_id, datetime.now(timezone.utc))
+        if claimed is None:
+            return job
+        job = claimed
 
         try:
             artifact = self._generate_and_validate(job)
@@ -752,7 +758,7 @@ class ProposeSeoFix:
 @dataclass
 class ReviewArtifactInput:
     artifact_id: str
-    decision: str  # "APPROVE" | "REJECT"
+    decision: str  # "APPROVE" | "REJECT" | "REOPEN"
     reason: str | None = None
 
 
@@ -781,6 +787,8 @@ class ReviewArtifact:
                 self._stories.save(story)
         elif input.decision == "REJECT":
             artifact.reject(input.reason or "No reason given")
+        elif input.decision == "REOPEN":
+            artifact.reopen_for_review()
         else:
             raise ValueError(f"unknown artifact review decision: {input.decision!r}")
 
@@ -855,6 +863,10 @@ class PublishArtifact:
         category_name = self._resolve_category_name(artifact.category_id)
         image_url = self._resolve_feature_image_url(artifact)
         content_html = self._resolve_content_html(artifact)
+        # Record the slug actually used, so the artifact (and its "Ver" link) points at the real URL.
+        slug = self._publisher.reserve_slug(artifact.seo.slug, str(artifact.id))
+        if slug != artifact.seo.slug:
+            artifact.seo = replace(artifact.seo, slug=slug)
         news_id = self._publisher.publish(artifact, category_name, image_url, content_html)
 
         artifact.publish(news_id)

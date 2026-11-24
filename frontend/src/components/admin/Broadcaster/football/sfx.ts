@@ -61,12 +61,20 @@ function crowd(audio: AudioContext, out: AudioNode, at: number, seconds: number,
   source.start(at);
 }
 
-export function playSfx(kind: SfxKind, volume = 0.7) {
-  const audio = ctx();
+/** Where an effect plays besides the local speakers: the program bus, so it is heard on air. */
+export interface SfxBus {
+  context: AudioContext;
+  node: AudioNode;
+}
+
+export function playSfx(kind: SfxKind, volume = 0.7, bus?: SfxBus) {
+  const audio = bus?.context ?? ctx();
   if (!audio) return;
+  if (audio.state === "suspended") void audio.resume();
   const master = audio.createGain();
   master.gain.value = volume;
   master.connect(audio.destination);
+  if (bus) master.connect(bus.node);
   const now = audio.currentTime + 0.02;
   switch (kind) {
     case "goal":

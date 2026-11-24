@@ -10,6 +10,7 @@
 import { useState } from "react";
 import { AlertTriangle, Check, ExternalLink, Info } from "lucide-react";
 import ClaimResolutionSuggestion from "./ClaimResolutionSuggestion";
+import { linkLabel, safeHttpUrl } from "./safeLinks";
 
 export interface Claim {
   id: string;
@@ -55,12 +56,17 @@ export default function ClaimCard({
       <p className="text-[12.5px] text-neutral-300 leading-snug">&quot;{claim.text}&quot;</p>
       {claim.sourceUrls.length > 0 && (
         <div className="flex flex-wrap gap-2 mt-1.5">
-          {claim.sourceUrls.map((url) => (
-            <a key={url} href={url} target="_blank" rel="noreferrer"
-              className="text-[10.5px] text-blue-400 hover:underline flex items-center gap-0.5 truncate max-w-[160px]">
-              {new URL(url).hostname.replace(/^www\./, "")} <ExternalLink size={9} />
-            </a>
-          ))}
+          {claim.sourceUrls.map((url) => {
+            const href = safeHttpUrl(url);
+            return href ? (
+              <a key={url} href={href} target="_blank" rel="noreferrer"
+                className="text-[10.5px] text-blue-400 hover:underline flex items-center gap-0.5 truncate max-w-[160px]">
+                {linkLabel(url)} <ExternalLink size={9} />
+              </a>
+            ) : (
+              <span key={url} className="text-[10.5px] text-neutral-500 truncate max-w-[160px]">{linkLabel(url)}</span>
+            );
+          })}
         </div>
       )}
       {/* SOURCE_AVAILABILITY_CLAIM is already a settled, accurate note --

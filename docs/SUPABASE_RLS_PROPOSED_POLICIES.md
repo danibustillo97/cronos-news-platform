@@ -1,3 +1,15 @@
+> **SUPERSEDED — DO NOT EXECUTE THE SQL BELOW.**
+>
+> The live NEWS_DEPORT database was re-audited on 2026-11-24. This earlier proposal
+> does not fully match the live schema or all current policies. The replacement
+> review draft is
+> [20261124d_security_lockdown.sql](../infrastructure/database/migrations/20261124d_security_lockdown.sql).
+> That file is committed only to `feature/social-media-studio-v2`; it has **not**
+> been applied to Supabase. Review the complete SQL and impact plan before any
+> production execution.
+>
+> This document remains for historical context only.
+
 # Proposed Supabase RLS Review
 
 This document proposes SQL for a staging security review. It must not be executed without authorization and must not be treated as a migration.
@@ -72,7 +84,7 @@ Replace `TABLE_NAME` with one real table. Do not run this as an automated migrat
 
 ## Worker writes
 
-GitHub Actions workers use `SUPABASE_SERVICE_ROLE_KEY`. This is server-only and bypasses RLS. Worker authorization must be enforced by repository-controlled workflow secrets and atomic status transitions.
+GitHub Actions workers use `SUPABASE_SECRET_KEY`. This is server-only and bypasses RLS. Worker authorization must be enforced by repository-controlled workflow secrets and atomic status transitions.
 
 Workers may write:
 

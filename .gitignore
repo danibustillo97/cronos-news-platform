@@ -49,3 +49,15 @@ yarn-error.log*
 # === real deployment config (copy of deployment.example.yml) -- may
 # encode real per-environment infra decisions, never committed ===
 infrastructure/deployment/deployment.yml
+
+# Generated lab outputs, backups, tool artifacts and personal documents
+automation/lab/workspace/
+automation/*.bak-*
+frontend/.tsupgrader/
+docs/NOTIFICACION_WEB_EMPLAZAMIENTO_2015_2019.pdf
+docs/TE30023399227122023142330.pdf
+docs/soportes_procesos*.pdf
+
+# Live gateway: local secrets and downloaded binary
+infrastructure/live-gateway/gateway.env
+infrastructure/live-gateway/mediamtx.exe

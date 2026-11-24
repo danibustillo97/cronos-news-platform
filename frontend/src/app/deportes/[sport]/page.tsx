@@ -10,7 +10,7 @@
 
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
-import ModernNavbar from '@/components/ui/ModernNavbar'
+import ModernNavbar from '@/components/portal/PortalNavbar'
 import Footer from '@/components/layout/Footer'
 import { usePortalTheme } from '@/context/ThemeContext'
 import { OTHER_SPORTS } from '@/lib/sportsLeagues'

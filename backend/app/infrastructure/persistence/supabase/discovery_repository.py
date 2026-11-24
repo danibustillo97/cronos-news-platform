@@ -56,6 +56,15 @@ class SupabaseDiscoveryRepository:
                        reverse=(filters.sort_dir != "asc"))
         return items
 
+    def find_by_source_url(self, source_url: str) -> DiscoveryItem | None:
+        try:
+            res = self._client.table("discovery_items").select("*").eq("source_url", source_url).limit(1).execute()
+        except Exception as exc:
+            raise_if_schema_missing(exc, "discovery_items")
+            raise
+        rows = res.data or []
+        return self._to_entity(rows[0]) if rows else None
+
     def exists_by_source_url(self, source_url: str) -> bool:
         try:
             res = self._client.table("discovery_items").select("id").eq("source_url", source_url).limit(1).execute()

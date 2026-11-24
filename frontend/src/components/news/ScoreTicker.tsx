@@ -20,10 +20,10 @@ export default function ScoreTicker({ matches }: { matches: Match[] }) {
 
   return (
     <div className="w-full overflow-x-auto scrollbar-hide bg-[#0B0B0B] border-t border-white/[0.06]" role="region" aria-label="Resultados deportivos en vivo">
-      <div className="flex items-center h-8 max-w-7xl mx-auto" role="list">
-        <span className={`flex items-center h-full gap-1.5 text-black text-[10px] font-bold uppercase tracking-[0.12em] px-3 flex-shrink-0 ${live.length > 0 ? 'bg-[#FACC15]' : 'bg-neutral-800'}`}>
+      <div className="flex items-center h-8 max-w-[1600px] mx-auto" role="list">
+        <span className={`sticky left-0 z-10 flex items-center h-full gap-1.5 text-[10px] font-bold uppercase tracking-[0.12em] px-3 flex-shrink-0 ${live.length > 0 ? 'bg-[#DC2626] text-white' : 'bg-neutral-800 text-neutral-200'}`}>
           {live.length > 0 && <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" aria-hidden="true" />}
-          Pulse
+          {live.length > 0 ? 'En vivo' : 'Marcador'}
         </span>
         {shown.map((m) => <MatchRow key={m.id} match={m} variant="ticker" />)}
       </div>

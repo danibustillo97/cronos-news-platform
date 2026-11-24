@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import {
   AlertOctagon, AlertTriangle, Check, CheckCircle2, ChevronDown, ImageIcon, Info,
-  RotateCcw, Settings2, Sliders, Sparkles, ThumbsUp, Trash2,
+  RotateCcw, Send, Settings2, Sliders, Sparkles, ThumbsUp, Trash2,
 } from "lucide-react";
 import StatusPill from "./StatusPill";
 import ClaimCard, { type Claim } from "./ClaimCard";
@@ -64,7 +64,7 @@ type Tab = "inspector" | "historial";
 
 export default function RevisionInspector({
   artifactId, status, job, jobHistory, validationIssues, claims, seoDraft, onSeoChange, mediaRequirements,
-  onMarkClaimReviewed, onResolveClaim, onApprove, approving, onRetry, onChooseProvider, onArchive, archiving, onApplySeoFix,
+  onMarkClaimReviewed, onResolveClaim, onApprove, onApproveAndPublish, approving, onRetry, onChooseProvider, onArchive, archiving, onApplySeoFix,
 }: {
   artifactId: string;
   status: string;
@@ -78,6 +78,7 @@ export default function RevisionInspector({
   onMarkClaimReviewed: (claimId: string, reviewed: boolean) => void;
   onResolveClaim: (claimId: string, label: string, sourceUrls: string[]) => void;
   onApprove: () => void;
+  onApproveAndPublish?: () => void;
   approving: boolean;
   onRetry: () => void;
   onChooseProvider: () => void;
@@ -140,9 +141,9 @@ export default function RevisionInspector({
 
       {tab === "historial" && (
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
-          <div className="text-[10.5px] font-semibold text-neutral-500 uppercase tracking-wide mb-1">Historial de intentos</div>
+          <div className="text-[10.5px] font-semibold text-neutral-500 uppercase tracking-wide mb-1">Intentos de la IA</div>
           {(jobHistory ?? []).length === 0 ? (
-            <p className="text-[12px] text-neutral-600">Sin intentos registrados todavía.</p>
+            <p className="text-[12px] text-neutral-600">Esta noticia no pasó por la IA.</p>
           ) : (
             [...(jobHistory ?? [])].sort((a, b) => (b.startedAt ?? "").localeCompare(a.startedAt ?? "")).map((j) => {
               const meta = ARTIFACT_JOB_STATUS[j.status] ?? { label: j.status, tone: "neutral" as const };
@@ -189,7 +190,7 @@ export default function RevisionInspector({
 
           {/* ARTIFACT */}
           <section>
-            <div className="text-[10.5px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Artifact</div>
+            <div className="text-[10.5px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Redacción con IA</div>
             <div className="space-y-1.5">
               <div className="flex items-center justify-between"><span className="text-neutral-500">Estado</span><StatusPill meta={statusMeta} /></div>
               {job && (
@@ -210,7 +211,7 @@ export default function RevisionInspector({
 
           {/* VALIDACIÓN EDITORIAL */}
           <section>
-            <div className="text-[10.5px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Validación editorial</div>
+            <div className="text-[10.5px] font-semibold text-neutral-500 uppercase tracking-wide mb-2">Revisión automática</div>
             <div className="space-y-1.5">
               {validationIssues.length === 0 && claims.length === 0 && (
                 <div className="flex items-center gap-1.5 text-green-400 text-[12.5px]"><CheckCircle2 size={13} /> Todo en orden</div>
@@ -373,7 +374,7 @@ export default function RevisionInspector({
             <div className="flex items-center gap-1.5">
               <button onClick={onRetry}
                 className="flex-1 flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10">
-                <RotateCcw size={13} /> Reintentar Artifact
+                <RotateCcw size={13} /> Volver a redactar con IA
               </button>
               <button onClick={onChooseProvider} title="Elegir proveedor"
                 className="flex items-center justify-center gap-1.5 text-xs font-semibold px-3 py-2 rounded-lg bg-white/5 text-neutral-300 hover:bg-white/10">
@@ -414,6 +415,15 @@ export default function RevisionInspector({
               <span className="flex items-center gap-2"><ThumbsUp size={14} /> Aprobar revisión</span>
               {!canApprove && <span className="text-[10.5px] font-normal opacity-90">{blockingCount} bloqueo{blockingCount === 1 ? "" : "s"} por corregir</span>}
             </button>
+            {canApprove && onApproveAndPublish && (
+              <button
+                onClick={onApproveAndPublish}
+                disabled={approving}
+                className="w-full flex items-center justify-center gap-2 text-xs font-semibold px-4 py-2 rounded-lg bg-blue-500/15 text-blue-200 hover:bg-blue-500/25 disabled:opacity-50"
+              >
+                <Send size={13} /> Aprobar y publicar ahora
+              </button>
+            )}
           </section>
         </div>
       )}

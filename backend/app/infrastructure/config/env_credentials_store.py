@@ -24,6 +24,7 @@ import re
 from pathlib import Path
 
 from app.domain.artifact.entities import ProviderId
+from app.infrastructure.serverless import ReadOnlyEnvironmentError, is_serverless
 
 _ENV_FILE = Path(__file__).resolve().parents[3] / ".env"  # backend/.env
 
@@ -65,6 +66,11 @@ class EnvFileCredentialsStore:
 
     @staticmethod
     def _write_line(env_var: str, value: str) -> None:
+        if is_serverless():
+            raise ReadOnlyEnvironmentError(
+                f"Saving {env_var} from the admin panel",
+                "Set it as an Environment Variable in the Vercel backend project and redeploy.",
+            )
         pattern = re.compile(rf"^{re.escape(env_var)}=.*$", re.MULTILINE)
         line = f"{env_var}={value}"
         if _ENV_FILE.exists():
@@ -79,3 +85,27 @@ class EnvFileCredentialsStore:
                 content += "\n"
             content += line + "\n"
         _ENV_FILE.write_text(content, encoding="utf-8")
+
+
+class EnvOnlyCredentialsStore:
+    """Read-only ArtifactCredentialsStorePort for serverless deployments (Vercel, GitHub
+    Actions): there is no writable .env, and a key saved in one function instance would not
+    reach the others. Keys and the default provider are environment variables managed in
+    the Vercel project and GitHub secrets; writes explain where to set them."""
+
+    _WHERE = "Configúrala como variable de entorno en Vercel (backend) y como secreto de GitHub Actions"
+
+    def set_key(self, provider_id: ProviderId, value: str) -> None:
+        env_var = EnvFileCredentialsStore._require_env_var(provider_id)
+        raise ValueError(f"Este despliegue no guarda claves desde la app. {self._WHERE}: {env_var}")
+
+    def clear_key(self, provider_id: ProviderId) -> None:
+        env_var = EnvFileCredentialsStore._require_env_var(provider_id)
+        raise ValueError(f"Este despliegue no borra claves desde la app. Quita {env_var} en Vercel y en GitHub Actions")
+
+    def has_key(self, provider_id: ProviderId) -> bool:
+        env_var = _ENV_VAR_BY_PROVIDER.get(provider_id)
+        return bool(env_var and os.getenv(env_var))
+
+    def set_default_provider(self, provider_id: ProviderId) -> None:
+        raise ValueError(f"El proveedor por defecto se define con ARTIFACT_PROVIDER={provider_id.value}. {self._WHERE}")

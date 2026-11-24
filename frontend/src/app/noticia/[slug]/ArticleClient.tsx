@@ -8,7 +8,7 @@
 // floating card over a backdrop.
 
 import { useRouter } from "next/navigation";
-import ModernNavbar from "@/components/ui/ModernNavbar";
+import ModernNavbar from "@/components/portal/PortalNavbar";
 import ArticleContent from "@/components/news/ArticleContent";
 import type { NewsView } from "@/types/news";
 

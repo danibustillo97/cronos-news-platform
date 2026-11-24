@@ -41,7 +41,7 @@ _STATUS_CHECK_TIMEOUT_SECONDS = 15.0
 class AnthropicArtifactGenerator:
     def __init__(self, api_key: str | None = None, model: str | None = None) -> None:
         self._api_key = api_key or os.getenv("ANTHROPIC_API_KEY")
-        self._model = model or os.getenv("ANTHROPIC_MODEL", _DEFAULT_MODEL)
+        self._model = model or os.getenv("ANTHROPIC_MODEL") or _DEFAULT_MODEL
 
     def generate(self, request: ArtifactGenerationRequest) -> ArtifactGenerationResult:
         if not self._api_key:
@@ -86,6 +86,31 @@ class AnthropicArtifactGenerator:
             raise ArtifactGenerationUnavailableError("Anthropic response had no text content")
 
         return parse_artifact_response("\n".join(text_blocks))
+
+    def complete_text(self, prompt: str, max_tokens: int = 1500, timeout: float = 90.0) -> str:
+        """One plain prompt -> plain text answer, for small editor helpers
+        (polls, debates) whose prompt and parser live with the feature.
+        Same key check and error boundary as generate()."""
+        if not self._api_key:
+            raise ArtifactGenerationUnavailableError("ANTHROPIC_API_KEY no está configurada.")
+        try:
+            response = httpx.post(
+                _API_URL,
+                headers={"x-api-key": self._api_key, "anthropic-version": _API_VERSION, "content-type": "application/json"},
+                json={"model": self._model, "max_tokens": max_tokens, "messages": [{"role": "user", "content": prompt}]},
+                timeout=timeout,
+            )
+        except httpx.HTTPError as exc:
+            raise ArtifactGenerationUnavailableError(f"could not reach Anthropic API: {exc}") from exc
+        if response.status_code != 200:
+            raise ArtifactGenerationUnavailableError(f"Anthropic API returned {response.status_code}: {response.text[:500]}")
+        try:
+            text = "\n".join(b["text"] for b in response.json()["content"] if b.get("type") == "text").strip()
+        except (KeyError, TypeError, ValueError) as exc:
+            raise ArtifactGenerationUnavailableError(f"unexpected Anthropic response shape: {exc}") from exc
+        if not text:
+            raise ArtifactGenerationUnavailableError("Anthropic response had no text content")
+        return text
 
     def suggest_seo_fix(self, request: SeoFixRequest) -> SeoFixResult:
         """Section 5's real "Corregir con IA" -- same real API, same

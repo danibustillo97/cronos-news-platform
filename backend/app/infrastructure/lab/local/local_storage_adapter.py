@@ -11,6 +11,7 @@ import uuid
 from pathlib import Path
 
 from app.infrastructure.lab.local.export_reader import resolve_workspace_root
+from app.infrastructure.serverless import ReadOnlyEnvironmentError, is_serverless
 
 # Same allow-list app/presentation/api/assets.py already serves -- an
 # upload outside it would 404 on read, so it's rejected on write instead.
@@ -28,6 +29,11 @@ class LocalLabStorageAdapter:
         return f"{self._base_url}/assets/{storage_ref}"
 
     def save_upload(self, story_id: str, filename: str, content: bytes) -> str:
+        if is_serverless():
+            raise ReadOnlyEnvironmentError(
+                "Uploading images to the local LAB workspace",
+                "Uploads need Supabase Storage in production (pending migration, see docs/DEPLOYMENT_BACKEND_VERCEL.md).",
+            )
         suffix = Path(filename).suffix.lower()
         if suffix not in _ALLOWED_SUFFIXES:
             raise ValueError(f"unsupported image type {suffix!r} -- allowed: {sorted(_ALLOWED_SUFFIXES)}")

@@ -83,8 +83,9 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es">
-      <body className="bg-neutral-950 text-white selection:bg-yellow-400 selection:text-black overflow-x-hidden max-w-full">
+    <html lang="es" data-scroll-behavior="smooth">
+      {/* Browser extensions (e.g. ColorZilla's cz-shortcut-listen) inject attributes on <body> before hydration. */}
+      <body suppressHydrationWarning className="bg-neutral-950 text-white selection:bg-yellow-400 selection:text-black overflow-x-hidden max-w-full">
         <AppLayoutClient>{children}</AppLayoutClient>
       </body>
     </html>

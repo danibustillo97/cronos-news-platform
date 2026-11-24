@@ -1,0 +1,44 @@
+name: Verify Pipeline
+
+# Chequeo de solo lectura: esquema, seguridad, feeds, backend y sitio.
+# Manual tras cada deploy, y diario a las 11:00 UTC. Falla (rojo) solo ante FALLAS.
+on:
+  schedule:
+    - cron: "0 11 * * *"
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: "URL del backend (vacío = variable BACKEND_URL)"
+        required: false
+      frontend:
+        description: "URL del sitio (vacío = variable FRONTEND_URL)"
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+      - run: python -m pip install -r backend/requirements.txt
+      - name: Verify
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_PUBLISHABLE_KEY: ${{ secrets.SUPABASE_PUBLISHABLE_KEY || secrets.SUPABASE_ANON_KEY }}
+          SCRAPER_SOURCES: ${{ secrets.SCRAPER_SOURCES }}
+          BACKEND: ${{ inputs.backend || vars.BACKEND_URL }}
+          FRONTEND: ${{ inputs.frontend || vars.FRONTEND_URL }}
+        run: |
+          args=()
+          [ -n "$BACKEND" ] && args+=(--backend "$BACKEND")
+          [ -n "$FRONTEND" ] && args+=(--frontend "$FRONTEND")
+          python automation/verify_pipeline.py "${args[@]}"

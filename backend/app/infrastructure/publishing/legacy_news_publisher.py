@@ -22,6 +22,7 @@ from app.infrastructure.persistence.supabase.guard import raise_if_schema_missin
 # site itself already falls back to when no per-article author exists
 # (see ArticleContent.tsx / the NewsArticle JSON-LD: `author || 'Nexus News'`).
 _DEFAULT_AUTHOR = "Nexus News"
+_MAX_SLUG_SUFFIX = 50
 
 
 class SupabaseLegacyNewsPublisher:
@@ -34,7 +35,7 @@ class SupabaseLegacyNewsPublisher:
             "artifact_id": str(artifact.id),
             "title": artifact.title,
             "subtitle": artifact.subtitle,
-            "slug": artifact.seo.slug,
+            "slug": self.reserve_slug(artifact.seo.slug, str(artifact.id)),
             # Real structured HTML (body images already resolved by
             # PublishArtifact._resolve_content_html) -- the public site
             # renders this as real HTML now, never plain text.
@@ -58,3 +59,21 @@ class SupabaseLegacyNewsPublisher:
             raise_if_schema_missing(exc, "news")
             raise
         return str(res.data[0]["id"])
+
+    def reserve_slug(self, slug: str, artifact_id: str) -> str:
+        """`news.slug` is unique: when a manual article (or another artifact) already owns the
+        slug, publishing used to fail with a raw constraint error. Republishing the same
+        artifact keeps its own slug; otherwise the first free `slug-2`, `slug-3`… is used."""
+        try:
+            rows = self._client.table("news").select("slug,artifact_id").like("slug", f"{slug}%").execute().data or []
+        except Exception as exc:
+            raise_if_schema_missing(exc, "news")
+            raise
+        taken = {row["slug"] for row in rows if str(row.get("artifact_id") or "") != artifact_id}
+        if slug not in taken:
+            return slug
+        for suffix in range(2, _MAX_SLUG_SUFFIX + 1):
+            candidate = f"{slug}-{suffix}"
+            if candidate not in taken:
+                return candidate
+        raise ValueError(f"No free slug left for '{slug}'")

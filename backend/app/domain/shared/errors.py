@@ -94,7 +94,7 @@ class RowLevelSecurityError(Exception):
     def __init__(self, relation: str) -> None:
         super().__init__(
             f'Row-level security blocked a write to "{relation}" — the backend needs '
-            f"SUPABASE_SERVICE_ROLE_KEY set as a local env var (see backend/.env), not the anon key"
+            f"SUPABASE_SECRET_KEY set as a local env var (see backend/.env), not the publishable key"
         )
         self.relation = relation
 
@@ -107,7 +107,7 @@ class SupabaseAuthenticationError(Exception):
     def __init__(self, relation: str) -> None:
         super().__init__(
             f'Supabase rejected the credentials used for "{relation}" — check '
-            f"SUPABASE_URL/SUPABASE_KEY/SUPABASE_SERVICE_ROLE_KEY"
+            f"SUPABASE_URL/SUPABASE_PUBLISHABLE_KEY/SUPABASE_SECRET_KEY"
         )
         self.relation = relation
 

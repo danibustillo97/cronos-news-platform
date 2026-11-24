@@ -4,17 +4,23 @@ import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as
 import { createPortal } from "react-dom";
 import NextImage from "next/image";
 import {
-  Activity, Circle, Crop, Clapperboard, Copy, Download, FileVideo2, Gamepad2, ImagePlus, Layers3,
+  Circle, Crop, Clapperboard, Copy, Download, FileVideo2, Gamepad2, ImagePlus, Layers3,
   Mic, MonitorUp, Pause, Pencil, Play, Plus, Radio, RadioTower, RectangleHorizontal,
-  ScreenShare, Settings2, Shield, Square, Trash2, UsersRound, Video, Volume2, VolumeX, Wifi, X,
+  ScreenShare, Settings2, Shield, Square, Trash2, Video, Volume2, VolumeX, Wifi, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { exportGraphicHtml, type BroadcastGraphic, type BroadcastMode, type FootballScoreboard, type GraphicKind } from "./graphicExport";
 import type { Peer } from "peerjs";
-import { CropEditor, type CropRect } from "./CropEditor";
-import { createRoomCode, guestUrl, hostPeerId } from "./guestLink";
+import { CropEditor } from "./CropEditor";
+import { SourceMirror } from "./SourceMirror";
+import { MediaPosition } from "./MediaPosition";
+import { SessionClock } from "./SessionClock";
+import { ProgramMixer, type MixerSource } from "./audioMixer";
+import { startFrameClock } from "./frameClock";
+import { createRoomCode, guestUrl, hostPeerId, peerOptions } from "./guestLink";
 import { FootballConsole } from "./football/FootballConsole";
-import { drawMotion, entryElapsed, motionFor } from "./football/motion";
+import { gatewayEndpoint } from "./live/whip";
+import { kickPlayerUrl, portalEndLive, portalGoLive } from "./live/portalOnAir";
 import { EXIT_MS } from "./football/motion";
 import { FootballDeck } from "./football/FootballDeck";
 import { AudioBar } from "./football/AudioBar";
@@ -22,65 +28,15 @@ import { FootballMedia } from "./football/FootballMedia";
 import { playSfx } from "./football/sfx";
 import { deleteMedia, listMedia, saveMedia, type MediaCategory, type MediaItem } from "./football/mediaLibrary";
 import { getCompetition } from "./football/competitions";
-import { footballDesignDocument, renderFootballDesign } from "./football/designs";
-import { getDesignImage } from "./football/raster";
+import { footballDesignDocument } from "./football/designs";
+import {
+  drawScene, drawTransition, footballDesignFor, footballPosition, isFootballDesign, setLiveFootballMatch,
+  type BroadcastInput, type BroadcastScene, type InputKind, type SceneLayout, type TransitionMode,
+} from "./compositor";
 import { useFootballMatch } from "./football/useFootballMatch";
+import { KickoffCountdown, MatchClock } from "./football/MatchClock";
 import type { DesignStyle, GraphicVariant } from "./graphicExport";
 
-// Single live match shared by every football widget (Preview and Program).
-let liveFootballMatch: FootballScoreboard | null = null;
-
-const footballDefaultVariant = (graphic: BroadcastGraphic): GraphicVariant =>
-  graphic.variant ?? (graphic.kind === "scoreboard" ? "elite" : graphic.kind === "ticker" ? "events" : "lower");
-
-function footballDesignFor(graphic: BroadcastGraphic) {
-  return renderFootballDesign(footballDefaultVariant(graphic), liveFootballMatch ?? graphic.football!, graphic.title, graphic.subtitle, graphic.style);
-}
-
-// Keeps a football widget fully inside the 1920×1080 frame, even for positions saved by older versions.
-function footballPosition(graphic: BroadcastGraphic, design: { width: number; height: number }) {
-  const scale = graphic.scale ?? 1;
-  const position = graphic.position ?? { x: 3, y: 4 };
-  const maxX = Math.max(0, 100 - (design.width * scale) / 19.2);
-  const maxY = Math.max(0, 100 - (design.height * scale) / 10.8);
-  return { x: Math.min(Math.max(0, position.x), maxX), y: Math.min(Math.max(0, position.y), maxY) };
-}
-import { loadLatestFootballBroadcast, saveFootballBroadcast, type FootballBroadcastPayload, type FootballPlayer } from "@/lib/footballBroadcastStorage";
-
-type InputKind = "camera" | "screen" | "video" | "image" | "audio";
-type SceneLayout = "auto" | "single" | "split" | "triple" | "pip";
-type TransitionMode = "cut" | "fade" | "wipe" | "dip";
-
-interface BroadcastInput {
-  id: string;
-  name: string;
-  kind: InputKind;
-  stream?: MediaStream;
-  url?: string;
-  muted: boolean;
-  volume: number;
-  pan?: number;
-  crop?: CropRect;
-  playing?: boolean;
-  loop?: boolean;
-}
-
-interface AudioRoute {
-  source: AudioNode;
-  gain: GainNode;
-  pan: StereoPannerNode;
-}
-
-interface BroadcastScene {
-  id: string;
-  mode?: BroadcastMode;
-  name: string;
-  inputIds: string[];
-  graphicId: string | null;
-  graphicIds?: string[];
-  layout?: SceneLayout;
-  backgroundId?: string | null;
-}
 
 export type { BroadcastGraphic } from "./graphicExport";
 
@@ -129,7 +85,6 @@ const INPUT_KIND_LABEL: Record<InputKind, string> = {
   image: "Imagen",
   audio: "Audio",
 };
-const footballLogoCache = new Map<string, HTMLImageElement>();
 
 function createId(prefix: string): string {
   return `${prefix}-${crypto.randomUUID()}`;
@@ -191,338 +146,7 @@ function isGraphics(value: unknown): value is BroadcastGraphic[] {
     && typeof graphic.accent === "string");
 }
 
-function drawCover(
-  context: CanvasRenderingContext2D,
-  media: HTMLVideoElement | HTMLImageElement,
-  x: number,
-  y: number,
-  width: number,
-  height: number,
-  crop?: CropRect,
-) {
-  const mediaWidth = media instanceof HTMLVideoElement ? media.videoWidth : media.naturalWidth;
-  const mediaHeight = media instanceof HTMLVideoElement ? media.videoHeight : media.naturalHeight;
-  if (!mediaWidth || !mediaHeight) return;
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = "high";
-  const areaX = (crop?.x ?? 0) * mediaWidth;
-  const areaY = (crop?.y ?? 0) * mediaHeight;
-  const areaW = (crop?.w ?? 1) * mediaWidth;
-  const areaH = (crop?.h ?? 1) * mediaHeight;
-  const scale = Math.max(width / areaW, height / areaH);
-  const sourceWidth = width / scale;
-  const sourceHeight = height / scale;
-  const sourceX = areaX + (areaW - sourceWidth) / 2;
-  const sourceY = areaY + (areaH - sourceHeight) / 2;
-  context.drawImage(media, sourceX, sourceY, sourceWidth, sourceHeight, x, y, width, height);
-}
-
-function drawScene(
-  canvas: HTMLCanvasElement,
-  scene: BroadcastScene | undefined,
-  inputs: BroadcastInput[],
-  videoElements: Map<string, HTMLVideoElement>,
-  imageElements: Map<string, HTMLImageElement>,
-  graphics: BroadcastGraphic[],
-  opacity = 1,
-) {
-  const context = canvas.getContext("2d");
-  if (!context) return;
-  const width = 1920;
-  const height = 1080;
-  context.save();
-  context.scale(canvas.width / width, canvas.height / height);
-  context.fillStyle = "#101114";
-  context.fillRect(0, 0, width, height);
-  context.globalAlpha = opacity;
-  if (!scene) {
-    context.restore();
-    return;
-  }
-
-  const allVisibleInputs = scene.inputIds
-    .map((id) => inputs.find((input) => input.id === id))
-    .filter((input): input is BroadcastInput => Boolean(input))
-    .filter((input) => input.kind === "camera" || input.kind === "screen" || input.kind === "video" || input.kind === "image");
-  const visibleInputs = scene.layout === "single" ? allVisibleInputs.slice(0, 1)
-    : scene.layout === "split" ? allVisibleInputs.slice(0, 2)
-      : scene.layout === "triple" ? allVisibleInputs.slice(0, 3)
-      : allVisibleInputs;
-
-  const drawInput = (input: BroadcastInput, x: number, y: number, cellWidth: number, cellHeight: number) => {
-    const video = videoElements.get(input.id);
-    if (input.kind === "image") {
-      const image = imageElements.get(input.id);
-      if (image?.complete) drawCover(context, image, x, y, cellWidth, cellHeight, input.crop);
-    } else if (video) {
-      drawCover(context, video, x, y, cellWidth, cellHeight, input.crop);
-    } else if (!input.stream && input.kind === "camera") {
-      context.fillStyle = "#0b1017";
-      context.fillRect(x, y, cellWidth, cellHeight);
-      context.fillStyle = "rgba(250,204,21,.9)";
-      context.font = "700 34px Inter, Arial, sans-serif";
-      context.textAlign = "center";
-      context.fillText("ESPERANDO SEÑAL", x + cellWidth / 2, y + cellHeight / 2, cellWidth - 60);
-    }
-    context.fillStyle = "rgba(0,0,0,.58)";
-    context.fillRect(x + 16, y + cellHeight - 66, Math.min(520, input.name.length * 27 + 44), 48);
-    context.fillStyle = "#fff";
-    context.font = "600 30px Inter, Arial, sans-serif";
-    context.textAlign = "left";
-    context.fillText(input.name, x + 34, y + cellHeight - 32, cellWidth - 68);
-  };
-
-  const backdrop = scene.backgroundId ? inputs.find((input) => input.id === scene.backgroundId) : undefined;
-  if (backdrop) {
-    const media = backdrop.kind === "image" ? imageElements.get(backdrop.id) : videoElements.get(backdrop.id);
-    if (media && (media instanceof HTMLVideoElement || media.complete)) drawCover(context, media, 0, 0, width, height);
-  }
-
-  if (visibleInputs.length === 0) {
-    if (backdrop) {
-      // el fondo ya cubre el lienzo
-    } else {
-    const gradient = context.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, "#15212b");
-    gradient.addColorStop(0.55, "#0b1118");
-    gradient.addColorStop(1, "#080a0e");
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, width, height);
-    context.strokeStyle = "rgba(148,163,184,.07)";
-    context.lineWidth = 1;
-    for (let x = 0; x <= width; x += 160) {
-      context.beginPath();
-      context.moveTo(x, 0);
-      context.lineTo(x, height);
-      context.stroke();
-    }
-    for (let y = 0; y <= height; y += 160) {
-      context.beginPath();
-      context.moveTo(0, y);
-      context.lineTo(width, y);
-      context.stroke();
-    }
-    context.fillStyle = "#5eead4";
-    context.fillRect(width / 2 - 35, height / 2 - 142, 70, 5);
-    context.fillStyle = "#ffffff";
-    context.font = "600 62px Inter, Arial, sans-serif";
-    context.textAlign = "center";
-    context.fillText("SIN FUENTES", width / 2, height / 2 - 28);
-    context.fillStyle = "#9ca3af";
-    context.font = "30px Inter, Arial, sans-serif";
-    context.fillText(scene.name.toUpperCase(), width / 2, height / 2 + 28);
-    context.fillStyle = "#6b7280";
-    context.font = "25px Inter, Arial, sans-serif";
-    context.fillText("Conecta cámara · pantalla · media", width / 2, height / 2 + 84);
-    }
-  } else if (scene.layout === "pip" && visibleInputs.length > 1) {
-    drawInput(visibleInputs[0], 0, 0, width, height);
-    const insetWidth = Math.round(width * 0.3);
-    const insetHeight = Math.round(height * 0.3);
-    const insetX = width - insetWidth - 56;
-    const insetY = 56;
-    context.fillStyle = "rgba(0,0,0,.8)";
-    context.fillRect(insetX - 8, insetY - 8, insetWidth + 16, insetHeight + 16);
-    drawInput(visibleInputs[1], insetX, insetY, insetWidth, insetHeight);
-  } else {
-    const gap = 8;
-    const columns = scene.layout === "triple" && visibleInputs.length > 2
-      ? 3
-      : scene.layout === "split" && visibleInputs.length === 2 ? 2 : visibleInputs.length === 1 ? 1 : 2;
-    const rows = Math.ceil(visibleInputs.length / columns);
-    const cellWidth = (width - gap * (columns + 1)) / columns;
-    const cellHeight = (height - gap * (rows + 1)) / rows;
-    visibleInputs.forEach((input, index) => {
-      const x = gap + (index % columns) * (cellWidth + gap);
-      const y = gap + Math.floor(index / columns) * (cellHeight + gap);
-      drawInput(input, x, y, cellWidth, cellHeight);
-    });
-  }
-
-  if (!graphics.length) {
-    context.restore();
-    return;
-  }
-  graphics.forEach((graphic) => {
-    if (graphic.mode === "football" && (liveFootballMatch || graphic.football)) {
-      const design = footballDesignFor(graphic);
-      const image = getDesignImage(graphic.id, design);
-      const scale = graphic.scale ?? 1;
-      const position = footballPosition(graphic, design);
-      if (image) {
-        const k = width / 1920;
-        const home = liveFootballMatch?.homeColor;
-        const away = liveFootballMatch?.awayColor;
-        const sideColor = liveFootballMatch?.highlight?.team === "away" ? away : home;
-        drawMotion({
-          ctx: context,
-          image,
-          x: (position.x / 100) * width,
-          y: (position.y / 100) * height,
-          w: design.width * scale * k,
-          h: design.height * scale * k,
-          elapsed: entryElapsed(`${width}|${graphic.id}`, performance.now()),
-          motion: motionFor(graphic.variant, liveFootballMatch?.highlight),
-          tone: /^#[0-9a-f]{6}$/i.test(sideColor ?? "") ? sideColor as string : "#38bdf8",
-          leavingAt: graphic.leavingAt,
-        });
-      }      return;
-    }
-    const accent = /^#[0-9a-f]{6}$/i.test(graphic.accent) ? graphic.accent : "#ef4444";
-  const background = /^#[0-9a-f]{6}$/i.test(graphic.background ?? "") ? graphic.background as string : "#090b0f";
-  const textColor = /^#[0-9a-f]{6}$/i.test(graphic.textColor ?? "") ? graphic.textColor as string : "#ffffff";
-  const subtitleColor = /^#[0-9a-f]{6}$/i.test(graphic.subtitleColor ?? "") ? graphic.subtitleColor as string : "#d1d5db";
-  if (graphic.kind === "lower-third") {
-    const x = Math.round(((graphic.position?.x ?? 5) / 100) * width);
-    const y = Math.round(((graphic.position?.y ?? 77) / 100) * height);
-    context.fillStyle = background;
-    context.fillRect(x, y, 850, 150);
-    context.fillStyle = accent;
-    context.fillRect(x, y, 10, 150);
-    context.textAlign = "left";
-    context.fillStyle = textColor;
-    context.font = "700 58px Inter, Arial, sans-serif";
-    context.fillText(graphic.title.toUpperCase(), x + 34, y + 66, 780);
-    context.fillStyle = subtitleColor;
-    context.font = "34px Inter, Arial, sans-serif";
-    context.fillText(graphic.subtitle, x + 34, y + 111, 780);
-  } else if (graphic.kind === "scoreboard") {
-    const football = graphic.football;
-    const position = graphic.position ?? { x: football ? 69 : 75, y: 7 };
-    const x = Math.round((position.x / 100) * width);
-    const y = Math.round((position.y / 100) * height);
-    const boxWidth = football ? 620 : 390;
-    const boxHeight = football ? 178 : 118;
-    context.save();
-    context.shadowColor = "rgba(0,0,0,.45)";
-    context.shadowBlur = 34;
-    context.shadowOffsetY = 12;
-    context.fillStyle = background;
-    context.beginPath();
-    context.roundRect(x, y, boxWidth, boxHeight, 4);
-    context.fill();
-    context.shadowColor = "transparent";
-    context.fillStyle = "rgba(255,255,255,.035)";
-    context.fillRect(x, y + 8, boxWidth, boxHeight - 8);
-    context.fillStyle = accent;
-    context.fillRect(x, y, boxWidth, 8);
-    context.strokeStyle = "rgba(255,255,255,.16)";
-    context.lineWidth = 2;
-    context.beginPath();
-    context.roundRect(x, y, boxWidth, boxHeight, 4);
-    context.stroke();
-    context.textAlign = "center";
-    if (football) {
-      const center = x + boxWidth / 2;
-      context.fillStyle = subtitleColor;
-      context.font = "800 16px Arial, sans-serif";
-      context.fillText("NEXUS SPORT  ·  " + (football.competition ?? "PARTIDO EN VIVO").toUpperCase(), center, y + 29, boxWidth - 30);
-      context.fillStyle = textColor;
-      context.font = "900 28px Arial, sans-serif";
-      context.fillText(football.homeTeam.toUpperCase(), x + 155, y + 91, 190);
-      context.fillText(football.awayTeam.toUpperCase(), x + boxWidth - 155, y + 91, 190);
-      context.fillStyle = accent;
-      context.font = "950 66px Arial, sans-serif";
-      context.fillText(`${football.homeScore}  :  ${football.awayScore}`, center, y + 96);
-      context.fillStyle = subtitleColor;
-      context.font = "700 23px Arial, sans-serif";
-      const minutes = Math.floor(Math.max(0, football.clockSeconds) / 60);
-      const seconds = Math.max(0, football.clockSeconds) % 60;
-      const clock = `${football.period} · ${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}${football.addedTime ? ` +${football.addedTime}` : ""}`;
-      context.fillText(clock, center, y + 132);
-      context.font = "18px Arial, sans-serif";
-      context.fillText(`■ ${football.homeYellow}     ■ ${football.awayYellow}       ■ ${football.homeRed}     ■ ${football.awayRed}`, center, y + 158);
-      context.fillStyle = "rgba(255,255,255,.08)";
-      context.beginPath();
-      context.arc(x + 60, y + 82, 38, 0, Math.PI * 2);
-      context.arc(x + boxWidth - 60, y + 82, 38, 0, Math.PI * 2);
-      context.fill();
-      const drawLogo = (logo: string | undefined, logoX: number) => {
-        if (!logo) return;
-        const cached = footballLogoCache.get(logo);
-        if (cached) {
-          if (cached.complete && cached.naturalWidth > 0) context.drawImage(cached, logoX, y + 50, 54, 54);
-          return;
-        }
-        const image = new Image();
-        footballLogoCache.set(logo, image);
-        image.src = logo;
-      };
-      drawLogo(football.homeLogo, x + 33);
-      drawLogo(football.awayLogo, x + boxWidth - 87);
-    } else {
-      context.fillStyle = textColor;
-      context.font = "700 42px Inter, Arial, sans-serif";
-      context.fillText(graphic.title, x + boxWidth / 2, y + 60, boxWidth - 25);
-      context.fillStyle = subtitleColor;
-      context.font = "28px Inter, Arial, sans-serif";
-      context.fillText(graphic.subtitle, x + boxWidth / 2, y + 96, boxWidth - 25);
-    }
-    context.restore();
-  } else {
-    context.fillStyle = background;
-    const tickerY = Math.round(((graphic.position?.y ?? 85) / 100) * height);
-    context.fillRect(0, tickerY, width, 80);
-    context.fillStyle = accent;
-    context.fillRect(0, tickerY, width, 6);
-    context.textAlign = "left";
-    const ticker = `${graphic.title}     ·     ${graphic.subtitle}`;
-    context.font = "700 42px Inter, Arial, sans-serif";
-    const tickerWidth = context.measureText(ticker).width;
-    const travel = (performance.now() / 30) % (tickerWidth + 120);
-    const tickerX = width - travel;
-    context.fillStyle = textColor;
-    context.fillText(ticker, tickerX, tickerY + 50, tickerWidth);
-    context.fillText(ticker, tickerX + tickerWidth + 120, tickerY + 50, tickerWidth);
-  }
-  });
-  context.restore();
-}
-
-function drawTransition(
-  canvas: HTMLCanvasElement,
-  fromScene: BroadcastScene | undefined,
-  toScene: BroadcastScene | undefined,
-  inputs: BroadcastInput[],
-  videoElements: Map<string, HTMLVideoElement>,
-  imageElements: Map<string, HTMLImageElement>,
-  fromGraphics: BroadcastGraphic[],
-  toGraphics: BroadcastGraphic[],
-  mode: TransitionMode,
-  progress: number,
-) {
-  const context = canvas.getContext("2d");
-  if (!context) return;
-  const clamped = Math.min(1, Math.max(0, progress));
-  if (mode === "wipe") {
-    drawScene(canvas, fromScene, inputs, videoElements, imageElements, fromGraphics);
-    context.save();
-    context.beginPath();
-    context.rect(0, 0, canvas.width * clamped, canvas.height);
-    context.clip();
-    drawScene(canvas, toScene, inputs, videoElements, imageElements, toGraphics);
-    context.restore();
-    return;
-  }
-  if (mode === "dip") {
-    if (clamped < 0.5) {
-      drawScene(canvas, fromScene, inputs, videoElements, imageElements, fromGraphics);
-      context.save();
-      context.fillStyle = `rgba(0,0,0,${clamped * 2})`;
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      context.restore();
-    } else {
-      context.fillStyle = "#000";
-      context.fillRect(0, 0, canvas.width, canvas.height);
-      drawScene(canvas, toScene, inputs, videoElements, imageElements, toGraphics, (clamped - 0.5) * 2);
-    }
-    return;
-  }
-  drawScene(canvas, fromScene, inputs, videoElements, imageElements, fromGraphics, 1 - clamped);
-  drawScene(canvas, toScene, inputs, videoElements, imageElements, toGraphics, clamped);
-}
-
-export default function BroadcasterView() {
+export default function BroadcasterView({ active = true }: { active?: boolean }) {
   const [scenes, setScenes] = useState(INITIAL_SCENES);
   const [graphics, setGraphics] = useState(INITIAL_GRAPHICS);
   const [inputs, setInputs] = useState<BroadcastInput[]>([]);
@@ -535,13 +159,30 @@ export default function BroadcasterView() {
   const [selectedCameraId, setSelectedCameraId] = useState("");
   const [selectedMicrophoneId, setSelectedMicrophoneId] = useState("");
   const [editingGraphic, setEditingGraphic] = useState<BroadcastGraphic | null>(null);
-  const [whipUrl, setWhipUrl] = useState("");
+  const [whipUrl, setWhipUrl] = useState(gatewayEndpoint("live"));
   const [whipToken, setWhipToken] = useState("");
   const [whipOpen, setWhipOpen] = useState(false);
+  // On air -> homepage stage switches to the Kick player (restored on stop).
+  const [kickChannel, setKickChannel] = useState("");
+  const [portalOnLive, setPortalOnLive] = useState(true);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("nexus.broadcast.portal") || "{}");
+      if (typeof saved.kickChannel === "string") setKickChannel(saved.kickChannel);
+      if (typeof saved.portalOnLive === "boolean") setPortalOnLive(saved.portalOnLive);
+    } catch { /* sin almacenamiento */ }
+  }, []);
+  useEffect(() => {
+    try { window.localStorage.setItem("nexus.broadcast.portal", JSON.stringify({ kickChannel, portalOnLive })); } catch { /* sin almacenamiento */ }
+  }, [kickChannel, portalOnLive]);
+  const portalSwitchedRef = useRef(false);
   const [live, setLive] = useState(false);
   const liveRef = useRef(live);
   const [recording, setRecording] = useState(false);
-  const [elapsedSeconds, setElapsedSeconds] = useState(0);
+  const recordingRef = useRef(recording);
+  recordingRef.current = recording;
+  // Broadcast/recording session time, derived by <SessionClock>; nothing ticks in this component.
+  const [session, setSession] = useState<{ startedAt: number | null; stoppedAt: number | null }>({ startedAt: null, stoppedAt: null });
   const [activePane, setActivePane] = useState<"inputs" | "graphics" | "football">("inputs");
   const [controllerName, setControllerName] = useState("");
   const [transitionMode, setTransitionMode] = useState<TransitionMode>("fade");
@@ -552,24 +193,8 @@ export default function BroadcasterView() {
   const activeTransitionModeRef = useRef<TransitionMode>("cut");
   const [renamingSceneId, setRenamingSceneId] = useState<string | null>(null);
   const [sceneNameDraft, setSceneNameDraft] = useState("");
-  const [mediaProgress, setMediaProgress] = useState<Record<string, { currentTime: number; duration: number }>>({});
   const [topbarHost, setTopbarHost] = useState<HTMLElement | null>(null);
   const fm = useFootballMatch();
-  const [selectedFootballGraphicId, setSelectedFootballGraphicId] = useState<string | null>(null);
-  const [footballMatchId, setFootballMatchId] = useState<string | null>(null);
-  const [footballMatchName, setFootballMatchName] = useState("Partido sin título");
-  const [footballLineups, setFootballLineups] = useState<{ home: FootballPlayer[]; away: FootballPlayer[] }>({ home: [], away: [] });
-  const [footballEvents, setFootballEvents] = useState<FootballBroadcastPayload["events"]>([]);
-  const [lineupDrafts, setLineupDrafts] = useState({ home: "", away: "" });
-  const [lineupDorsals, setLineupDorsals] = useState({ home: "1", away: "1" });
-  const [lineupPositions, setLineupPositions] = useState<{ home: FootballPlayer["position"]; away: FootballPlayer["position"] }>({ home: "MED", away: "MED" });
-  const [footballSection, setFootballSection] = useState<"match" | "lineups" | "events" | "analytics">("match");
-  const [footballGoalHistory, setFootballGoalHistory] = useState<Array<{ team: "home" | "away"; eventId: string }>>([]);
-  const [footballAuditLog, setFootballAuditLog] = useState<NonNullable<FootballBroadcastPayload["audit"]>>([]);
-  const [rightStudioTab, setRightStudioTab] = useState<"composition" | "properties" | "animation">("composition");
-  const [hiddenFootballLayers, setHiddenFootballLayers] = useState<string[]>([]);
-  const [footballStorageReady, setFootballStorageReady] = useState(false);
-  const footballSaveErrorShownRef = useRef(false);
   const [draggingPreviewGraphicId, setDraggingPreviewGraphicId] = useState<string | null>(null);
   const [selectedGraphicId, setSelectedGraphicId] = useState<string | null>(null);
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number; title: string; items: Array<{ label: string; hint?: string; danger?: boolean; run: () => void }> } | null>(null);
@@ -579,7 +204,8 @@ export default function BroadcasterView() {
   const inputVideoRefs = useRef(new Map<string, HTMLVideoElement>());
   const [mediaLibrary, setMediaLibrary] = useState<MediaItem[]>([]);
   const [promoItemId, setPromoItemId] = useState<string | null>(null);
-  const promoRestoreRef = useRef<{ sceneId: string; inputIds: string[]; layout?: SceneLayout } | null>(null);
+  // What Program showed before a promo took over, so "Quitar" can put it back.
+  const promoRestoreRef = useRef<{ inputIds: string[]; layout?: SceneLayout } | null>(null);
   useEffect(() => {
     listMedia().then(setMediaLibrary).catch(() => toast.error("No se pudo leer la biblioteca de medios"));
   }, []);
@@ -589,18 +215,30 @@ export default function BroadcasterView() {
   const recordedChunksRef = useRef<Blob[]>([]);
   const outputStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
-  const audioRoutesRef = useRef(new Map<string, AudioRoute[]>());
-  const masterGainRef = useRef<GainNode | null>(null);
+  const mixerRef = useRef<ProgramMixer | null>(null);
   const [masterVolume, setMasterVolume] = useState(1);
   const masterVolumeRef = useRef(1);
   masterVolumeRef.current = masterVolume;
-  const mediaElementSourcesRef = useRef(new Map<string, MediaElementAudioSourceNode>());
   const programFadeAlphaRef = useRef(1);
   const isTransitioningRef = useRef(false);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const whipResourceRef = useRef<string | null>(null);
+  const whipAuthRef = useRef("");
+  // Values the destination dialog had when it opened, restored by "Cancelar".
+  const whipDraftRef = useRef({ url: "", token: "" });
   const gamepadButtonsRef = useRef<boolean[]>([]);
-  const transitionStateRef = useRef<{ fromId: string; toId: string; progress: number } | null>(null);
+  // Transitions run between what is really on air and the prepared target, never the editable scenes.
+  const transitionStateRef = useRef<{
+    from: BroadcastScene;
+    fromGraphics: BroadcastGraphic[];
+    to: BroadcastScene;
+    toGraphics: BroadcastGraphic[];
+    progress: number;
+    startedAt: number;
+    duration: number;
+    onComplete: () => void;
+  } | null>(null);
+  const fadeStateRef = useRef<{ from: number; to: number; startedAt: number; duration: number } | null>(null);
   const templatePreviewRef = useRef<HTMLDivElement>(null);
   const dragOffsetRef = useRef({ x: 0, y: 0 });
   const previewDragRef = useRef({ graphicId: "", offsetX: 0, offsetY: 0 });
@@ -610,9 +248,14 @@ export default function BroadcasterView() {
   const previewSceneIdRef = useRef(previewSceneId);
   previewSceneIdRef.current = previewSceneId;
 
+  // While hidden behind another admin view the studio stays mounted (on air), but its keys and gamepad stay quiet.
+  const activeRef = useRef(active);
+  activeRef.current = active;
+
+  // The top bar only renders its slot while this view is visible, so look it up again each time it shows.
   useEffect(() => {
-    setTopbarHost(document.querySelector<HTMLElement>("[data-broadcaster-topbar-slot]"));
-  }, []);
+    setTopbarHost(active ? document.querySelector<HTMLElement>("[data-broadcaster-topbar-slot]") : null);
+  }, [active]);
 
   const studioMode: BroadcastMode = activePane === "football" ? "football" : "normal";
   const modeScenes = scenes.filter((scene) => (scene.mode ?? "normal") === studioMode);
@@ -625,7 +268,6 @@ export default function BroadcasterView() {
   }, [graphics]);
   const previewGraphics = getSceneGraphics(previewScene);
   const programGraphics = programGraphicsSnapshot;
-  const elapsedLabel = `${String(Math.floor(elapsedSeconds / 3600)).padStart(2, "0")}:${String(Math.floor((elapsedSeconds % 3600) / 60)).padStart(2, "0")}:${String(elapsedSeconds % 60).padStart(2, "0")}`;
   const whipHost = useMemo(() => {
     try {
       return whipUrl ? new URL(whipUrl).host : "Sin configurar";
@@ -647,13 +289,11 @@ export default function BroadcasterView() {
         setProgramSceneSnapshot(storedProgramScene);
       }
       if (storedGraphics.length) {
-        const normalizedGraphics: BroadcastGraphic[] = storedGraphics.map((graphic) => ({
-          ...graphic,
-          mode: graphic.mode ?? (graphic.football ? "football" : "normal"),
-          ...(graphic.kind === "scoreboard" && !graphic.football
-            ? { football: createFootballScoreboard(), mode: "football" as const }
-            : {}),
-        }));
+        const normalizedGraphics: BroadcastGraphic[] = storedGraphics.map((graphic) => {
+          const mode = graphic.mode ?? (graphic.football || graphic.kind === "scoreboard" ? "football" : "normal");
+          // Football widgets always draw the live match; drop the stale copy older versions stored.
+          return mode === "football" ? { ...graphic, mode, football: undefined } : { ...graphic, mode };
+        });
         setGraphics(normalizedGraphics);
         const storedProgramScene = storedScenes[1] ?? storedScenes[0];
         const ids = storedProgramScene?.graphicIds?.length ? storedProgramScene.graphicIds : storedProgramScene?.graphicId ? [storedProgramScene.graphicId] : [];
@@ -672,7 +312,8 @@ export default function BroadcasterView() {
     if (!didLoadStorageRef.current) return;
     try {
       window.localStorage.setItem(STORAGE_SCENES, JSON.stringify(scenes));
-      window.localStorage.setItem(STORAGE_GRAPHICS, JSON.stringify(graphics));
+      // Football widgets render the live match, so their (large: crests, squads) match copy is not stored.
+      window.localStorage.setItem(STORAGE_GRAPHICS, JSON.stringify(graphics.map((graphic) => (graphic.mode === "football" ? { ...graphic, football: undefined } : graphic))));
     } catch (error) {
       if (!storageErrorShownRef.current) {
         toast.error("No se pudieron guardar las plantillas en este navegador", {
@@ -842,7 +483,7 @@ export default function BroadcasterView() {
     const room = createRoomCode();
     try {
       const { Peer } = await import("peerjs");
-      const peer = new Peer(hostPeerId(room));
+      const peer = new Peer(hostPeerId(room), peerOptions());
       guestPeerRef.current = peer;
       peer.on("open", () => {
         setGuestRoom(room);
@@ -860,7 +501,9 @@ export default function BroadcasterView() {
         });
         call.on("close", () => {
           const id = `guest-${call.peer}`;
-          swapGuestInput(id, guestWaitingInput);
+          // One "waiting" placeholder at most, however many guests leave.
+          const waiting = inputsRef.current.some((item) => item.id === guestWaitingInput.id);
+          swapGuestInput(id, waiting ? null : guestWaitingInput);
           inputVideoRefs.current.delete(id);
           toast.info("El invitado salió de la llamada");
         });
@@ -888,6 +531,9 @@ export default function BroadcasterView() {
 
   const takeScene = useCallback((override?: TransitionMode) => {
     if (isTransitioningRef.current) return;
+    // A take replaces whatever is on air, promos included.
+    promoRestoreRef.current = null;
+    setPromoItemId(null);
     // Same scene: refresh Program with the prepared composition instead of blocking the take.
     const mode = ftb || programSceneId === previewSceneId ? "cut" : override ?? transitionMode;
     const targetScene = scenes.find((scene) => scene.id === previewSceneId);
@@ -901,36 +547,26 @@ export default function BroadcasterView() {
       return;
     }
 
-    const targetSceneId = previewSceneId;
-    const startedAt = performance.now();
-    const duration = transitionMs;
+    // Progress is driven by the frame clock (see the render effect), so it also completes in a background tab.
     activeTransitionModeRef.current = mode;
-    let sceneChanged = false;
     isTransitioningRef.current = true;
-    transitionStateRef.current = { fromId: programSceneId, toId: targetSceneId, progress: 0 };
-    const animateFade = (now: number) => {
-      const progress = Math.min((now - startedAt) / duration, 1);
-      transitionStateRef.current = { fromId: programSceneId, toId: targetSceneId, progress };
-      if (progress < 0.5) {
-        programFadeAlphaRef.current = 1 - progress * 2;
-      } else {
-        if (!sceneChanged) {
-          sceneChanged = true;
-          setProgramSceneSnapshot({ ...targetScene, inputIds: [...targetScene.inputIds], graphicIds: targetScene.graphicIds ? [...targetScene.graphicIds] : undefined });
-          setProgramGraphicsSnapshot(targetGraphics);
-          setProgramSceneId(targetSceneId);
-        }
-        programFadeAlphaRef.current = (progress - 0.5) * 2;
-      }
-      if (progress < 1) requestAnimationFrame(animateFade);
-      else {
-        programFadeAlphaRef.current = 1;
-        isTransitioningRef.current = false;
-        transitionStateRef.current = null;
-      }
+    const targetSceneId = previewSceneId;
+    const target = { ...targetScene, inputIds: [...targetScene.inputIds], graphicIds: targetScene.graphicIds ? [...targetScene.graphicIds] : undefined };
+    transitionStateRef.current = {
+      from: programSceneSnapshot,
+      fromGraphics: programGraphicsSnapshot,
+      to: target,
+      toGraphics: targetGraphics,
+      progress: 0,
+      startedAt: performance.now(),
+      duration: transitionMs,
+      onComplete: () => {
+        setProgramSceneSnapshot(target);
+        setProgramGraphicsSnapshot(targetGraphics);
+        setProgramSceneId(targetSceneId);
+      },
     };
-    requestAnimationFrame(animateFade);
-  }, [ftb, getSceneGraphics, previewSceneId, programSceneId, scenes, transitionMode, transitionMs]);
+  }, [ftb, getSceneGraphics, previewSceneId, programGraphicsSnapshot, programSceneId, programSceneSnapshot, scenes, transitionMode, transitionMs]);
 
   const toggleProgramOverlay = useCallback((graphicId: string) => {
     const graphic = graphics.find((item) => item.id === graphicId);
@@ -943,100 +579,41 @@ export default function BroadcasterView() {
   const toggleFadeToBlack = useCallback(() => {
     if (isTransitioningRef.current) return;
     const goBlack = !ftb;
-    const from = programFadeAlphaRef.current;
-    const to = goBlack ? 0 : 1;
-    const startedAt = performance.now();
     isTransitioningRef.current = true;
     setFtb(goBlack);
-    const step = (now: number) => {
-      const progress = Math.min((now - startedAt) / transitionMs, 1);
-      programFadeAlphaRef.current = from + (to - from) * progress;
-      if (progress < 1) requestAnimationFrame(step);
-      else isTransitioningRef.current = false;
-    };
-    requestAnimationFrame(step);
+    fadeStateRef.current = { from: programFadeAlphaRef.current, to: goBlack ? 0 : 1, startedAt: performance.now(), duration: transitionMs };
   }, [ftb, transitionMs]);
+
+  const mixerSources = (list: BroadcastInput[]): MixerSource[] => list.map((input) => ({
+    id: input.id,
+    stream: input.stream,
+    element: input.kind === "video" ? inputVideoRefs.current.get(input.id) : undefined,
+    volume: input.volume,
+    pan: input.pan,
+    muted: input.muted,
+  }));
 
   const createOutputStream = useCallback(async () => {
     if (outputStreamRef.current) return outputStreamRef.current;
     const canvas = programCanvasRef.current;
     if (!canvas) throw new Error("La salida de programa no está disponible");
-    const stream = canvas.captureStream(30);
-    outputStreamRef.current = stream;
     const audioContext = audioContextRef.current ?? new AudioContext();
     audioContextRef.current = audioContext;
     await audioContext.resume();
-    const destination = audioContext.createMediaStreamDestination();
-    const master = audioContext.createGain();
-    master.gain.value = masterVolumeRef.current;
-    master.connect(destination);
-    masterGainRef.current = master;
-    const sceneInputIds = new Set(programSceneSnapshot.inputIds);
-
-    inputs.forEach((input) => {
-      let source: AudioNode | undefined;
-      const audioTracks = input.stream?.getAudioTracks() ?? [];
-      if (audioTracks.length) {
-        source = audioContext.createMediaStreamSource(new MediaStream(audioTracks));
-      } else if (input.kind === "video") {
-        const element = inputVideoRefs.current.get(input.id);
-        if (element) {
-          let mediaSource = mediaElementSourcesRef.current.get(input.id);
-          if (!mediaSource) {
-            mediaSource = audioContext.createMediaElementSource(element);
-            mediaElementSourcesRef.current.set(input.id, mediaSource);
-          }
-          source = mediaSource;
-          element.muted = false;
-        }
-      }
-      if (!source) return;
-
-      const gain = audioContext.createGain();
-      const isInProgram = sceneInputIds.has(input.id);
-      gain.gain.value = isInProgram && !input.muted ? input.volume : 0;
-      const pan = audioContext.createStereoPanner();
-      pan.pan.value = input.pan ?? 0;
-      source.connect(gain);
-      gain.connect(pan);
-      pan.connect(master);
-      const routes = audioRoutesRef.current.get(input.id) ?? [];
-      audioRoutesRef.current.set(input.id, [...routes, { source, gain, pan }]);
-    });
-
-    destination.stream.getAudioTracks().forEach((track) => stream.addTrack(track));
-    if (destination.stream.getAudioTracks().length) {
-      const tracks = audioRoutesRef.current;
-      const updateAudioMix = () => {
-        tracks.forEach((routes, inputId) => {
-          const input = inputs.find((item) => item.id === inputId);
-          const enabled = Boolean(input && sceneInputIds.has(inputId) && !input.muted);
-          routes.forEach(({ gain }) => {
-            gain.gain.setTargetAtTime(enabled ? input?.volume ?? 1 : 0, audioContext.currentTime, 0.02);
-          });
-        });
-      };
-      updateAudioMix();
-    }
+    // The mixer outlives each output: going live again reuses the same routes and media element wiring.
+    const mixer = mixerRef.current ?? new ProgramMixer(audioContext, masterVolumeRef.current);
+    mixerRef.current = mixer;
+    mixer.sync(mixerSources(inputsRef.current), new Set(programSceneSnapshot.inputIds));
+    const stream = canvas.captureStream(30);
+    const track = mixer.createTrack();
+    if (track) stream.addTrack(track);
     outputStreamRef.current = stream;
     return stream;
-  }, [inputs, programSceneSnapshot]);
+  }, [programSceneSnapshot]);
 
   const releaseOutputStream = useCallback(async () => {
     outputStreamRef.current?.getTracks().forEach((track) => track.stop());
     outputStreamRef.current = null;
-    audioRoutesRef.current.forEach((routes) => routes.forEach(({ source, gain, pan }) => {
-      source.disconnect(gain);
-      gain.disconnect();
-      pan.disconnect();
-    }));
-    audioRoutesRef.current.clear();
-    masterGainRef.current?.disconnect();
-    masterGainRef.current = null;
-    inputsRef.current.forEach((input) => {
-      const element = inputVideoRefs.current.get(input.id);
-      if (element) element.muted = true;
-    });
   }, []);
 
   const startRecording = useCallback(async () => {
@@ -1064,7 +641,6 @@ export default function BroadcasterView() {
       });
       mediaRecorderRef.current = recorder;
       recorder.start(1000);
-      if (!liveRef.current) setElapsedSeconds(0);
       setRecording(true);
       toast.success("Grabación iniciada");
     } catch (error) {
@@ -1085,7 +661,7 @@ export default function BroadcasterView() {
   const publishWhip = async () => {
     if (live) return;
     if (!whipUrl.trim()) {
-      setWhipOpen(true);
+      openWhipDialog();
       return;
     }
     let peer: RTCPeerConnection | null = null;
@@ -1128,9 +704,29 @@ export default function BroadcasterView() {
       if (!answer || !resource) throw new Error("El endpoint no devolvió la respuesta WHIP esperada");
       await peer.setRemoteDescription({ type: "answer", sdp: answer });
       whipResourceRef.current = new URL(resource, endpoint).toString();
-      if (!recording) setElapsedSeconds(0);
+      whipAuthRef.current = whipToken.trim();
+      // Without this the studio would keep showing EN VIVO after the gateway or the network dropped.
+      const connection = peer;
+      connection.addEventListener("connectionstatechange", () => {
+        if (peerConnectionRef.current !== connection) return;
+        if (connection.connectionState === "disconnected") {
+          toast.warning("Conexión de emisión inestable", { description: "Reintentando… si no se recupera, la emisión se detendrá." });
+        } else if (connection.connectionState === "failed") {
+          toast.error("Se perdió la emisión", { description: "El servidor WHIP dejó de recibir la señal. Vuelve a pulsar Emitir." });
+          void stopLiveRef.current(true);
+        }
+      });
       setLive(true);
       toast.success("Emisión conectada");
+      const kickUrl = kickPlayerUrl(kickChannel);
+      if (portalOnLive && kickUrl) {
+        portalGoLive("video", { url: kickUrl, title: "EN VIVO en Nexus" }).then(
+          () => { portalSwitchedRef.current = true; toast.success("La portada cambió a la transmisión en vivo."); },
+          (error) => toast.error("No se pudo cambiar la portada", { description: error instanceof Error ? error.message : String(error) }),
+        );
+      } else if (portalOnLive && !kickUrl) {
+        toast.warning("Agrega tu canal de Kick en Ajustes para que la portada muestre la transmisión.");
+      }
     } catch (error) {
       peer?.close();
       peerConnectionRef.current = null;
@@ -1141,15 +737,26 @@ export default function BroadcasterView() {
     }
   };
 
-  const stopLive = async () => {
+  const openWhipDialog = () => {
+    whipDraftRef.current = { url: whipUrl, token: whipToken };
+    setWhipOpen(true);
+  };
+
+  const stopLive = async (lost = false) => {
     peerConnectionRef.current?.close();
     peerConnectionRef.current = null;
     const resource = whipResourceRef.current;
+    const token = whipAuthRef.current;
     whipResourceRef.current = null;
     setLive(false);
+    if (portalSwitchedRef.current) {
+      portalSwitchedRef.current = false;
+      portalEndLive("video").catch(() => toast.error("No se pudo devolver la portada a la noticia destacada"));
+    }
     if (resource) {
       try {
-        const response = await fetch(resource, { method: "DELETE" });
+        // WHIP servers that require a token for the offer also require it to tear the session down.
+        const response = await fetch(resource, { method: "DELETE", headers: token ? { Authorization: `Bearer ${token}` } : undefined });
         if (!response.ok && response.status !== 404) throw new Error(`HTTP ${response.status}`);
       } catch (error) {
         toast.error("No se pudo cerrar el recurso WHIP", {
@@ -1157,9 +764,19 @@ export default function BroadcasterView() {
         });
       }
     }
-    if (!recording) await releaseOutputStream();
-    toast.success("Emisión detenida");
+    if (!recordingRef.current) await releaseOutputStream();
+    if (!lost) toast.success("Emisión detenida");
   };
+  const stopLiveRef = useRef(stopLive);
+  stopLiveRef.current = stopLive;
+
+  // Closing or reloading the tab would cut the broadcast and lose the recording: ask first.
+  useEffect(() => {
+    if (!live && !recording) return;
+    const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [live, recording]);
 
   const toggleSceneInput = (sceneId: string, inputId: string) => {
     setScenes((current) => current.map((scene) => {
@@ -1190,20 +807,6 @@ export default function BroadcasterView() {
       element.pause();
       setInputs((current) => current.map((item) => item.id === input.id ? { ...item, playing: false } : item));
     }
-  };
-
-  const updateMediaProgress = (inputId: string, element: HTMLVideoElement) => {
-    setMediaProgress((current) => ({
-      ...current,
-      [inputId]: { currentTime: element.currentTime, duration: Number.isFinite(element.duration) ? element.duration : 0 },
-    }));
-  };
-
-  const seekMedia = (inputId: string, currentTime: number) => {
-    const element = inputVideoRefs.current.get(inputId);
-    if (!element) return;
-    element.currentTime = currentTime;
-    updateMediaProgress(inputId, element);
   };
 
   const addScene = () => {
@@ -1270,19 +873,18 @@ export default function BroadcasterView() {
     "lineup-home": "Alineación local", "lineup-away": "Alineación visitante", stats: "NEXUS Estadísticas",
   };
 
-  const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string }) => {
+  const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string; title?: string; subtitle?: string }) => {
     const graphic: BroadcastGraphic = {
       id: createId("graphic"),
       mode: "football",
       name: options?.name ?? FOOTBALL_NAMES[variant] ?? variant,
       kind: ["elite", "compact", "editorial", "live"].includes(variant) ? "scoreboard" : variant === "lower" ? "lower-third" : "ticker",
-      title: "",
-      subtitle: "",
+      title: options?.title ?? "",
+      subtitle: options?.subtitle ?? "",
       accent: getCompetition(fm.match.competitionId ?? "custom").accent,
       variant,
       style: options?.style,
       scale: options?.scale ?? 1,
-      football: fm.match,
       position: options?.position ?? FOOTBALL_POSITIONS[variant] ?? { x: 5, y: 5 },
     };
     if (graphic.kind === "scoreboard") {
@@ -1315,15 +917,9 @@ export default function BroadcasterView() {
     try { window.localStorage.setItem("nexus-sfx-volume", String(value)); } catch { /* sin almacenamiento */ }
   };
   const autoAirRef = useRef<{ id: string; timer: number } | null>(null);
+  // Effects go into the program mix (heard on air and in recordings) once the mixer exists.
+  const sfxBus = () => (mixerRef.current ? { context: mixerRef.current.context, node: mixerRef.current.master } : undefined);
 
-  const footerKickoff = (() => {
-    const at = fm.match.kickoff ? new Date(fm.match.kickoff).getTime() : NaN;
-    if (Number.isNaN(at) || fm.match.period !== "PRE") return "";
-    const diff = at - Date.now();
-    if (diff <= 0) return "Inicio inminente";
-    const d = Math.floor(diff / 86400000); const h = Math.floor((diff % 86400000) / 3600000); const m = Math.floor((diff % 3600000) / 60000);
-    return d > 0 ? `Inicio en ${d} d ${h} h` : `Inicio en ${h} h ${m} min`;
-  })();
   const exitProgram = (test: (item: BroadcastGraphic) => boolean) => {
     const stamp = Date.now();
     setProgramGraphicsSnapshot((current) => current.map((item) => (test(item) && !item.leavingAt ? { ...item, leavingAt: stamp } : item)));
@@ -1354,7 +950,6 @@ export default function BroadcasterView() {
       accent: getCompetition(fm.match.competitionId ?? "custom").accent,
       variant,
       scale: 1,
-      football: fm.match,
       position: FOOTBALL_POSITIONS[variant] ?? { x: 5, y: 5 },
     };
     setProgramGraphicsSnapshot((current) => [...current, graphic]);
@@ -1384,7 +979,6 @@ export default function BroadcasterView() {
       accent: getCompetition(fm.match.competitionId ?? "custom").accent,
       variant,
       scale: 1,
-      football: fm.match,
       position: FOOTBALL_POSITIONS[variant] ?? { x: 5, y: 5 },
     };
     setProgramGraphicsSnapshot((current) => [...current, graphic]);
@@ -1395,7 +989,7 @@ export default function BroadcasterView() {
   useEffect(() => {
     const keys: Record<string, GraphicVariant> = { F1: "elite", F2: "prematch", F3: "lineup-home", F4: "lineup-away", F5: "stats" };
     const onKey = (event: KeyboardEvent) => {
-      if (activePane !== "football" || !keys[event.key]) return;
+      if (!activeRef.current || activePane !== "football" || !keys[event.key] || event.repeat) return;
       event.preventDefault();
       toggleAirRef.current(keys[event.key]);
     };
@@ -1415,7 +1009,7 @@ export default function BroadcasterView() {
       }
       return;
     }
-    if (sfxOn) playSfx(highlight.kind === "void" ? "var" : highlight.kind, sfxVolumeRef.current);
+    if (sfxOn) playSfx(highlight.kind === "void" ? "var" : highlight.kind, sfxVolumeRef.current, sfxBus());
     if (!autoReact) return;
     const variant: GraphicVariant = highlight.kind === "goal" ? "goal" : highlight.kind === "var" ? "var" : "events";
     airTempRef.current(variant, { subtitle: highlight.detail ?? "" }, variant === "goal" ? 8 : 6);
@@ -1433,8 +1027,8 @@ export default function BroadcasterView() {
     const scorersOf = (side: "home" | "away") => fm.events
       .filter((event) => event.kind === "goal" && !event.voided && event.team === side)
       .map((event) => `${event.player.split(" ").slice(-1)[0]} ${event.minute}'`);
-    liveFootballMatch = { ...fm.match, scorers: { home: scorersOf("home"), away: scorersOf("away") } };
-  }, [fm.match, fm.events]);
+    setLiveFootballMatch({ ...fm.match, scorers: { home: scorersOf("home"), away: scorersOf("away") } }, fm.clockNow);
+  }, [fm.match, fm.events, fm.clockNow]);
   const removeGraphic = (graphicId: string) => {
     setGraphics((current) => current.filter((graphic) => graphic.id !== graphicId));
     setScenes((current) => current.map((scene) => {
@@ -1504,7 +1098,6 @@ export default function BroadcasterView() {
         ? { ...scene, mode: "football", graphicIds: scene.graphicIds?.length ? scene.graphicIds : [nextGraphic.id], graphicId: scene.graphicId ?? nextGraphic.id }
         : scene);
     });
-    setSelectedFootballGraphicId(nextGraphic.id);
     setPreviewSceneId(sceneId);
     setProgramSceneId(standbyId);
     const standbyScene = scenes.find((scene) => scene.id === standbyId) ?? { id: standbyId, mode: "football" as const, name: "Espera", inputIds: [], graphicId: null, graphicIds: [] };
@@ -1536,46 +1129,60 @@ export default function BroadcasterView() {
     URL.revokeObjectURL(url);
   };
 
-  useEffect(() => {
-    let frame = 0;
-    let lastProgramDraw = 0;
-    let lastPreviewDraw = 0;
-    const render = (now: number) => {
-      frame = requestAnimationFrame(render);
-      const currentInputs = inputs;
-      if (programCanvasRef.current && now - lastProgramDraw >= 33) {
-        lastProgramDraw = now;
-        const transitionState = transitionStateRef.current;
-        if (transitionState) {
-          const fromScene = scenes.find((scene) => scene.id === transitionState.fromId);
-          const toScene = scenes.find((scene) => scene.id === transitionState.toId);
-          const fromGraphics = getSceneGraphics(fromScene);
-          const toGraphics = getSceneGraphics(toScene);
-          drawTransition(programCanvasRef.current, fromScene, toScene, currentInputs, inputVideoRefs.current, inputImageRefs.current, fromGraphics, toGraphics, activeTransitionModeRef.current, transitionState.progress);
-        } else {
-          drawScene(programCanvasRef.current, programScene, currentInputs, inputVideoRefs.current, inputImageRefs.current, programGraphics, programFadeAlphaRef.current);
-        }
-      }
-      if (previewCanvasRef.current && now - lastPreviewDraw >= 66) {
-        lastPreviewDraw = now;
-        drawScene(previewCanvasRef.current, previewScene, currentInputs, inputVideoRefs.current, inputImageRefs.current, previewGraphics);
-      }
-    };
-    frame = requestAnimationFrame(render);
-    return () => cancelAnimationFrame(frame);
-  }, [getSceneGraphics, inputs, previewScene, programScene, previewGraphics, programGraphics, scenes]);
+  // What the frame clock draws; refreshed on every render so the clock itself never restarts.
+  const frameRef = useRef({ inputs, previewScene, programScene, previewGraphics, programGraphics, drawProgram: true, drawPreview: true });
+  frameRef.current = {
+    inputs, previewScene, programScene, previewGraphics, programGraphics,
+    // Off screen and off air there is nothing to draw; on air Program keeps rendering even while hidden.
+    drawProgram: active || live || recording,
+    drawPreview: active,
+  };
 
   useEffect(() => {
-    const activeProgramInputs = new Set(programScene?.inputIds ?? []);
-    audioRoutesRef.current.forEach((routes, inputId) => {
-      const input = inputs.find((item) => item.id === inputId);
-      const enabled = Boolean(input && activeProgramInputs.has(inputId) && !input.muted);
-      routes.forEach(({ gain, pan }) => {
-        const now = audioContextRef.current?.currentTime ?? 0;
-        gain.gain.setTargetAtTime(enabled ? input?.volume ?? 1 : 0, now, 0.02);
-        pan.pan.setTargetAtTime(input?.pan ?? 0, now, 0.02);
-      });
+    let tick = 0;
+    return startFrameClock(33, (now) => {
+      tick += 1;
+      const frame = frameRef.current;
+      const transition = transitionStateRef.current;
+      if (transition) {
+        transition.progress = Math.min(1, (now - transition.startedAt) / transition.duration);
+        if (transition.progress >= 1) {
+          transitionStateRef.current = null;
+          isTransitioningRef.current = false;
+          // Draw the target right away: the snapshot state only lands on the next render.
+          frame.programScene = transition.to;
+          frame.programGraphics = transition.toGraphics;
+          transition.onComplete();
+        }
+      }
+      const fade = fadeStateRef.current;
+      if (fade) {
+        const progress = Math.min(1, (now - fade.startedAt) / fade.duration);
+        programFadeAlphaRef.current = fade.from + (fade.to - fade.from) * progress;
+        if (progress >= 1) {
+          fadeStateRef.current = null;
+          isTransitioningRef.current = false;
+        }
+      }
+      const program = programCanvasRef.current;
+      if (program && frame.drawProgram) {
+        const active = transitionStateRef.current;
+        if (active) {
+          drawTransition(program, active.from, active.to, frame.inputs, inputVideoRefs.current, inputImageRefs.current, active.fromGraphics, active.toGraphics, activeTransitionModeRef.current, active.progress);
+        } else {
+          drawScene(program, frame.programScene, frame.inputs, inputVideoRefs.current, inputImageRefs.current, frame.programGraphics, programFadeAlphaRef.current, "program");
+        }
+      }
+      const preview = previewCanvasRef.current;
+      if (preview && frame.drawPreview && !document.hidden && tick % 2 === 0) {
+        drawScene(preview, frame.previewScene, frame.inputs, inputVideoRefs.current, inputImageRefs.current, frame.previewGraphics, 1, "preview");
+      }
     });
+  }, []);
+
+  // Reconciles the program mix with the current sources: new guests and microphones are heard on air at once.
+  useEffect(() => {
+    mixerRef.current?.sync(mixerSources(inputs), new Set(programScene?.inputIds ?? []));
   }, [inputs, programScene]);
 
   useEffect(() => {
@@ -1584,27 +1191,34 @@ export default function BroadcasterView() {
   }, []);
 
   useEffect(() => {
-    masterGainRef.current?.gain.setTargetAtTime(masterVolume, audioContextRef.current?.currentTime ?? 0, 0.02);
+    mixerRef.current?.setMasterVolume(masterVolume);
     try { window.localStorage.setItem("nexus-master-volume", String(masterVolume)); } catch { /* sin almacenamiento */ }
   }, [masterVolume]);
 
+  // A session starts when the first of recording/broadcast starts and ends when both have stopped.
+  const onAir = live || recording;
   useEffect(() => {
-    if (!recording && !live) return;
-    const timer = window.setInterval(() => setElapsedSeconds((value) => value + 1), 1000);
-    return () => window.clearInterval(timer);
-  }, [recording, live]);
+    setSession((current) => {
+      const running = current.startedAt !== null && current.stoppedAt === null;
+      if (onAir) return running ? current : { startedAt: Date.now(), stoppedAt: null };
+      return running ? { ...current, stoppedAt: Date.now() } : current;
+    });
+  }, [onAir]);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
       const target = event.target;
       if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
+      // A held key must not fire a take or a recording toggle over and over.
+      if (!activeRef.current || event.repeat) return;
       if (event.code === "Space") {
         event.preventDefault();
         takeScene();
       } else if (event.key === "Enter") {
         event.preventDefault();
         takeScene(transitionMode === "cut" ? "fade" : transitionMode);
-      } else if (event.key.toLowerCase() === "f") {
+      } else if (event.shiftKey && event.code === "KeyF") {
+        // Shift+F: a fade to black blanks the output, so it never fires from a single key (F also focuses a dorsal field).
         event.preventDefault();
         toggleFadeToBlack();
       } else if (event.key.toLowerCase() === "r") {
@@ -1632,22 +1246,21 @@ export default function BroadcasterView() {
     let frame = 0;
     const poll = () => {
       const gamepad = navigator.getGamepads?.().find((item) => item?.connected);
-      const buttons = gamepad?.buttons.map((button) => button.pressed) ?? [];
+      const buttons = activeRef.current ? gamepad?.buttons.map((button) => button.pressed) ?? [] : [];
       if (buttons[0] && !gamepadButtonsRef.current[0]) takeScene();
       if (buttons[1] && !gamepadButtonsRef.current[1]) {
         if (recording) stopRecording();
         else void startRecording();
       }
-      if (buttons[12] && !gamepadButtonsRef.current[12]) {
-        const index = scenes.findIndex((scene) => scene.id === previewSceneId);
-        const next = scenes[(index + scenes.length - 1) % scenes.length];
+      // The D-pad cycles only through the scenes of the current mode.
+      const cycle = (step: number) => {
+        const list = scenes.filter((scene) => (scene.mode ?? "normal") === studioMode);
+        const index = list.findIndex((scene) => scene.id === previewSceneId);
+        const next = list[(index + step + list.length) % list.length];
         if (next) setPreviewSceneId(next.id);
-      }
-      if (buttons[13] && !gamepadButtonsRef.current[13]) {
-        const index = scenes.findIndex((scene) => scene.id === previewSceneId);
-        const next = scenes[(index + 1) % scenes.length];
-        if (next) setPreviewSceneId(next.id);
-      }
+      };
+      if (buttons[12] && !gamepadButtonsRef.current[12]) cycle(-1);
+      if (buttons[13] && !gamepadButtonsRef.current[13]) cycle(1);
       gamepadButtonsRef.current = buttons;
       frame = requestAnimationFrame(poll);
     };
@@ -1657,7 +1270,7 @@ export default function BroadcasterView() {
       window.removeEventListener("gamepaddisconnected", onDisconnected);
       cancelAnimationFrame(frame);
     };
-  }, [previewSceneId, recording, scenes, startRecording, stopRecording, takeScene]);
+  }, [previewSceneId, recording, scenes, startRecording, stopRecording, studioMode, takeScene]);
 
   useEffect(() => () => {
     mediaRecorderRef.current?.stop();
@@ -1667,6 +1280,7 @@ export default function BroadcasterView() {
       if (input.url) URL.revokeObjectURL(input.url);
     });
     outputStreamRef.current?.getTracks().forEach((track) => track.stop());
+    mixerRef.current?.dispose();
     void audioContextRef.current?.close();
   }, []);
 
@@ -1720,21 +1334,23 @@ export default function BroadcasterView() {
     setMediaLibrary((current) => current.filter((item) => item.id !== id));
     const inputId = `lib-${id}`;
     setScenes((current) => current.map((scene) => ({ ...scene, inputIds: scene.inputIds.filter((value) => value !== inputId), backgroundId: scene.backgroundId === inputId ? null : scene.backgroundId })));
-    if (promoItemId === id) setPromoItemId(null);
+    if (promoItemId === id) stopPromo();
   };
 
+  // A promo replaces the sources of what is on air (Program), keeping its graphics; the saved scene is untouched.
   const airPromo = (item: MediaItem) => {
     const inputId = ensureLibraryInput(item);
-    const current = scenes.find((scene) => scene.id === programSceneId);
-    if (!promoRestoreRef.current && current) promoRestoreRef.current = { sceneId: current.id, inputIds: current.inputIds, layout: current.layout };
-    setScenes((current) => current.map((scene) => scene.id === programSceneId ? { ...scene, inputIds: [inputId], layout: "single" } : scene));
+    if (!promoRestoreRef.current) promoRestoreRef.current = { inputIds: programSceneSnapshot.inputIds, layout: programSceneSnapshot.layout };
+    const element = inputVideoRefs.current.get(inputId);
+    if (element) { element.currentTime = 0; void element.play().catch(() => undefined); }
+    setProgramSceneSnapshot((current) => ({ ...current, inputIds: [inputId], layout: "single" }));
     setPromoItemId(item.id);
     toast.success(`Al aire: ${item.name}`);
   };
 
   const stopPromo = () => {
     const restore = promoRestoreRef.current;
-    if (restore) setScenes((current) => current.map((scene) => scene.id === restore.sceneId ? { ...scene, inputIds: restore.inputIds, layout: restore.layout } : scene));
+    if (restore) setProgramSceneSnapshot((current) => ({ ...current, inputIds: restore.inputIds, layout: restore.layout }));
     promoRestoreRef.current = null;
     setPromoItemId(null);
   };
@@ -1801,7 +1417,7 @@ export default function BroadcasterView() {
     reader.onerror = () => toast.error("No se pudo cargar la plantilla");
     reader.readAsDataURL(file);
   };
-  const getGraphicPosition = (graphic: BroadcastGraphic) => graphic.mode === "football" && (liveFootballMatch || graphic.football)
+  const getGraphicPosition = (graphic: BroadcastGraphic) => isFootballDesign(graphic)
     ? footballPosition(graphic, footballDesignFor(graphic))
     : graphic.position ?? (
     graphic.kind === "lower-third" ? { x: 5, y: 77 }
@@ -1830,7 +1446,7 @@ export default function BroadcasterView() {
     if (!canvas) return;
     const graphic = graphics.find((item) => item.id === graphicId);
     if (!graphic) return;
-    const design = graphic.mode === "football" && (liveFootballMatch || graphic.football) ? footballDesignFor(graphic) : null;
+    const design = isFootballDesign(graphic) ? footballDesignFor(graphic) : null;
     const spanX = design ? ((design.width * (graphic.scale ?? 1)) / 1920) * 100 : 0;
     const spanY = design ? ((design.height * (graphic.scale ?? 1)) / 1080) * 100 : 0;
     const maxX = design ? Math.max(0, 100 - spanX) : graphic.kind === "ticker" ? 0 : graphic.kind === "scoreboard" ? 58 : 78;
@@ -1849,7 +1465,7 @@ export default function BroadcasterView() {
     setDraggingPreviewGraphicId(null);
   };
   const graphicOverlaySize = (graphic: BroadcastGraphic) => {
-    if (graphic.mode === "football" && (liveFootballMatch || graphic.football)) {
+    if (isFootballDesign(graphic)) {
       const design = footballDesignFor(graphic);
       return { width: `${(design.width / 1920) * 100}%`, aspectRatio: `${design.width} / ${design.height}` };
     }
@@ -1865,7 +1481,7 @@ export default function BroadcasterView() {
       : item));
   };
   const centerGraphic = (graphic: BroadcastGraphic) => {
-    const design = graphic.mode === "football" && (liveFootballMatch || graphic.football) ? footballDesignFor(graphic) : null;
+    const design = isFootballDesign(graphic) ? footballDesignFor(graphic) : null;
     const w = design ? ((design.width * (graphic.scale ?? 1)) / 1920) * 100 : 20;
     setGraphics((current) => current.map((item) => item.id === graphic.id ? { ...item, position: { x: Math.max(0, (100 - w) / 2), y: getGraphicPosition(item).y } } : item));
   };
@@ -1899,13 +1515,14 @@ export default function BroadcasterView() {
       x: event.clientX, y: event.clientY, title: "NEXUS",
       items: [
         { label: "TAKE", hint: "Espacio", run: () => takeScene() },
-        { label: "Retirar todo del aire", hint: "Esc", danger: true, run: retireAllProgram },
+        { label: "Retirar todo del aire", hint: studioMode === "football" ? "Esc" : undefined, danger: true, run: retireAllProgram },
         ...(studioMode === "football" ? [
           { label: "Marcador al aire / retirar", hint: "F1", run: () => toggleAir("elite") },
           { label: "Anular último gol", hint: "Z", run: fm.undoGoal },
           { label: "Iniciar / pausar reloj", hint: "P", run: fm.toggleClock },
         ] : []),
-        { label: "Pantalla completa", hint: "F", run: () => void document.documentElement.requestFullscreen?.() },
+        { label: ftb ? "Volver de negro" : "Fundido a negro", hint: "Mayús+F", run: toggleFadeToBlack },
+        { label: "Pantalla completa", run: () => void document.documentElement.requestFullscreen?.() },
       ],
     });
   };
@@ -1913,6 +1530,7 @@ export default function BroadcasterView() {
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const target = event.target;
+      if (!activeRef.current) return;
       if (target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName))) return;
       if (event.key === "Escape" && ctxMenu) { setCtxMenu(null); return; }
       const graphic = graphics.find((item) => item.id === selectedGraphicId);
@@ -1930,7 +1548,27 @@ export default function BroadcasterView() {
   });
 
   return (
-    <div onContextMenu={openGeneralMenu} onClick={() => ctxMenu && setCtxMenu(null)} className="flex h-full min-h-0 flex-col overflow-hidden bg-[#05070a] text-neutral-100">
+    <div data-broadcaster-root onContextMenu={openGeneralMenu} onClick={() => ctxMenu && setCtxMenu(null)} className="flex h-full min-h-0 flex-col overflow-hidden bg-[#05070a] text-neutral-100">
+      {/* Source pool: one decoder per source that never unmounts when tabs or modes change.
+          It stays inside the viewport (1px, transparent) so the browser keeps decoding it. */}
+      <div aria-hidden className="pointer-events-none fixed left-0 top-0 h-px w-px overflow-hidden opacity-0">
+        {inputs.filter((input) => input.kind === "camera" || input.kind === "screen" || input.kind === "video").map((input) => (
+          <video
+            key={input.id}
+            ref={(element) => {
+              if (!element) { inputVideoRefs.current.delete(input.id); return; }
+              inputVideoRefs.current.set(input.id, element);
+              if (input.stream && element.srcObject !== input.stream) element.srcObject = input.stream;
+            }}
+            src={input.kind === "video" ? input.url : undefined}
+            autoPlay={input.kind !== "video" || input.playing !== false}
+            loop={input.kind === "video" && Boolean(input.loop)}
+            muted
+            playsInline
+            onEnded={() => setInputs((current) => current.map((item) => item.id === input.id ? { ...item, playing: false } : item))}
+          />
+        ))}
+      </div>
       {ctxMenu && (
         <div role="menu" aria-label={ctxMenu.title} className="fixed z-[200] min-w-[200px] overflow-hidden rounded-lg border border-white/15 bg-[#0d1117] py-1 text-[11px] shadow-2xl shadow-black/60" style={{ left: Math.min(ctxMenu.x, window.innerWidth - 220), top: Math.min(ctxMenu.y, window.innerHeight - ctxMenu.items.length * 30 - 40) }} onContextMenu={(event) => event.preventDefault()}>
           <p className="border-b border-white/10 px-3 py-1 text-[9px] font-bold uppercase tracking-widest text-yellow-300">{ctxMenu.title}</p>
@@ -1948,7 +1586,7 @@ export default function BroadcasterView() {
             <span className="hidden h-5 w-px bg-white/[0.1] lg:block" />
             <button type="button" onClick={activateNormalMode} className={`rounded-md px-2 py-1.5 text-[10px] font-semibold transition-colors sm:px-2.5 sm:text-[11px] ${studioMode === "normal" ? "bg-yellow-300 text-black" : "text-neutral-400 hover:bg-white/[0.06] hover:text-white"}`}>Modo normal</button>
             <button type="button" onClick={activateFootballMode} className={`rounded-md px-2 py-1.5 text-[10px] font-semibold transition-colors sm:px-2.5 sm:text-[11px] ${studioMode === "football" ? "bg-yellow-300 text-black" : "text-neutral-400 hover:bg-white/[0.06] hover:text-white"}`}>Modo fútbol</button>
-            <button type="button" onClick={() => setWhipOpen(true)} className="hidden rounded-md px-2 py-1.5 text-[10px] font-semibold text-neutral-500 hover:bg-white/[0.06] hover:text-white xl:inline-flex">Ajustes</button>
+            <button type="button" onClick={() => openWhipDialog()} className="hidden rounded-md px-2 py-1.5 text-[10px] font-semibold text-neutral-500 hover:bg-white/[0.06] hover:text-white xl:inline-flex">Ajustes</button>
           </div>
           <span className="h-5 w-px bg-white/[0.1]" />
           {studioMode === "football" && (
@@ -1957,7 +1595,7 @@ export default function BroadcasterView() {
                 <span className="max-w-[70px] truncate text-[11px] font-bold text-white">{fm.match.homeTeam}</span>
                 <span className="text-sm font-black text-yellow-300">{fm.match.homeScore} : {fm.match.awayScore}</span>
                 <span className="max-w-[70px] truncate text-[11px] font-bold text-white">{fm.match.awayTeam}</span>
-                <span className="border-l border-white/10 pl-2 text-[11px] text-emerald-300">{fm.match.period} {formatMediaTime(fm.match.clockSeconds)}</span>
+                <span className="border-l border-white/10 pl-2 text-[11px] text-emerald-300">{fm.match.period} <MatchClock fm={fm} /></span>
               </span>
               <button type="button" onClick={() => void (guestRoom ? copyGuestLink() : openGuestRoom())} className="hidden rounded-md border border-emerald-400/30 px-2 py-1.5 text-[10px] font-semibold text-emerald-200 hover:bg-emerald-400/10 xl:inline-flex">{guestRoom ? "Copiar enlace invitado" : "Invitar"}</button>
               <span className="h-5 w-px bg-white/[0.1]" />
@@ -1966,7 +1604,7 @@ export default function BroadcasterView() {
           {controllerName && <span className="hidden items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 py-1.5 text-[10px] text-emerald-300 lg:inline-flex"><Gamepad2 size={13} /> Gamepad</span>}
           <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-black/20 px-2.5 py-1.5 text-xs tabular-nums text-neutral-300 sm:px-3 sm:py-2">
             {recording || live ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-300" /> : <Circle size={9} />}
-            {elapsedLabel}
+            <SessionClock session={session} />
           </span>
           {recording ? (
             <button type="button" onClick={stopRecording} aria-label="Detener grabación" className="inline-flex items-center gap-1.5 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-2 text-[10px] font-semibold text-yellow-300 hover:bg-yellow-500/20 sm:px-3.5 sm:text-xs">
@@ -1998,7 +1636,7 @@ export default function BroadcasterView() {
                 <Shield size={15} className="text-emerald-300" />
                 <div className="min-w-0 flex-1">
                   <p className="text-xs font-semibold text-emerald-100">Configuración de fútbol</p>
-                  <p className="truncate text-[10px] text-emerald-100/50">{footballMatchName}</p>
+                  <p className="truncate text-[10px] text-emerald-100/50">{fm.match.homeTeam} vs {fm.match.awayTeam}</p>
                 </div>
                 <button type="button" onClick={activateNormalMode} className="rounded-md border border-white/10 px-2 py-1.5 text-[10px] text-neutral-400 hover:text-white">Modo normal</button>
               </>
@@ -2094,29 +1732,11 @@ export default function BroadcasterView() {
                       <NextImage src={input.url} alt={input.name} width={16} height={9} unoptimized className="mt-2 aspect-video w-full rounded-lg bg-black object-cover" />
                     )}
                     {(input.kind === "camera" || input.kind === "screen" || input.kind === "video") && (
-                      <video
-                        ref={(element) => {
-                          if (!element) {
-                            inputVideoRefs.current.delete(input.id);
-                            return;
-                          }
-                          inputVideoRefs.current.set(input.id, element);
-                          if (input.stream && element.srcObject !== input.stream) element.srcObject = input.stream;
-                        }}
-                        src={input.kind === "video" ? input.url : undefined}
-                        autoPlay={input.kind !== "video" || input.playing !== false}
-                        muted
-                        loop={input.kind === "video" && input.loop}
-                        playsInline
-                        onLoadedMetadata={(event) => updateMediaProgress(input.id, event.currentTarget)}
-                        onTimeUpdate={(event) => updateMediaProgress(input.id, event.currentTarget)}
-                        onEnded={() => setInputs((current) => current.map((item) => item.id === input.id ? { ...item, playing: false } : item))}
-                        className="mt-2 aspect-video w-full rounded-lg bg-black object-cover"
-                      />
+                      <SourceMirror getElement={() => inputVideoRefs.current.get(input.id)} className="mt-2 aspect-video w-full rounded-lg bg-black" />
                     )}
                     {input.kind === "video" && (
                       <div className="mt-2">
-                        <div className="flex items-center gap-2">
+                        <div className="flex flex-wrap items-center gap-2">
                           <button type="button" onClick={() => toggleMediaPlayback(input)} className="inline-flex items-center gap-1.5 rounded-md bg-white/[0.07] px-2 py-1.5 text-[11px] text-neutral-200 hover:bg-white/[0.12]">
                             {input.playing === false ? <Play size={12} /> : <Pause size={12} />}
                             {input.playing === false ? "Reproducir" : "Pausar"}
@@ -2124,21 +1744,8 @@ export default function BroadcasterView() {
                           <button type="button" onClick={() => updateInput(input.id, { loop: !input.loop })} className={`rounded-md px-2 py-1.5 text-[11px] ${input.loop ? "bg-sky-400/15 text-sky-200" : "bg-white/[0.04] text-neutral-500 hover:text-neutral-200"}`}>
                             Bucle {input.loop ? "ON" : "OFF"}
                           </button>
-                          <span className="ml-auto text-[10px] tabular-nums text-neutral-500">
-                            {formatMediaTime(mediaProgress[input.id]?.currentTime ?? 0)} / {formatMediaTime(mediaProgress[input.id]?.duration ?? 0)}
-                          </span>
+                          <MediaPosition name={input.name} getElement={() => inputVideoRefs.current.get(input.id)} />
                         </div>
-                        <input
-                          aria-label={`Posición de ${input.name}`}
-                          type="range"
-                          min="0"
-                          max={mediaProgress[input.id]?.duration || 0}
-                          step="0.1"
-                          value={mediaProgress[input.id]?.currentTime ?? 0}
-                          disabled={!mediaProgress[input.id]?.duration}
-                          onChange={(event) => seekMedia(input.id, Number(event.target.value))}
-                          className="mt-2 h-1.5 w-full cursor-pointer accent-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
-                        />
                       </div>
                     )}
                     <div className="mt-2 flex flex-wrap gap-1">
@@ -2212,25 +1819,7 @@ export default function BroadcasterView() {
         </aside>
 
         <main className={`flex min-h-[320px] min-w-0 flex-1 flex-col overflow-y-auto overflow-x-hidden bg-[#080b10]`}>
-          {studioMode === "football" && (
-            <div aria-hidden className="pointer-events-none fixed -left-[9999px] top-0 h-px w-px overflow-hidden">
-              {inputs.filter((input) => input.kind === "camera" || input.kind === "screen" || input.kind === "video").map((input) => (
-                <video
-                  key={input.id}
-                  ref={(element) => {
-                    if (!element) { inputVideoRefs.current.delete(input.id); return; }
-                    inputVideoRefs.current.set(input.id, element);
-                    if (input.stream && element.srcObject !== input.stream) element.srcObject = input.stream;
-                  }}
-                  src={input.kind === "video" ? input.url : undefined}
-                  autoPlay
-                  loop={input.loop}
-                  muted
-                  playsInline
-                />
-              ))}
-            </div>
-          )}          <div className={`grid grid-cols-1 gap-3 lg:grid-cols-2 ${activePane === "football" ? "flex-none p-2" : "min-h-0 flex-1 p-3"}`}>
+          <div className={`grid grid-cols-1 gap-3 lg:grid-cols-2 ${activePane === "football" ? "flex-none p-2" : "min-h-0 flex-1 p-3"}`}>
             <section className="flex min-h-0 flex-col overflow-hidden rounded-xl border border-emerald-400/20 bg-[#11161e] shadow-xl shadow-black/20">
               <div className="flex items-center gap-2 border-b border-white/[0.07] px-4 py-3">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
@@ -2285,7 +1874,7 @@ export default function BroadcasterView() {
                   <input aria-label="Duración de la transición" type="range" min="100" max="2000" step="50" value={transitionMs} onChange={(event) => setTransitionMs(Number(event.target.value))} className="h-1.5 w-20 accent-sky-400" />
                   <span className="w-12 tabular-nums">{transitionMs} ms</span>
                 </label>
-                <button type="button" onClick={toggleFadeToBlack} title="Fundido a negro (F)" className={`ml-auto rounded-lg border px-3 py-2 text-[11px] font-bold ${ftb ? "border-yellow-400 bg-yellow-300 text-black" : "border-white/10 text-neutral-300 hover:bg-white/[0.06]"}`}>FTB</button>
+                <button type="button" onClick={toggleFadeToBlack} title="Fundido a negro (Mayús+F)" className={`ml-auto rounded-lg border px-3 py-2 text-[11px] font-bold ${ftb ? "border-yellow-400 bg-yellow-300 text-black" : "border-white/10 text-neutral-300 hover:bg-white/[0.06]"}`}>FTB</button>
               </div>
             </section>
 
@@ -2309,13 +1898,14 @@ export default function BroadcasterView() {
                     </button>
                   );
                 })}
-                <span className="ml-auto text-xs tabular-nums text-neutral-400">{elapsedLabel}</span>
+                <span className="ml-auto text-xs tabular-nums text-neutral-400"><SessionClock session={session} /></span>
               </div>
             </section>
           </div>
 
           {activePane === "football" && (
             <FootballDeck
+              enabled={active}
               fm={fm}
               airGraphics={programGraphicsSnapshot.map((graphic) => ({ id: graphic.id, name: graphic.name }))}
               onRetire={retireProgramGraphic}
@@ -2534,7 +2124,7 @@ export default function BroadcasterView() {
                 <span className="text-[11px] font-semibold text-neutral-200">Destino de emisión</span>
               </div>
               <p className="mt-1.5 text-[11px] leading-relaxed text-neutral-500">Publicación WHIP/WebRTC. Requiere un gateway para retransmitir a RTMP.</p>
-              <button type="button" onClick={() => setWhipOpen(true)} className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-white/[0.08] px-3 py-2 text-[11px] text-neutral-300 hover:bg-white/[0.06] hover:text-white">
+              <button type="button" onClick={() => openWhipDialog()} className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-lg border border-white/[0.08] px-3 py-2 text-[11px] text-neutral-300 hover:bg-white/[0.06] hover:text-white">
                 <Settings2 size={13} /> Configurar destino
               </button>
               <p className="mt-1.5 truncate text-[10px] text-neutral-600">{whipHost}</p>
@@ -2545,7 +2135,7 @@ export default function BroadcasterView() {
                 <span className="text-[11px] font-semibold text-neutral-200">Atajos de producción</span>
               </div>
               <p className="mt-1.5 text-[11px] leading-relaxed text-neutral-500">
-                {controllerName || "Teclado: 1–9 escena · Espacio TAKE · R grabar"}
+                {controllerName || "Teclado: 1–9 escena · Espacio TAKE · R grabar · Mayús+F negro"}
               </p>
               {!controllerName && <p className="mt-1 text-[10px] leading-relaxed text-neutral-600">Gamepad: A TAKE · B grabar · cruceta cambia escena.</p>}
             </div>
@@ -2558,7 +2148,7 @@ export default function BroadcasterView() {
           <div className="h-8 w-px bg-white/[0.1]" />
           <div className="flex min-w-[96px] flex-col px-2 leading-3">
             <span className="text-[10px] font-bold uppercase text-white">AL AIRE <span className="text-yellow-300">{programGraphicsSnapshot.length}</span></span>
-            <span className="mt-0.5 text-[10px] tabular-nums text-neutral-400">{footerKickoff || `Emisión ${elapsedLabel}`}</span>
+            <span className="mt-0.5 text-[10px] tabular-nums text-neutral-400"><KickoffCountdown kickoff={fm.match.kickoff} period={fm.match.period} fallback={<>Emisión <SessionClock session={session} /></>} /></span>
             <label className="mt-0.5 flex items-center gap-1 text-[9px] text-neutral-500"><input type="checkbox" checked={autoReact} onChange={(event) => setAutoReact(event.target.checked)} className="accent-emerald-400" /> Gráf. auto</label>
           </div>
           <div className="h-8 w-px bg-white/[0.1]" />
@@ -2573,8 +2163,8 @@ export default function BroadcasterView() {
           <div className="flex items-center gap-1.5 px-1">
             <button type="button" onClick={() => setSfxOn((value) => !value)} title="Efectos de sonido automáticos en goles y tarjetas" className={`rounded-md border px-2 py-1.5 text-[10px] font-semibold ${sfxOn ? "border-yellow-300/50 text-yellow-200" : "border-white/10 text-neutral-500"}`}>SFX {sfxOn ? "ON" : "OFF"}</button>
             <input type="range" min={0.1} max={1} step={0.05} value={sfxVolume} onChange={(event) => changeSfxVolume(Number(event.target.value))} aria-label="Volumen de efectos" className="w-16 accent-yellow-300" />
-            <button type="button" onClick={() => playSfx("whistle", sfxVolume)} title="Pitazo" className="rounded-md border border-white/[0.08] px-2 py-1.5 text-[10px] font-semibold text-neutral-300 hover:text-white">Pitazo</button>
-            <button type="button" onClick={() => playSfx("goal", sfxVolume)} title="Probar sonido de gol" className="rounded-md border border-white/[0.08] px-2 py-1.5 text-[10px] font-semibold text-neutral-300 hover:text-white">Gol</button>
+            <button type="button" onClick={() => playSfx("whistle", sfxVolume, sfxBus())} title="Pitazo" className="rounded-md border border-white/[0.08] px-2 py-1.5 text-[10px] font-semibold text-neutral-300 hover:text-white">Pitazo</button>
+            <button type="button" onClick={() => playSfx("goal", sfxVolume, sfxBus())} title="Probar sonido de gol" className="rounded-md border border-white/[0.08] px-2 py-1.5 text-[10px] font-semibold text-neutral-300 hover:text-white">Gol</button>
           </div>
           <div className="h-8 w-px bg-white/[0.1]" />
           {([
@@ -2762,7 +2352,7 @@ export default function BroadcasterView() {
             <div className="mb-4 flex items-center gap-2">
               <RadioTower size={15} className="text-yellow-300" />
               <h3 className="flex-1 text-sm font-semibold">Destino de emisión</h3>
-              <button type="button" onClick={() => setWhipOpen(false)} aria-label="Cerrar configuración de emisión" className="rounded p-1 text-neutral-500 hover:bg-white/[0.08] hover:text-white"><X size={15} /></button>
+              <button type="button" onClick={() => { setWhipUrl(whipDraftRef.current.url); setWhipToken(whipDraftRef.current.token); setWhipOpen(false); }} aria-label="Cerrar configuración de emisión" className="rounded p-1 text-neutral-500 hover:bg-white/[0.08] hover:text-white"><X size={15} /></button>
             </div>
             <label className="block text-[10px] text-neutral-400">Endpoint de ingest WHIP
               <input
@@ -2783,11 +2373,24 @@ export default function BroadcasterView() {
                 className="mt-1 h-9 w-full rounded-md border border-white/10 bg-black/20 px-2.5 text-xs text-white outline-none focus:border-white/25"
               />
             </label>
+            <label className="mt-3 block text-[10px] text-neutral-400">Tu canal de Kick (para mostrar el vivo en la portada)
+              <input
+                value={kickChannel}
+                onChange={(event) => setKickChannel(event.target.value)}
+                placeholder="nexusnews o https://kick.com/nexusnews"
+                spellCheck={false}
+                className="mt-1 h-9 w-full rounded-md border border-white/10 bg-black/20 px-2.5 text-xs text-white outline-none focus:border-white/25"
+              />
+            </label>
+            <label className="mt-2 flex items-center gap-2 text-[10px] text-neutral-300">
+              <input type="checkbox" checked={portalOnLive} onChange={(event) => setPortalOnLive(event.target.checked)} />
+              Cambiar la portada a la transmisión en vivo al emitir (y volver a la noticia al terminar)
+            </label>
             <div className="mt-3 rounded-lg border border-amber-400/15 bg-amber-400/[0.04] p-3 text-[9px] leading-relaxed text-amber-100/70">
-              El navegador no envía RTMP directamente. Broadcaster publica por WHIP/WebRTC; conecta aquí un gateway como MediaMTX o SRS para retransmitir a YouTube, Facebook u otros destinos RTMP. El endpoint no se guarda en disco.
+              El navegador no envía RTMP. Con el puente local encendido (infrastructure/live-gateway/start-gateway.ps1) el endpoint es {gatewayEndpoint("live")} y el puente retransmite a la vez a Kick y TikTok con las claves que configures allí.
             </div>
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" onClick={() => { setWhipUrl(""); setWhipOpen(false); }} className="rounded-md border border-white/10 px-3 py-2 text-[10px] text-neutral-400 hover:bg-white/[0.05]">Cancelar</button>
+              <button type="button" onClick={() => { setWhipUrl(whipDraftRef.current.url); setWhipToken(whipDraftRef.current.token); setWhipOpen(false); }} className="rounded-md border border-white/10 px-3 py-2 text-[10px] text-neutral-400 hover:bg-white/[0.05]">Cancelar</button>
               <button type="button" onClick={() => setWhipOpen(false)} className="rounded-md bg-yellow-300 px-3 py-2 text-[10px] font-semibold text-black hover:bg-yellow-200">Guardar destino</button>
             </div>
           </div>

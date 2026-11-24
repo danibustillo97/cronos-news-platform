@@ -7,10 +7,10 @@
 | Component | Local | Vercel | AWS |
 |-----------|-------|--------|-----|
 | Frontend | Native (`npm run dev`, :3000) | YES — target real hoy (`nexusnews.info`, sin confirmar auto-deploy desde esta máquina) | Optional — soportado conceptualmente (`deployment.yml frontend.provider: aws`), sin Dockerfile ni implementación |
-| Backend | Native (venv + uvicorn `--reload`, :8000) | NO | Target declarado, sin Dockerfile/IaC/CI-CD todavía |
-| Automation (scraper legado) | Native, sin venv | NO | NO corre ahí hoy — corre por cron de GitHub Actions, fuera de AWS y de local |
-| Automation (Local Runtime) | Native (venv + uvicorn, :8801) | NO | Target declarado, sin Dockerfile/IaC/CI-CD todavía |
-| LAB | Native, sin daemon (CLI bajo demanda) | NO | No es un deployment target propio — vive donde viva Automation |
+| Backend | Native (venv + uvicorn `--reload`, :8000) | YES — proyecto Vercel separado, Root Directory `backend`, FastAPI serverless | AWS no implementado |
+| Automation (scraper y workers) | Scripts bajo demanda | GitHub Actions (cron/dispatch; no es una función de Vercel) | AWS no implementado |
+| Automation (Local Runtime) | Native (venv + uvicorn, :8801) | NO — requiere host/túnel accesible; no está desplegado | AWS no implementado |
+| LAB | Native, CLI bajo demanda | NO — operaciones locales no disponibles en serverless | No implementado |
 | Nginx | Docker (único contenedor local, :80) | NO — Vercel es su propio edge, no necesita este proxy | Optional, sin diseñar todavía (ver Deployment Architecture §5) |
 | Database | Supabase (remoto, siempre) | Supabase (mismo proyecto) | Supabase (mismo proyecto — no hay plan de migrar a RDS) |
 
@@ -20,15 +20,20 @@ Nombres reales, nunca valores — ver el `.env.example` de cada servicio para la
 
 | Variable | Servicio | Local (default) | Producción |
 |---|---|---|---|
-| `NEXT_PUBLIC_API_BASE_URL` | frontend | `http://localhost:8000` (fallback en código) | **debe** setearse a la URL real del backend — hoy no hay ninguna (backend no está deployado, §16 de Deployment Architecture) |
-| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | frontend | valores actuales de Supabase como fallback | mismo proyecto Supabase, o uno distinto por ambiente si se decide separar staging/producción |
+| `NEXT_PUBLIC_API_BASE_URL` | frontend | `http://localhost:8000` solo para desarrollo local | **dejar sin definir**: el navegador usa el proxy same-origin `/api/*`; `BACKEND_PUBLIC_URL` apunta al backend desde el servidor Next.js |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | frontend | valores actuales de Supabase como fallback | mismo proyecto Supabase, o uno distinto por ambiente si se decide separar staging/producción |
 | `TIKTOK_CLIENT_KEY` / `_SECRET` / `_REDIRECT_URI` / `_DEMO_MODE` | frontend (server-side) | requeridas para probar OAuth real | credenciales reales de producción de TikTok Developer |
-| `SUPABASE_URL` / `SUPABASE_KEY` | backend | fallback embebido en `client.py` | mismas, o proyecto distinto |
-| `SUPABASE_SERVICE_ROLE_KEY` | backend, automation/runtime | requerida para escrituras reales | requerida siempre — sin ella, solo lecturas anónimas |
-| `RUNTIME_BASE_URL` | backend | `http://localhost:8801` | URL real de Automation/Runtime — no existe todavía fuera de local |
+| `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` | backend | variables locales | mismas, o proyecto distinto por ambiente |
+| `SUPABASE_SECRET_KEY` | backend, GitHub Actions | requerida para escrituras privilegiadas | requerida en Vercel backend y workers; nunca exponer como `NEXT_PUBLIC_*` |
+| `BACKEND_PUBLIC_URL` | frontend (server-side) | URL local del backend/proxy | URL pública del proyecto Vercel FastAPI (sin slash final) |
+| `JOB_EXECUTION` | backend | `inline` | `github` |
+| `GITHUB_DISPATCH_REF` | backend | `master` por defecto | `master` en Production; rama de Preview en Preview |
+| `ASSET_STORAGE` / `ASSET_STORAGE_BUCKET` | backend | `local` / `media` | `supabase` / `media` |
+| `SUPABASE_SECRET_KEY` | backend, GitHub Actions | requerida para escrituras privilegiadas | requerida en Vercel backend y workers; nunca exponer como `NEXT_PUBLIC_*` |
+| `RUNTIME_BASE_URL` | backend | `http://localhost:8801` | No configurar `localhost` en Vercel; definir solo si se despliega un runtime accesible externamente |
 | `LAB_WORKSPACE_PATH` | backend | auto-detectado (`automation/lab/workspace/exports`) | necesario si Automation corre en un host distinto al backend |
-| `CORS_ALLOWED_ORIGINS` | backend | vacío (usa defaults locales) | **debe** incluir la URL real del frontend en producción (nuevo, agregado en esta tarea) |
-| `SUPABASE_URL` / `SUPABASE_KEY` | automation (scraper legado) | ya trackeado en git — pendiente rotación | sin cambios (sigue en cron de GitHub Actions, fuera de este matrix de deployment) |
+| `CORS_ALLOWED_ORIGINS` | backend | vacío (usa defaults locales) | Opcional mientras el navegador use el proxy del frontend; definir solo para clientes que llamen al backend directamente |
+| `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` | automation (scraper legado) | ya trackeado en git — pendiente rotación | sin cambios (sigue en cron de GitHub Actions, fuera de este matrix de deployment) |
 | `OPENROUTER_API_KEY` | automation (scraper legado) | ídem | ídem |
 
 ## `nexus.local` vs URL real

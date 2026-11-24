@@ -106,7 +106,7 @@ export function DataPanel({ fm, onAddWidget }: { fm: FootballMatchController; on
     <div key={team} className={card}>
       <p className={title}>{team === "home" ? match.homeTeam : match.awayTeam} {team === "home" ? match.formationHome : match.formationAway}</p>
       {lineups[team].map((item, index) => (
-        <button key={`${item.name}-${index}`} type="button" onClick={() => fm.showPlayer(team, item.name, Math.floor(match.clockSeconds / 60), `${item.dorsal ?? ""} · ${item.position}`)} className="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-[10px] text-neutral-200 hover:bg-white/[0.06]">
+        <button key={`${item.name}-${index}`} type="button" onClick={() => fm.showPlayer(team, item.name, Math.floor(fm.clockNow() / 60), `${item.dorsal ?? ""} · ${item.position}`)} className="flex w-full items-center gap-2 rounded px-1 py-1 text-left text-[10px] text-neutral-200 hover:bg-white/[0.06]">
           <span className="w-5 font-mono text-neutral-500">{item.dorsal ?? "-"}</span><span className="flex-1 truncate">{item.name}{item.captain ? " (C)" : ""}</span><span className="text-neutral-500">{item.starter ? "XI" : "SUP"}</span>
         </button>
       ))}

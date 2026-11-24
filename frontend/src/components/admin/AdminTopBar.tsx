@@ -1,16 +1,18 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Bell, Check, CircleAlert, Clock3, ExternalLink, Radio, X } from "lucide-react";
+import { Bell, Check, CircleAlert, Clock3, ExternalLink, Menu, Radio, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
 import { useProduction } from "@/studio/lab/ProductionContext";
 
 interface AdminTopBarProps {
   title: string;
   activeView: string;
+  /** Opens the navigation drawer on phones (the sidebar is hidden there). */
+  onOpenMenu?: () => void;
 }
 
-export default function AdminTopBar({ title, activeView }: AdminTopBarProps) {
+export default function AdminTopBar({ title, activeView, onOpenMenu }: AdminTopBarProps) {
   const {
     activeStory,
     activeProductions,
@@ -57,7 +59,13 @@ export default function AdminTopBar({ title, activeView }: AdminTopBarProps) {
 
   return (
     <header className="relative z-40 flex h-[62px] flex-shrink-0 items-center justify-between border-b border-white/[0.055] bg-[#080809]/90 px-3 backdrop-blur-2xl sm:px-6">
-      {activeView !== "broadcaster" && <div className="flex min-w-0 items-center gap-3">
+      {onOpenMenu && (
+        <button type="button" onClick={onOpenMenu} aria-label="Abrir menú"
+          className="mr-2 flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl border border-white/[0.08] text-neutral-300 hover:bg-white/[0.06] md:hidden">
+          <Menu size={17} />
+        </button>
+      )}
+      {activeView !== "broadcaster" && <div className="flex min-w-0 flex-1 items-center gap-3">
         <div className="min-w-0">
           <div className="flex min-w-0 items-center gap-2">
             {title && (

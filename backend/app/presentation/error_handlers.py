@@ -10,6 +10,9 @@ from app.domain.shared.errors import (
     RowLevelSecurityError, SupabaseAuthenticationError, DatabaseUnavailableError,
 )
 from app.domain.ports import ProviderUnavailableError, RuntimeUnavailableError
+from app.infrastructure.serverless import ReadOnlyEnvironmentError
+from app.infrastructure.persistence.supabase.content_profile_repository import ContentProfileUnavailableError
+from app.infrastructure.persistence.supabase.portal_layout_repository import PortalLayoutUnavailableError
 
 logger = logging.getLogger("cronos.errors")
 
@@ -24,6 +27,21 @@ def _log_cause(exc: Exception) -> None:
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(PortalLayoutUnavailableError)
+    async def _portal_layout_unavailable(request: Request, exc: PortalLayoutUnavailableError):
+        return JSONResponse(status_code=503, content={"error": "SCHEMA_NOT_PROVISIONED", "message": str(exc)})
+
+    @app.exception_handler(ContentProfileUnavailableError)
+    async def _content_profile_unavailable(request: Request, exc: ContentProfileUnavailableError):
+        return JSONResponse(status_code=503, content={"error": "SCHEMA_NOT_PROVISIONED", "message": str(exc)})
+
+    @app.exception_handler(ReadOnlyEnvironmentError)
+    async def _read_only_environment(request: Request, exc: ReadOnlyEnvironmentError):
+        return JSONResponse(
+            status_code=501,
+            content={"error": "NOT_AVAILABLE_ON_SERVERLESS", "message": str(exc)},
+        )
+
     @app.exception_handler(RuntimeUnavailableError)
     async def _runtime_unavailable(request: Request, exc: RuntimeUnavailableError):
         return JSONResponse(
@@ -70,6 +88,12 @@ def register_error_handlers(app: FastAPI) -> None:
     @app.exception_handler(InvalidStateTransition)
     async def _invalid_transition(request: Request, exc: InvalidStateTransition):
         return JSONResponse(status_code=409, content={"error": "INVALID_STATE_TRANSITION", "message": str(exc)})
+
+    @app.exception_handler(ValueError)
+    async def _invalid_value(request: Request, exc: ValueError):
+        # Domain/adapter validation ("scheduled_at must be in the future", unsupported image
+        # type, read-only credentials) is the caller's to fix: 422 with the reason, not a 500.
+        return JSONResponse(status_code=422, content={"error": "INVALID_REQUEST", "message": str(exc)})
 
     @app.exception_handler(ProviderUnavailableError)
     async def _provider_unavailable(request: Request, exc: ProviderUnavailableError):

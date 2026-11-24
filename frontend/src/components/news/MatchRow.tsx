@@ -7,6 +7,7 @@
 // el estado perdido en una esquina. Nunca inventa un logo: si ESPN no lo
 // entrega, usa un fallback tipográfico con la inicial del equipo.
 
+import { localizeStatus } from '@/lib/matchStatus'
 import Image from 'next/image'
 import type { Match } from '@/types/sports'
 
@@ -41,7 +42,7 @@ function StatusLabel({ match, isDark, compact = false }: { match: Match; isDark:
   if (match.status === 'live') {
     return (
       <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[#FACC15] flex-shrink-0">
-        <span className="w-1.5 h-1.5 rounded-full bg-[#FACC15] animate-pulse" /> {match.statusDetail || 'EN VIVO'}
+        <span className="w-1.5 h-1.5 rounded-full bg-[#FACC15] animate-pulse" /> {localizeStatus(match.statusDetail, 'EN VIVO')}
       </span>
     )
   }

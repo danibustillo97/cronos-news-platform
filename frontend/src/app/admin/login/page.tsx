@@ -2,7 +2,7 @@
 'use client'
 
 import { useState, type FormEvent } from 'react'
-import { supabase } from '@/lib/supabaseClient'
+import { supabase, isSupabaseConfigured } from '@/lib/supabaseClient'
 import { useRouter } from 'next/navigation'
 import {
   ArrowRight,
@@ -36,6 +36,12 @@ export default function AdminLogin() {
 
     setLoading(true)
     setError(null)
+
+    if (!isSupabaseConfigured) {
+      setError('Supabase no está configurado: define NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY en frontend/.env.local y reinicia el servidor.')
+      setLoading(false)
+      return
+    }
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
