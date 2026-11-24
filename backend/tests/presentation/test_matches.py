@@ -70,3 +70,22 @@ def test_pick_season_prefers_most_starts_in_latest_season():
     ]
     assert matches.pick_season(seasons)["competition"] == "Liga" and matches.pick_season(seasons)["goals"] == 5
     assert matches.pick_season([]) is None
+
+
+def test_moments_from_a_match():
+    detail = matches.parse_summary(SUMMARY, "uefa.champions")
+    detail["events"][1]["text"] = "Goal! Arsenal 1, Borussia Dortmund 0. Viktor Gyökeres (Arsenal) header."
+    detail["state"] = "post"
+    ms = matches.build_moments(detail)
+    assert [m["kind"] for m in ms] == ["goal", "final"]
+    assert ms[0]["headline"] == "¡Gol de Gyökeres! Arsenal 1-0 Borussia Dortmund (10')"
+    assert ms[0]["score"] == {"home": 1, "away": 0} and ms[0]["leagueName"] == "Champions League"
+    assert ms[1]["headline"] == "Final: Arsenal 1-0 Borussia Dortmund"
+
+
+def test_moment_helpers():
+    assert matches.minute_value("45'+2'") == 47.0 and matches.minute_value("") == 0.0
+    assert matches.score_after("Goal! Real Madrid 2, PSV Eindhoven 1. Jude Bellingham", "Real Madrid", "PSV Eindhoven") == (2, 1)
+    a = {"kickoff": "2026-11-24T20:00Z", "minuteValue": 10.0}
+    b = {"kickoff": "2026-11-24T20:00Z", "minuteValue": 60.0}
+    assert matches.moment_sort_key(b) > matches.moment_sort_key(a)
