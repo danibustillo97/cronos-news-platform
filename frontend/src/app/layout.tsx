@@ -1,5 +1,5 @@
 import './globals.css'
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import AppLayoutClient from './AppLayoutClient'
 import { apiUrl } from '@/studio/lab/api-client'
 
@@ -29,6 +29,14 @@ async function getSeoSettings(): Promise<{ title: string; description: string; k
   } catch {
     return FALLBACK_SEO
   }
+}
+
+// App instalable: color de la barra del sistema y zona segura (muesca) en iOS/Android.
+export const viewport: Viewport = {
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+  themeColor: '#0a0a0a',
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -67,6 +75,13 @@ export async function generateMetadata(): Promise<Metadata> {
     creator: '@nexusnews',
     images: ['/og-image.jpg'],
   },
+  applicationName: 'NEXUS Fútbol',
+  appleWebApp: { capable: true, title: 'NEXUS', statusBarStyle: 'black-translucent' },
+  icons: {
+    icon: [{ url: '/favicon.ico' }, { url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' }],
+    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
+  },
+  formatDetection: { telephone: false },
   robots: {
     index: true,
     follow: true,

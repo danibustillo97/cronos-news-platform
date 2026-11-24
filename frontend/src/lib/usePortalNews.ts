@@ -85,6 +85,19 @@ export function usePortalNews(layout: PortalLayout, initial?: NewsView[] | null)
     })
   }, [hasMore, loading])
 
+  /** Refresco manual ("Actualizar"): trae lo último publicado. Devuelve cuántas historias nuevas hay. */
+  const refresh = useCallback(async (): Promise<number> => {
+    const { data, error } = await baseQuery().range(0, 9)
+    if (error || !data) return 0
+    let added = 0
+    setItems((prev) => {
+      const have = new Set(prev.map((n) => n.id))
+      added = (data as NewsView[]).filter((n) => !have.has(n.id)).length
+      return mergeById(prev, (data as NewsView[]).map((n) => ({ ...n, content_truncated: false })))
+    })
+    return added
+  }, [])
+
   /** Para el modal: si la historia vino recortada del servidor, trae el cuerpo completo. */
   const fullStory = useCallback(async (item: NewsView): Promise<NewsView> => {
     if (!item.content_truncated) return item
@@ -95,5 +108,5 @@ export function usePortalNews(layout: PortalLayout, initial?: NewsView[] | null)
     return full
   }, [])
 
-  return { items, loading, loadingMore, hasMore, failed, loadMore, fullStory }
+  return { items, loading, loadingMore, hasMore, failed, loadMore, fullStory, refresh }
 }

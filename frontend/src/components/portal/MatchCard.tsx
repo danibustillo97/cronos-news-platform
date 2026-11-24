@@ -11,6 +11,13 @@ import { kickoffLabel } from '@/lib/feedComposer'
 import { TeamCrest, LeagueBadge } from './Crest'
 import { LiveBadge } from './PortalBits'
 import { useNow } from './useNow'
+import { openMatch, shouldIntercept } from '@/lib/matchModalBus'
+
+const openOnClick = (match: Match) => (e: React.MouseEvent<HTMLAnchorElement>) => {
+  if (!shouldIntercept(e)) return
+  e.preventDefault()
+  openMatch({ league: match.league, id: match.id, preview: match })
+}
 
 function statusText(match: Match, now: Date): string {
   if (match.status === 'live') return localizeStatus(match.statusDetail === 'Scheduled' ? '' : match.statusDetail)
@@ -46,6 +53,7 @@ export function MatchCard({ match, dark = true, className = '' }: { match: Match
   return (
     <Link
       href={matchHref(match)}
+      onClick={openOnClick(match)}
       aria-label={matchLabel(match, now)}
       className={`group flex h-full flex-col gap-3 rounded-2xl border bg-[var(--nx-surface)] p-4 transition-colors hover:border-[var(--nx-line-strong)] ${live ? 'border-[var(--nx-live)]/50' : 'border-[var(--nx-line)]'} ${className}`}
     >
@@ -77,7 +85,7 @@ export function MatchLine({ match }: { match: Match }) {
   const now = useNow(30_000)
   const live = match.status === 'live'
   return (
-    <Link href={matchHref(match)} aria-label={matchLabel(match, now)} className="flex min-h-[52px] items-center gap-2 rounded-xl px-2 py-2 transition-colors hover:bg-[var(--nx-surface-2)]">
+    <Link href={matchHref(match)} onClick={openOnClick(match)} aria-label={matchLabel(match, now)} className="flex min-h-[52px] items-center gap-2 rounded-xl px-2 py-2 transition-colors hover:bg-[var(--nx-surface-2)]">
       <span className="flex min-w-0 flex-1 items-center justify-end gap-2">
         <span className="truncate text-right text-[13px] font-bold text-[var(--nx-ink)]">{match.homeTeam}</span>
         <TeamCrest src={match.homeLogo} name={match.homeTeam} size={22} />

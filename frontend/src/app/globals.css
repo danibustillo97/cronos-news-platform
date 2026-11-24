@@ -954,3 +954,15 @@ body {
     gap: 0.875rem;
   }
 }
+/* Reacciones: rebote al tocar y pequeña explosión de emojis. */
+.nx-pop { display: inline-block; animation: nx-pop 0.38s cubic-bezier(0.3, 1.6, 0.5, 1); }
+@keyframes nx-pop { 0% { transform: scale(0.6); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.nx-burst { left: 0; bottom: 0; opacity: 0; animation: nx-burst 0.7s ease-out forwards; }
+@keyframes nx-burst {
+  0% { opacity: 1; transform: translate(0, 0) scale(0.6); }
+  100% { opacity: 0; transform: translate(var(--dx, 0), -46px) scale(1.15); }
+}
+
+/* App instalada: sin rebote/pull-to-refresh accidental y espacio para la barra de pestañas. */
+html.nx-standalone, html.nx-standalone body { overscroll-behavior-y: none; }
+html.nx-standalone body { padding-bottom: var(--nx-tabbar-h, 0px); }

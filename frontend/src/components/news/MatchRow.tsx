@@ -8,6 +8,7 @@
 // entrega, usa un fallback tipográfico con la inicial del equipo.
 
 import { localizeStatus } from '@/lib/matchStatus'
+import { openMatch } from '@/lib/matchModalBus'
 import Image from 'next/image'
 import type { Match } from '@/types/sports'
 
@@ -59,10 +60,12 @@ function StatusLabel({ match, isDark, compact = false }: { match: Match; isDark:
 export default function MatchRow({ match, variant, isDark = true }: { match: Match; variant: 'ticker' | 'list'; isDark?: boolean }) {
   if (variant === 'ticker') {
     return (
-      <div
-        className="flex items-center gap-2 flex-shrink-0 px-3.5 border-l border-white/[0.08] whitespace-nowrap"
-        role="listitem"
-        aria-label={`${match.leagueName}: ${match.homeTeam} ${match.homeScore} - ${match.awayScore} ${match.awayTeam}`}
+      <div role="listitem" className="flex flex-shrink-0">
+      <button
+        type="button"
+        onClick={() => openMatch({ league: match.league, id: match.id, preview: match })}
+        className="flex items-center gap-2 flex-shrink-0 px-3.5 border-l border-white/[0.08] whitespace-nowrap hover:bg-white/[0.06] transition-colors"
+        aria-label={`Abrir partido: ${match.leagueName}, ${match.homeTeam} ${match.homeScore} - ${match.awayScore} ${match.awayTeam}`}
       >
         <span className="text-[9px] font-bold uppercase tracking-[0.1em] text-neutral-500">{match.leagueName}</span>
         <TeamLogo src={match.homeLogo} name={match.homeTeam} size={14} />
@@ -71,15 +74,18 @@ export default function MatchRow({ match, variant, isDark = true }: { match: Mat
         <span className="text-[11px] text-neutral-300">{match.awayTeam}</span>
         <TeamLogo src={match.awayLogo} name={match.awayTeam} size={14} />
         <StatusLabel match={match} isDark compact />
+      </button>
       </div>
     )
   }
 
   return (
-    <div
-      className={`flex items-center py-3 border-b ${isDark ? 'border-white/10' : 'border-[#E5E5E5]'}`}
-      role="listitem"
-      aria-label={`${match.leagueName}: ${match.homeTeam} ${match.homeScore} - ${match.awayScore} ${match.awayTeam}`}
+    <div role="listitem">
+    <button
+      type="button"
+      onClick={() => openMatch({ league: match.league, id: match.id, preview: match })}
+      className={`flex w-full items-center py-3 border-b text-left transition-colors ${isDark ? 'border-white/10 hover:bg-white/[0.03]' : 'border-[#E5E5E5] hover:bg-black/[0.02]'}`}
+      aria-label={`Abrir partido: ${match.leagueName}, ${match.homeTeam} ${match.homeScore} - ${match.awayScore} ${match.awayTeam}`}
     >
       <span className={`text-[10px] font-bold uppercase tracking-[0.1em] w-24 flex-shrink-0 truncate ${isDark ? 'text-neutral-500' : 'text-[#999]'}`}>
         {match.leagueName}
@@ -98,6 +104,7 @@ export default function MatchRow({ match, variant, isDark = true }: { match: Mat
       <div className="w-20 text-right flex-shrink-0">
         <StatusLabel match={match} isDark={isDark} />
       </div>
+    </button>
     </div>
   )
 }

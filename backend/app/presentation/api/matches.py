@@ -263,3 +263,127 @@ async def match_detail(league: str, event_id: str, response: Response) -> dict:
         out = _store(key, parse_summary(await _get(_SUMMARY.format(league=league), {"event": event_id}), league))
     response.headers["Cache-Control"] = "public, max-age=10" if out["state"] == "in" else "public, max-age=60"
     return out
+
+
+# ---------------------------------------------------------------- moments (feed)
+# "¡Gol de Bellingham!", expulsiones y resultados finales de los partidos de hoy,
+# en orden cronológico inverso, para que el feed publique datos solo.
+
+_SCOREBOARD = "https://site.api.espn.com/apis/site/v2/sports/soccer/{league}/scoreboard"
+MOMENT_LEAGUES = {
+    "col.1": "Liga BetPlay", "conmebol.libertadores": "Copa Libertadores", "conmebol.sudamericana": "Copa Sudamericana",
+    "uefa.champions": "Champions League", "uefa.europa": "Europa League", "eng.1": "Premier League", "esp.1": "LaLiga",
+    "ita.1": "Serie A", "ger.1": "Bundesliga", "fra.1": "Ligue 1",
+}
+_MAX_MATCHES = 18
+
+
+def minute_value(minute: str) -> float:
+    """"45'+2'" -> 47.0, "90'" -> 90.0, "" -> 0."""
+    nums = [int(n) for n in re.findall(r"\d+", minute or "")]
+    return float(sum(nums[:2])) if nums else 0.0
+
+
+def _surname(name: str) -> str:
+    parts = (name or "").split()
+    return parts[-1] if parts else name
+
+
+def score_after(text: str, home: str, away: str) -> tuple[int, int] | None:
+    """ESPN goal texts carry the score: 'Goal! Real Madrid 1, PSV Eindhoven 0. …'."""
+    m = re.search(re.escape(home) + r"\s+(\d+),\s+" + re.escape(away) + r"\s+(\d+)", text or "")
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def build_moments(detail: dict) -> list[dict]:
+    home, away = detail.get("home") or {}, detail.get("away") or {}
+    if not home or not away:
+        return []
+    kickoff = detail.get("date") or ""
+    base = {"matchId": detail["id"], "league": detail["league"], "leagueName": MOMENT_LEAGUES.get(detail["league"], detail.get("leagueName")),
+            "home": {"name": home.get("name"), "short": home.get("short"), "logo": home.get("logo")},
+            "away": {"name": away.get("name"), "short": away.get("short"), "logo": away.get("logo")},
+            "state": detail.get("state"), "kickoff": kickoff}
+    out: list[dict] = []
+    running = [0, 0]
+    for e in detail.get("events") or []:
+        kind = e["type"]
+        if kind in ("goal", "penalty-goal", "own-goal"):
+            parsed = score_after(e.get("text", ""), home.get("name", ""), away.get("name", ""))
+            if parsed:
+                running = list(parsed)
+            elif e.get("team") in ("home", "away"):
+                running[0 if e["team"] == "home" else 1] += 1
+            who = _surname((e.get("player") or {}).get("name", ""))
+            lead = {"own-goal": f"Autogol de {who}", "penalty-goal": f"¡Gol de penal de {who}!"}.get(kind, f"¡Gol de {who}!") if who else "¡Gol!"
+            out.append({**base, "id": f"{detail['id']}:{e['id']}", "kind": "goal", "minute": e.get("minute"), "minuteValue": minute_value(e.get("minute", "")),
+                        "team": e.get("team"), "player": e.get("player"), "assist": e.get("assist"), "score": {"home": running[0], "away": running[1]},
+                        "headline": f"{lead} {home.get('name')} {running[0]}-{running[1]} {away.get('name')} ({e.get('minute')})"})
+        elif kind == "red":
+            who = (e.get("player") or {}).get("name", "")
+            team = home.get("name") if e.get("team") == "home" else away.get("name")
+            out.append({**base, "id": f"{detail['id']}:{e['id']}", "kind": "red", "minute": e.get("minute"), "minuteValue": minute_value(e.get("minute", "")),
+                        "team": e.get("team"), "player": e.get("player"), "assist": None, "score": {"home": running[0], "away": running[1]},
+                        "headline": f"Roja para {who or 'un jugador'} ({team}) al {e.get('minute')}"})
+    if detail.get("state") == "post" and home.get("score") is not None:
+        hs, as_ = home.get("score") or 0, away.get("score") or 0
+        out.append({**base, "id": f"{detail['id']}:final", "kind": "final", "minute": "Final", "minuteValue": 200.0, "team": None,
+                    "player": None, "assist": None, "score": {"home": hs, "away": as_},
+                    "headline": f"Final: {home.get('name')} {hs}-{as_} {away.get('name')}"})
+    return out
+
+
+def moment_sort_key(m: dict) -> float:
+    try:
+        start = datetime.fromisoformat(str(m.get("kickoff")).replace("Z", "+00:00")).timestamp()
+    except ValueError:
+        start = 0.0
+    minute = m.get("minuteValue") or 0.0
+    return start + (minute + (15 if minute > 45 else 0)) * 60
+
+
+async def _scoreboard_events(client: httpx.AsyncClient, league: str) -> list[tuple[str, str, str]]:
+    try:
+        res = await client.get(_SCOREBOARD.format(league=league))
+        if res.status_code != 200:
+            return []
+        rows = []
+        for ev in res.json().get("events") or []:
+            state = ((ev.get("status") or {}).get("type") or {}).get("state")
+            if state in ("in", "post"):
+                rows.append((league, str(ev.get("id")), state))
+        return rows
+    except (httpx.HTTPError, ValueError):
+        return []
+
+
+async def _summary(client: httpx.AsyncClient, league: str, event_id: str) -> dict | None:
+    key = f"m:{league}:{event_id}"
+    hit = _cached(key, 15)
+    if hit is not None:
+        return hit
+    try:
+        res = await client.get(_SUMMARY.format(league=league), params={"event": event_id})
+        if res.status_code != 200:
+            return None
+        return _store(key, parse_summary(res.json(), league))
+    except (httpx.HTTPError, ValueError):
+        return None
+
+
+@router.get("/moments")
+async def moments(response: Response) -> dict:
+    out = _cached("moments", 30)
+    if out is None:
+        import asyncio
+
+        async with httpx.AsyncClient(timeout=httpx.Timeout(8.0)) as client:
+            groups = await asyncio.gather(*(_scoreboard_events(client, lg) for lg in MOMENT_LEAGUES))
+            refs = sorted((r for g in groups for r in g), key=lambda r: r[2] != "in")[:_MAX_MATCHES]  # live first
+            details = await asyncio.gather(*(_summary(client, lg, eid) for lg, eid, _ in refs))
+        items = [m for d in details if d for m in build_moments(d)]
+        items.sort(key=moment_sort_key, reverse=True)
+        out = _store("moments", {"moments": items[:60], "live": sum(1 for r in refs if r[2] == "in"),
+                                 "updatedAt": datetime.now(timezone.utc).isoformat()})
+    response.headers["Cache-Control"] = "public, max-age=20"
+    return out
