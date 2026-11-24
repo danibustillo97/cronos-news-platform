@@ -9,7 +9,7 @@ state in GitHub Actions.
 | Workflow | Runs | Cron | Woken by |
 | --- | --- | --- | --- |
 | `discovery-processing.yml` | `automation/run_discovery_jobs.py`: queued "Buscar noticias" jobs over `SCRAPER_SOURCES`; honours "Detener" between feeds | every 30 min | "Buscar noticias" |
-| `scraper.yml` | `automation/scraper.py`: periodic RSS/Atom ingestion into `discovery_items` (never publishes) | every 30 min | -- |
+| `scraper.yml` | `automation/scraper.py`: periodic RSS/Atom ingestion into `discovery_items` (never publishes) | every 10 min | -- |
 | `artifact-processing.yml` | `automation/run_artifact_jobs.py`: AI drafts for stories sent to editorial | every 10 min | "Procesar en Artifact", "Reintentar" |
 | `media-processing.yml` | `automation/run_media_generation_jobs.py`: images via Cloudflare Workers AI, stored in Supabase Storage | every 15 min | "Generar imagen" |
 | `scheduled-publications.yml` | `automation/run_scheduled_publications.py`: publishes artifacts whose time has come | every 15 min | -- |
@@ -30,8 +30,9 @@ Repository **secrets**:
 
 Repository **variable** (optional): `ARTIFACT_PROVIDER` (default `anthropic`).
 
+Workers use `backend/requirements.txt` (runtime dependencies); tests use `backend/requirements-dev.txt`.
 The workflows set `JOB_EXECUTION=github` and `ASSET_STORAGE=supabase` themselves;
-`RUNTIME_BASE_URL` is no longer needed.
+`RUNTIME_BASE_URL` is not required for cloud workers. Local LAB/Runtime features still need a separately reachable runtime.
 
 GitHub-hosted runners must not be assumed to support heavyweight FFmpeg or GPU rendering;
 LAB video productions stay on a local machine.
