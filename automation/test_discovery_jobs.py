@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.domain.discovery.entities import DiscoveryJob, DiscoveryJobStatus
 from automation import run_discovery_jobs as worker
+from app.domain.discovery.entities import DiscoveryJob, DiscoveryJobStatus
 
 
 def test_main_marks_queued_jobs_failed_when_no_sources_are_configured(monkeypatch, capsys):
