@@ -18,6 +18,7 @@ import {
 import { proxiedImage } from '@/lib/media'
 import RelatedNews from './RelatedNews'
 import ArticlePolls from '@/components/portal/ArticlePolls'
+import SocialActions from '@/components/portal/SocialActions'
 import AdSlot from '@/components/ads/AdSlot'
 import DOMPurify from 'isomorphic-dompurify'
 import parse from 'html-react-parser'
@@ -267,6 +268,11 @@ export default function ArticleContent({
           ">
             {parse(safeArticleContent || `<p>${news.excerpt || 'Sin contenido disponible.'}</p>`)}
           </div>
+
+          <section id="comentarios" aria-label="Reacciones y comentarios" className="nx-portal my-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-200 px-4 py-3" data-theme="light" style={{ background: 'transparent' }}>
+            <p className="text-sm font-bold text-neutral-900">¿Qué opinas de esta noticia?</p>
+            <SocialActions type="news" id={news.id} title={news.title} forceTheme="light" />
+          </section>
 
           <ArticlePolls newsId={news.id} />
 

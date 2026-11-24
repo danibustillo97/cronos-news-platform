@@ -199,6 +199,10 @@ FORMATO
 PROHIBIDO
 - Rostros reconocibles o personas reales identificables: jugadores de espaldas, en silueta o desenfocados.
 - Escudos, logos, marcas, patrocinadores, banderas con símbolos oficiales.
-- Cualquier texto, letra, número o marca de agua.`;
+- Cualquier texto, letra, número o marca de agua.
+
+ENTREGA
+- Genera la imagen directamente, sin hacer preguntas ni ofrecer variantes antes.
+- Entrégala en 1536×1024 para descargarla con un clic.`;
   return { scene, prompt, alt: s.alt, caption };
 }

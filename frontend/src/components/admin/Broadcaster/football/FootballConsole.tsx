@@ -6,14 +6,15 @@ import { Download, Eye, Plus, RefreshCw, Trash2, Tv2, Undo2 } from "lucide-react
 import type { BroadcastGraphic, GraphicVariant } from "../graphicExport";
 import { COMPETITIONS, getCompetition } from "./competitions";
 import { DataPanel } from "./DataPanel";
+import { AnalysisPanel } from "./AnalysisPanel";
 import { MatchClock } from "./MatchClock";
 import { FOOTBALL_VARIANTS, FOOTBALL_VARIANT_LABEL } from "./designs";
 import { WidgetBuilder, type AddOptions } from "./WidgetBuilder";
 import type { Fixture, FootballMatchController } from "./useFootballMatch";
 
-type Tab = "partido" | "control" | "widgets" | "datos" | "plantillas";
+type Tab = "partido" | "control" | "analisis" | "widgets" | "datos" | "plantillas";
 
-const TABS: Array<[Tab, string]> = [["partido", "Partido"], ["control", "Control"], ["widgets", "Widgets"], ["datos", "Datos"], ["plantillas", "Plantillas"]];
+const TABS: Array<[Tab, string]> = [["partido", "Partido"], ["control", "Control"], ["analisis", "Análisis"], ["widgets", "Widgets"], ["datos", "Datos"], ["plantillas", "Plantillas"]];
 const PERIODS = ["PRE", "1T", "HT", "2T", "ET", "PEN", "FT"] as const;
 const RANGES: Array<[string, number]> = [["Hoy", 0], ["7 días", 7], ["14 días", 14], ["30 días", 30]];
 
@@ -92,7 +93,7 @@ export function FootballConsole({ fm, graphics, previewGraphicIds, programGraphi
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
-      <div className="grid grid-cols-5 gap-0.5 border-b border-white/[0.07] bg-[#0a0e14] p-1">
+      <div className="grid grid-cols-6 gap-0.5 border-b border-white/[0.07] bg-[#0a0e14] p-1">
         {TABS.map(([id, label]) => (
           <button key={id} type="button" onClick={() => setTab(id)} className={`rounded-md px-1 py-2 text-[10px] font-bold uppercase tracking-wide ${tab === id ? "bg-emerald-400/15 text-emerald-200" : "text-neutral-500 hover:text-neutral-200"}`}>{label}</button>
         ))}
@@ -284,6 +285,8 @@ export function FootballConsole({ fm, graphics, previewGraphicIds, programGraphi
             </div>
           </>
         )}
+
+        {tab === "analisis" && <AnalysisPanel fm={fm} onAddWidget={onAddWidget} />}
 
         {tab === "datos" && <DataPanel fm={fm} onAddWidget={onAddWidget} />}
 

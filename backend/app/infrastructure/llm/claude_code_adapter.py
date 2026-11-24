@@ -97,6 +97,32 @@ class ClaudeCodeArtifactGenerator:
 
         return parse_artifact_response(text)
 
+    def complete_text(self, prompt: str, max_tokens: int = 1500, timeout: float = 120.0) -> str:
+        """One plain prompt -> plain text answer (polls, debates). Same CLI
+        call and error boundary as generate(); max_tokens is advisory here."""
+        binary = _binary_path()
+        if not binary:
+            raise ArtifactGenerationUnavailableError("El CLI de Claude Code no está instalado en esta máquina.")
+        try:
+            proc = subprocess.run(
+                [binary, "-p", prompt, "--output-format", "json", "--model", self._model],
+                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                timeout=timeout, cwd=tempfile.gettempdir(),
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise ArtifactGenerationUnavailableError(f"Claude Code CLI no respondió en {timeout:.0f}s") from exc
+        except OSError as exc:
+            raise ArtifactGenerationUnavailableError(f"no se pudo ejecutar el CLI de Claude Code: {exc}") from exc
+        if proc.returncode != 0:
+            raise ArtifactGenerationUnavailableError(f"Claude Code CLI terminó con código {proc.returncode}: {(proc.stderr or '').strip()[:500]}")
+        try:
+            body = json.loads(proc.stdout)
+        except json.JSONDecodeError as exc:
+            raise ArtifactGenerationUnavailableError(f"salida no-JSON del CLI de Claude Code: {exc}") from exc
+        if body.get("is_error") or not body.get("result"):
+            raise ArtifactGenerationUnavailableError(f"Claude Code CLI no devolvió texto: {str(body.get('result') or body)[:300]}")
+        return str(body["result"]).strip()
+
     def suggest_seo_fix(self, request: SeoFixRequest) -> SeoFixResult:
         """Section 5's real "Corregir con IA" -- same real CLI call, same
         error boundary as generate(), just a smaller targeted prompt for

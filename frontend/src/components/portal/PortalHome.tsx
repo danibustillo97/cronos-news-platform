@@ -4,9 +4,13 @@
 //
 //   Cabecera sticky (navbar + marcador, se esconde al bajar en mobile)
 //   ESCENARIO   -- noticias / transmisión de video / radio, según Portada
-//   HOME_TOP    -- banda publicitaria
-//   EN LA CANCHA-- partidos + tablas de posiciones con selector de liga
-//   PULSO       -- feed social de bloques mixtos + riel "Ahora" en vivo
+//   DEBATE      -- encuesta/debate destacado (si el backend tiene)
+//   PULSO       -- UN solo feed tipo Reels: noticias, "En 30 segundos",
+//                  tablas, partidos, encuestas, datos y publicidad
+//
+// La primera página de noticias y el layout llegan del servidor
+// (app/page.tsx -> lib/homeData.ts): el HTML inicial ya trae todo el
+// contenido y sus enlaces.
 //
 // Orden de historias = contrato de Portada (types/portal.ts): fijadas
 // primero, ocultas nunca, resto por recencia. Sin endpoint de layout, el
@@ -17,31 +21,27 @@ import { portalFont } from './fonts'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { MotionConfig } from 'framer-motion'
 import NewsModal from '@/components/news/NewsModal'
-import AdSlot from '@/components/ads/AdSlot'
 import Footer from '@/components/layout/Footer'
 import { usePortalTheme } from '@/context/ThemeContext'
 import { useScoreboard } from '@/lib/useScoreboard'
 import { usePortalLayout } from '@/lib/usePortalLayout'
 import { usePortalNews } from '@/lib/usePortalNews'
 import { applyLayout, resolveStage } from '@/lib/portalLayout'
-import type { PortalScrollTarget } from '@/types/portal'
+import type { PortalLayout, PortalScrollTarget } from '@/types/portal'
 import type { NewsView } from '@/types/news'
 import PortalHeader from './PortalHeader'
 import StageNews from './StageNews'
 import StageVideo from './StageVideo'
 import StageSkeleton from './StageSkeleton'
 import { RadioMiniPlayer, RadioProvider, StageRadio, type RadioStation } from './Radio'
-import SportsHub from './SportsHub'
-import PulseFeed from './PulseFeed'
-import NowRail from './NowRail'
-import { Skeleton } from './PortalBits'
+import ReelsFeed from './ReelsFeed'
 import { PollBlock } from './PollCard'
 import { usePolls } from '@/lib/usePolls'
 import { inPlacement, sortPolls, type Poll } from '@/lib/polls'
 
 const shell = 'mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8'
 
-export default function PortalHome() {
+export default function PortalHome({ initialNews, initialLayout }: { initialNews?: NewsView[] | null; initialLayout?: PortalLayout | null }) {
   const { theme } = usePortalTheme()
   const dark = theme === 'dark'
   const [headerHeight, setHeaderHeight] = useState(88)
@@ -50,12 +50,13 @@ export default function PortalHome() {
 
   const scrollTo = useCallback((target: PortalScrollTarget) => {
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    document.getElementById(`portal-${target}`)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
+    // "sports" ya no es una sección aparte: tablas y partidos viven dentro del feed.
+    document.getElementById(`portal-${target === 'sports' ? 'feed' : target}`)?.scrollIntoView({ behavior: reduce ? 'auto' : 'smooth', block: 'start' })
   }, [])
 
-  const { layout, ready: layoutReady, preview } = usePortalLayout(scrollTo)
-  const news = usePortalNews(layout)
-  const { matches, loading: matchesLoading } = useScoreboard()
+  const { layout, ready: layoutReady, preview } = usePortalLayout(scrollTo, initialLayout)
+  const news = usePortalNews(layout, initialNews)
+  const { matches } = useScoreboard()
 
   const ordered = useMemo(() => applyLayout(news.items, layout), [news.items, layout])
   const stage = useMemo(() => resolveStage(layout), [layout])
@@ -90,11 +91,14 @@ export default function PortalHome() {
     return () => window.removeEventListener('popstate', onPop)
   }, [])
 
+  const { fullStory } = news
   const openNews = useCallback((item: NewsView) => {
     if (!window.location.pathname.includes('/noticia/')) returnUrl.current = window.location.pathname + window.location.search
     setSelected(item)
     window.history.pushState({ newsId: item.id }, '', `/noticia/${item.slug}`)
-  }, [])
+    // Las del HTML inicial traen el cuerpo recortado: se completa al abrir.
+    if (item.content_truncated) fullStory(item).then((full) => setSelected((cur) => (cur?.id === full.id ? full : cur)))
+  }, [fullStory])
 
   const closeNews = useCallback(() => {
     setSelected(null)
@@ -136,64 +140,35 @@ export default function PortalHome() {
           <main id="contenido" tabIndex={-1} className="outline-none">
             <h1 className="sr-only">NEXUS News: noticias de fútbol de Colombia y el mundo</h1>
 
-            <section id="portal-stage" aria-label="Portada" className={`nx-section ${shell} pt-4 lg:pt-6`}>
+            <section id="portal-stage" aria-label="Portada" className={`nx-section nx-snap-item ${shell} pt-4 lg:pt-6`}>
               {renderStage()}
             </section>
 
             {featuredPoll && (
-              <section aria-label={featuredPoll.kind === 'debate' ? 'El debate del día' : 'La pregunta del día'} className={`${shell} mt-8`}>
+              <section aria-label={featuredPoll.kind === 'debate' ? 'El debate del día' : 'La pregunta del día'} className={`nx-snap-item ${shell} mt-8`}>
                 <div className={featuredPoll.kind === 'debate' ? '' : 'mx-auto max-w-2xl'}>
                   <PollBlock poll={featuredPoll} hero />
                 </div>
               </section>
             )}
 
-            <div className={`${shell} mt-8`}>
-              <aside aria-label="Publicidad" className="border-y border-[var(--nx-line)] py-3 text-center">
-                <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-[var(--nx-muted)]">Publicidad</span>
-                <AdSlot position="HOME_TOP" className="mt-2" />
-              </aside>
-            </div>
-
-            <section id="portal-sports" aria-labelledby="sports-heading" className={`nx-section ${shell} mt-12`}>
-              <SportsHub matches={matches} loading={matchesLoading} dark={dark} />
-            </section>
-
-            <section id="portal-feed" aria-labelledby="feed-heading" className={`nx-section ${shell} mt-14 pb-16`}>
-              {loading ? (
-                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                  {Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-[320px]" />)}
-                </div>
-              ) : (
-                <div className="grid gap-8 xl:grid-cols-[minmax(0,1fr)_340px]">
-                  <div className="min-w-0">
-                    <div className="mb-10 xl:hidden">
-                      <NowRail stories={ordered} matches={matches} onOpen={openNews} variant="strip" />
-                    </div>
-                    <PulseFeed
-                      stories={feedStories}
-                      sources={ordered}
-                      matches={matches}
-                      polls={feedPolls}
-                      dark={dark}
-                      onOpen={openNews}
-                      hasMore={news.hasMore}
-                      loadingMore={news.loadingMore}
-                      onLoadMore={news.loadMore}
-                    />
-                  </div>
-                  <div className="hidden xl:block">
-                    <div className="sticky" style={{ top: 'calc(var(--nx-header-h) + 16px)' }}>
-                      <NowRail stories={ordered} matches={matches} onOpen={openNews} variant="rail" />
-                    </div>
-                  </div>
-                </div>
-              )}
+            <section id="portal-feed" aria-labelledby="feed-heading" className={`nx-section ${shell} mt-10 pb-16`}>
+              <ReelsFeed
+                stories={feedStories}
+                stageStories={stageStories}
+                matches={matches}
+                polls={feedPolls}
+                dark={dark}
+                onOpen={openNews}
+                hasMore={news.hasMore}
+                loadingMore={news.loadingMore}
+                onLoadMore={news.loadMore}
+              />
             </section>
           </main>
 
           {station && <div aria-hidden="true" className="h-24 sm:h-0" />}
-          <Footer />
+          <div className="nx-snap-item"><Footer /></div>
           <RadioMiniPlayer />
         </RadioProvider>
       </div>

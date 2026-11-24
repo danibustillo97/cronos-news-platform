@@ -20,6 +20,8 @@ export interface AddOptions {
   scale?: number;
   position?: { x: number; y: number };
   name?: string;
+  title?: string;
+  subtitle?: string;
 }
 
 interface Props {

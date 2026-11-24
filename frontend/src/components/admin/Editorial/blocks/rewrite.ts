@@ -2,6 +2,7 @@
 // answer back exactly where its original sentence was -- inside its own
 // paragraph, leaving every other block untouched.
 
+import { unwrapAnswer, withCopyPaste } from "@/lib/chatgpt";
 import { cleanInline, isTextBlock, plainText, type Block } from "./blockModel";
 
 export interface RewriteTarget {
@@ -32,7 +33,7 @@ export function articlePlainText(title: string, excerpt: string, blocks: Block[]
 
 export function buildRewritePrompt(targets: RewriteTarget[], ctx: { keyword: string; title: string }): string {
   const list = targets.map((t, i) => `[${i + 1}] ${t.text}`).join("\n\n");
-  return `Eres editor senior de una redacción deportiva digital. Estas ${targets.length} frase(s) de la noticia «${ctx.title}» son casi idénticas a lo que publicó otro medio y hay que reescribirlas para que sean 100% originales.
+  return withCopyPaste(`Eres editor senior de una redacción deportiva digital. Estas ${targets.length} frase(s) de la noticia «${ctx.title}» son casi idénticas a lo que publicó otro medio y hay que reescribirlas para que sean 100% originales.
 
 REGLAS
 - Mismo dato y mismo sentido: no agregues ni quites hechos, cifras, nombres ni fechas.
@@ -45,14 +46,14 @@ FORMATO DE RESPUESTA (exacto, una por línea, sin comentarios)
 [2] frase reescrita
 
 FRASES
-${list}`;
+${list}`);
 }
 
 /** Reads "[1] text" / "1. text" / "1) text" lines from the AI answer. */
 export function parseRewrites(answer: string): Map<number, string> {
   const out = new Map<number, string>();
   let current: number | null = null;
-  for (const raw of answer.replace(/\r/g, "").split("\n")) {
+  for (const raw of unwrapAnswer(answer).split("\n")) {
     const line = raw.trim().replace(/^\*\*|\*\*$/g, "");
     const m = line.match(/^\[?(\d{1,2})[\].):-]\s*(.+)$/);
     if (m) {

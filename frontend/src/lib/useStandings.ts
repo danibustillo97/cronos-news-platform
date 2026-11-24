@@ -12,7 +12,7 @@ interface StandingsResult { leagueName: string; table: StandingsRowData[] }
 const TTL_MS = 5 * 60_000
 const cache = new Map<string, { at: number; promise: Promise<StandingsResult> }>()
 
-function fetchStandings(league: string): Promise<StandingsResult> {
+export function fetchStandings(league: string): Promise<StandingsResult> {
   const hit = cache.get(league)
   if (hit && Date.now() - hit.at < TTL_MS) return hit.promise
   const promise = fetch(apiUrl(`/api/sports/standings?league=${encodeURIComponent(league)}`))
@@ -41,4 +41,18 @@ export function useStandings(league: string | null) {
 
   const current = state.league === league ? state.data : null
   return { table: current?.table ?? [], leagueName: current?.leagueName ?? '', loading: Boolean(league) && current === null }
+}
+
+/** Varias ligas a la vez (para los datos automáticos). Devuelve solo las que ya cargaron. */
+export function useManyStandings(leagues: readonly string[]) {
+  const key = leagues.join(',')
+  const [data, setData] = useState<{ league: string; leagueName: string; table: StandingsRowData[] }[]>([])
+  useEffect(() => {
+    let cancelled = false
+    const ids = key ? key.split(',') : []
+    Promise.all(ids.map((league) => fetchStandings(league).then((r) => ({ league, ...r }))))
+      .then((rows) => { if (!cancelled) setData(rows) })
+    return () => { cancelled = true }
+  }, [key])
+  return data
 }

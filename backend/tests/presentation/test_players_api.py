@@ -77,3 +77,20 @@ def test_routes_validate_input_and_use_cache(monkeypatch):
     http.get("/api/players/257390")
     assert len(calls) == 3  # athlete + stats + overview; second request served from cache
     players._cache.clear()
+
+
+def test_unknown_player_is_404(monkeypatch):
+    players._cache.clear()
+
+    class Res:
+        status_code = 400
+        def json(self): return {}
+
+    class Client:
+        def __init__(self, *a, **k): pass
+        async def __aenter__(self): return self
+        async def __aexit__(self, *a): return False
+        async def get(self, *a, **k): return Res()
+
+    monkeypatch.setattr(players.httpx, "AsyncClient", Client)
+    assert TestClient(app).get("/api/players/999999999").status_code == 404

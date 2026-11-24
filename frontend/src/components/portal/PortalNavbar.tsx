@@ -27,6 +27,8 @@ export const NAV_ITEMS: NavItem[] = [
 ]
 
 export const MORE_ITEMS: { label: string; href: string }[] = [
+  { label: 'Leyendas', href: '/leyendas' },
+  { label: 'Parley del día', href: '/parleys' },
   { label: 'Comparar jugadores', href: '/jugadores/comparar' },
   { label: 'Explorar noticias', href: '/explorar' },
   { label: 'Otros deportes', href: '/deportes' },

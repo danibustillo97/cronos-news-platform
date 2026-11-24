@@ -184,3 +184,24 @@ def test_missing_tables_return_503_with_hint(env):
 def test_admin_routes_require_login():
     app.dependency_overrides.clear()
     assert TestClient(app).get("/api/admin/polls").status_code == 401
+
+
+def test_ai_draft_runs_prompt_through_resolved_provider(env):
+    http, _ = env
+    seen = {}
+
+    class Gen:
+        def complete_text(self, prompt, max_tokens=1500, timeout=90.0):
+            seen["prompt"] = prompt
+            return "```text\nTIPO: encuesta\nPREGUNTA: ¿Quién gana?\nOPCIÓN: A\nOPCIÓN: B\n```"
+
+    class Resolver:
+        def resolve(self, requested): return "anthropic"
+        def get(self, provider_id): return Gen()
+
+    from app.container import get_container as gc
+    container = app.dependency_overrides[gc]()
+    container.artifact_provider_resolver = Resolver()
+    res = http.post("/api/admin/polls/ai", json={"prompt": "Genera una encuesta sobre la final de la Libertadores"})
+    assert res.status_code == 200 and "PREGUNTA" in res.json()["text"] and res.json()["provider"] == "anthropic"
+    assert seen["prompt"].startswith("Genera una encuesta")

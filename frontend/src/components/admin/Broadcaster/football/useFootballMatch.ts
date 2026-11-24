@@ -520,6 +520,7 @@ export function useFootballMatch() {
 
   return {
     match, events, audit, running, clockStartedAt, clockNow, loading, cloud,
+    fixture: fixtureKey ? fixtureRef.current : null,
     hasFixture: fixtureKey !== null, espnSync, setEspnSync, espnPending, applySuggestion, dismissSuggestion, applyAllSuggestions,
     setMatch, setPeriod, toggleClock, resetClock, addGoal, undoGoal, voidEvent, addCard, addSubstitution,
     showPlayer, showVar, loadFixture, refreshDetail, newMatch,

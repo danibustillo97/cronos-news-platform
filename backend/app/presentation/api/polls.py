@@ -27,6 +27,7 @@ from fastapi.responses import JSONResponse
 from pydantic import Field
 
 from app.container import Container, get_container
+from app.domain.ports import ArtifactGenerationUnavailableError
 from app.presentation.schemas import CamelModel
 
 router = APIRouter(prefix="/api/polls", tags=["polls"])
@@ -67,6 +68,11 @@ class PollPatch(CamelModel):
     featured: bool | None = None
     placement: list[str] | None = None
     options: list[OptionIn] | None = Field(default=None, min_length=2, max_length=MAX_OPTIONS)
+
+
+class AiDraftIn(CamelModel):
+    prompt: str = Field(min_length=20, max_length=16000)
+    provider: str | None = None
 
 
 class VoteIn(CamelModel):
@@ -208,6 +214,21 @@ def admin_list(container: Container = Depends(get_container)) -> list[dict]:
 def _options_payload(poll_id: str, options: list[OptionIn]) -> list[dict]:
     return [{"poll_id": poll_id, "label": o.label.strip(), "argument": (o.argument or "").strip() or None, "position": i}
             for i, o in enumerate(options)]
+
+
+@admin_router.post("/ai")
+def admin_ai_draft(body: AiDraftIn, container: Container = Depends(get_container)) -> dict:
+    """Automatic mode: runs the SAME prompt the editor can copy to ChatGPT
+    through the configured provider and returns the raw answer; the frontend
+    parses both paths with one parser (pollPrompt.ts)."""
+    resolver = container.artifact_provider_resolver
+    provider_id = resolver.resolve(body.provider)  # ProviderUnavailableError -> handled globally
+    try:
+        text = resolver.get(provider_id).complete_text(body.prompt, max_tokens=1800)
+    except ArtifactGenerationUnavailableError as exc:
+        raise HTTPException(status_code=503, detail=f"La IA no respondió: {exc}") from exc
+    provider = getattr(provider_id, "value", str(provider_id))
+    return {"text": text, "provider": provider}
 
 
 @admin_router.post("", status_code=201)

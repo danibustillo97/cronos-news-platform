@@ -47,7 +47,11 @@ COMPETITIONS_ES = {
     "Colombian Primera A": "Liga BetPlay", "Colombian Copa Colombia": "Copa Colombia",
     "CONMEBOL Libertadores": "Copa Libertadores", "CONMEBOL Sudamericana": "Copa Sudamericana",
     "FIFA World Cup Qualifying - CONMEBOL": "Eliminatorias", "FIFA World Cup": "Mundial", "International Friendly": "Amistoso internacional",
-    "Copa America": "Copa América",
+    "Copa America": "Copa América", "German SuperCup": "Supercopa de Alemania", "Spanish Supercopa": "Supercopa de España",
+    "English Community Shield": "Community Shield", "Italian Supercoppa": "Supercopa de Italia",
+    "French Trophée des Champions": "Supercopa de Francia", "UEFA Super Cup": "Supercopa de Europa",
+    "FIFA Club World Cup": "Mundial de Clubes", "UEFA Nations League": "Liga de Naciones",
+    "FIFA World Cup Qualifying - UEFA": "Eliminatorias UEFA", "Club Friendly": "Amistoso de clubes",
 }
 
 _cache: dict[str, tuple[float, Any]] = {}
@@ -73,7 +77,7 @@ async def _get_json(url: str, params: dict | None = None) -> dict:
             res = await client.get(url, params=params)
     except httpx.HTTPError as exc:
         raise HTTPException(status_code=502, detail="No se pudo consultar la fuente de datos") from exc
-    if res.status_code == 404:
+    if res.status_code in (400, 404):  # ESPN answers 400 for an unknown athlete id
         raise HTTPException(status_code=404, detail="Jugador no encontrado")
     if res.status_code >= 400:
         raise HTTPException(status_code=502, detail="La fuente de datos no respondió")
@@ -116,7 +120,8 @@ def parse_seasons(stats_payload: dict) -> list[dict]:
             season = season_name.split(" ", 1)[0] if season_name else ""
             league = leagues.get(row.get("leagueSlug")) or {}
             team = teams.get(row.get("teamSlug")) or {}
-            competition = league.get("displayName") or (season_name.split(" ", 1)[1] if " " in season_name else "")
+            raw = season_name.split(" ", 1)[1] if " " in season_name else ""
+            competition = COMPETITIONS_ES.get(raw) or league.get("displayName") or raw
             key = (season, row.get("leagueSlug"), row.get("teamSlug"))
             entry = merged.setdefault(key, {
                 "season": season,

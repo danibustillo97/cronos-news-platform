@@ -349,7 +349,7 @@ export default function PortalBlockEditor({
     if (!rewriteTargets.length) return;
     try {
       await navigator.clipboard.writeText(buildRewritePrompt(rewriteTargets, { keyword: keyword || report.keyword, title: draft.title }));
-      toast.success(`${rewriteTargets.length} frase(s) copiadas con instrucciones. Pégalas en ChatGPT y luego usa «Pegar correcciones».`);
+      toast.success(`${rewriteTargets.length} frase(s) copiadas con instrucciones. Pégalas en ChatGPT, copia su bloque con «Copiar código» y usa «Pegar correcciones».`);
     } catch {
       toast.error("El navegador no dejó copiar. Prueba de nuevo con la pestaña activa.");
     }
@@ -434,7 +434,7 @@ export default function PortalBlockEditor({
     fixPlan.current = { plan, ctx };
     try {
       await navigator.clipboard.writeText(plan.prompt);
-      toast.success("Prompt de corrección copiado. Pégalo en ChatGPT y trae la respuesta con «Pegar respuesta».");
+      toast.success("Prompt de corrección copiado. Pégalo en ChatGPT, copia su bloque con «Copiar código» y usa «Pegar respuesta».");
     } catch {
       toast.error("El navegador no dejó copiar. Prueba de nuevo con la pestaña activa.");
     }
@@ -492,7 +492,7 @@ export default function PortalBlockEditor({
     try {
       await navigator.clipboard.writeText(text);
       toast.success(withInstructions
-        ? "Copiado con instrucciones: pégalo en ChatGPT y trae la respuesta con «Pegar y reemplazar»."
+        ? "Copiado con instrucciones: pégalo en ChatGPT, copia su bloque con «Copiar código» y usa «Pegar y reemplazar»."
         : `Noticia copiada (${wordCount(blocksRef.current)} palabras).`);
     } catch {
       toast.error("El navegador no dejó copiar. Prueba de nuevo con la pestaña activa.");

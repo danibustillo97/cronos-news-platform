@@ -315,6 +315,11 @@ class ArtifactGenerationPort(Protocol):
     ArtifactGenerationUnavailableError."""
     def generate(self, request: ArtifactGenerationRequest) -> ArtifactGenerationResult: ...
 
+    def complete_text(self, prompt: str, max_tokens: int = 1500, timeout: float = 90.0) -> str:
+        """Plain prompt -> plain text for small editor helpers (polls,
+        debates) that own their prompt and parser. Same honest failure path."""
+        ...
+
     def suggest_seo_fix(self, request: SeoFixRequest) -> SeoFixResult:
         """Section 5's real "Corregir con IA" -- one narrow, real LLM call
         (never a full re-generation, never a second AI infrastructure)

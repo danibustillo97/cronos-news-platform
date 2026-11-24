@@ -64,4 +64,7 @@ export interface NewsView {
   source?: string | null;
   source_url?: string | null;
   views?: number | null;
+  // Calculados en el servidor para el HTML inicial (lib/homeData.ts).
+  read_minutes?: number;
+  content_truncated?: boolean;
 }

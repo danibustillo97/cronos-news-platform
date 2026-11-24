@@ -15,11 +15,15 @@ const PUBLIC_POLL_MS = 60_000
 const DRAFT_HOLD_MS = 15_000
 const FIRST_LOAD_TIMEOUT_MS = 2_500
 
-export function usePortalLayout(onScrollTo?: (target: PortalScrollTarget) => void) {
-  const [layout, setLayout] = useState<PortalLayout>(defaultLayout)
-  const [ready, setReady] = useState(false)
+/**
+ * `initial`: layout leído en el servidor. `undefined` = no se intentó
+ * (esperar al navegador); `null` = se intentó y falló (usar el default ya).
+ */
+export function usePortalLayout(onScrollTo?: (target: PortalScrollTarget) => void, initial?: PortalLayout | null) {
+  const [layout, setLayout] = useState<PortalLayout>(() => initial ?? defaultLayout())
+  const [ready, setReady] = useState(initial !== undefined)
   const [preview, setPreview] = useState(false)
-  const signature = useRef(layoutSignature(defaultLayout()))
+  const signature = useRef(layoutSignature(initial ?? defaultLayout()))
   const lastDraftAt = useRef(0)
   const scrollRef = useRef(onScrollTo)
   scrollRef.current = onScrollTo

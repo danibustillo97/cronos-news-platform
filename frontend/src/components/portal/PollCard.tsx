@@ -48,7 +48,8 @@ function ErrorLine({ show }: { show: boolean }) {
   return <p role="alert" className="text-xs font-semibold text-[#DC2626]">No pudimos registrar tu voto. Intenta de nuevo.</p>
 }
 
-export function PollCard({ poll: initial, compact = false }: { poll: Poll; compact?: boolean }) {
+export function PollCard({ poll: initial, compact = false, bare = false }: { poll: Poll; compact?: boolean; bare?: boolean }) {
+  const Tag = bare ? 'div' : 'article'
   const { poll, voted, vote, state } = usePollVote(initial)
   const now = useNow(60_000)
   const closed = isClosed(poll, now)
@@ -57,10 +58,12 @@ export function PollCard({ poll: initial, compact = false }: { poll: Poll; compa
   const leader = leaderId(poll)
 
   return (
-    <article id={`encuesta-${poll.id}`} className="flex h-full flex-col gap-4 rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] p-5">
-      <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]">
-        <Vote size={14} aria-hidden="true" /> Encuesta
-      </span>
+    <Tag id={`encuesta-${poll.id}`} className={`flex h-full flex-col gap-4 ${bare ? '' : 'rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] p-5'}`}>
+      {!bare && (
+        <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]">
+          <Vote size={14} aria-hidden="true" /> Encuesta
+        </span>
+      )}
       <h3 className={`font-bold leading-snug text-[var(--nx-ink)] ${compact ? 'text-base' : 'text-lg'}`}>{poll.question}</h3>
       {poll.context && !compact && <p className="text-sm leading-relaxed text-[var(--nx-ink-2)]">{poll.context}</p>}
 
@@ -100,14 +103,15 @@ export function PollCard({ poll: initial, compact = false }: { poll: Poll; compa
       <ErrorLine show={state === 'error'} />
       <div className="mt-auto flex flex-wrap items-center justify-between gap-2">
         <Footer poll={poll} now={now} voted={Boolean(voted)} />
-        {!compact && <ShareButton poll={poll} />}
+        {!compact && !bare && <ShareButton poll={poll} />}
       </div>
-    </article>
+    </Tag>
   )
 }
 
 /** Debate: dos lados enfrentados. `hero` = versión grande de portada. */
-export function DebateCard({ poll: initial, hero = false }: { poll: Poll; hero?: boolean }) {
+export function DebateCard({ poll: initial, hero = false, bare = false }: { poll: Poll; hero?: boolean; bare?: boolean }) {
+  const Tag = bare ? 'div' : 'article'
   const { poll, voted, vote, state } = usePollVote(initial)
   const now = useNow(60_000)
   const closed = isClosed(poll, now)
@@ -147,8 +151,8 @@ export function DebateCard({ poll: initial, hero = false }: { poll: Poll; hero?:
   }
 
   return (
-    <article id={`encuesta-${poll.id}`} className={`flex h-full flex-col gap-4 rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] ${hero ? 'p-5 sm:p-7' : 'p-5'}`}>
-      <div className="flex flex-wrap items-center justify-between gap-2">
+    <Tag id={`encuesta-${poll.id}`} className={`flex h-full flex-col gap-4 ${bare ? '' : `rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] ${hero ? 'p-5 sm:p-7' : 'p-5'}`}`}>
+      <div className={`flex flex-wrap items-center justify-between gap-2 ${bare ? 'hidden' : ''}`}>
         <span className="inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]">
           <Swords size={14} aria-hidden="true" /> {hero ? 'El debate del día' : 'Debate'}
         </span>
@@ -175,12 +179,12 @@ export function DebateCard({ poll: initial, hero = false }: { poll: Poll; hero?:
       <ErrorLine show={state === 'error'} />
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Footer poll={poll} now={now} voted={Boolean(voted)} />
-        <ShareButton poll={poll} />
+        {!bare && <ShareButton poll={poll} />}
       </div>
-    </article>
+    </Tag>
   )
 }
 
-export function PollBlock({ poll, compact, hero }: { poll: Poll; compact?: boolean; hero?: boolean }) {
-  return poll.kind === 'debate' ? <DebateCard poll={poll} hero={hero} /> : <PollCard poll={poll} compact={compact} />
+export function PollBlock({ poll, compact, hero, bare }: { poll: Poll; compact?: boolean; hero?: boolean; bare?: boolean }) {
+  return poll.kind === 'debate' ? <DebateCard poll={poll} hero={hero} bare={bare} /> : <PollCard poll={poll} compact={compact} bare={bare} />
 }

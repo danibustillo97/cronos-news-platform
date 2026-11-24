@@ -11,7 +11,7 @@ from app.presentation.error_handlers import register_error_handlers
 from app.presentation.auth import require_admin
 from app.presentation.api import (
     stories, compositions, discovery, categories, assets, runtime, settings, artifacts, published_content,
-    artifact_providers, ads, sports, location, studio, editorial, portal, radio, polls, players,
+    artifact_providers, ads, sports, location, studio, editorial, portal, radio, polls, players, capsules, picks, social, research, matches,
 )
 from app.presentation.api.stories import productions_router
 
@@ -58,6 +58,13 @@ app.include_router(radio.router, dependencies=[require_admin()])
 app.include_router(polls.router)  # public: list, read, vote
 app.include_router(polls.admin_router, dependencies=[require_admin()])
 app.include_router(players.router)  # public read-only ESPN proxy
+app.include_router(capsules.router)  # public: feed, list, read
+app.include_router(capsules.admin_router, dependencies=[require_admin()])
+app.include_router(picks.router)  # public: data-driven parlay suggestions
+app.include_router(social.router)  # public: reactions and comments
+app.include_router(social.admin_router, dependencies=[require_admin()])
+app.include_router(research.router, dependencies=[require_admin()])
+app.include_router(matches.router)  # public: live match centre + scorer insights
 
 
 @app.get("/health")

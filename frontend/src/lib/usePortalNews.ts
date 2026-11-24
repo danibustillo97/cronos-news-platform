@@ -12,7 +12,7 @@ import { missingPinned } from '@/lib/portalLayout'
 import type { PortalLayout } from '@/types/portal'
 import type { NewsView } from '@/types/news'
 
-const PAGE_SIZE = 24
+const PAGE_SIZE = 24 // = HOME_PAGE_SIZE (lib/homeData.ts)
 const REFRESH_MS = 90_000
 
 function baseQuery() {
@@ -25,19 +25,22 @@ function mergeById(current: NewsView[], incoming: NewsView[]): NewsView[] {
   return [...byId.values()]
 }
 
-export function usePortalNews(layout: PortalLayout) {
-  const [items, setItems] = useState<NewsView[]>([])
-  const [loading, setLoading] = useState(true)
+/** `initial`: primera página leída en el servidor (null = falló; undefined = no se intentó). */
+export function usePortalNews(layout: PortalLayout, initial?: NewsView[] | null) {
+  const seeded = Array.isArray(initial)
+  const [items, setItems] = useState<NewsView[]>(() => initial ?? [])
+  const [loading, setLoading] = useState(!seeded)
   const [loadingMore, setLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
+  const [hasMore, setHasMore] = useState(seeded ? initial!.length >= PAGE_SIZE : true)
   const [failed, setFailed] = useState(false)
-  const offset = useRef(0)
+  const offset = useRef(seeded ? initial!.length : 0)
+  const seededRef = useRef(seeded)
   const requestedPinned = useRef(new Set<string>())
   const busy = useRef(false)
 
   useEffect(() => {
     let cancelled = false
-    baseQuery().range(0, PAGE_SIZE - 1).then(({ data, error }) => {
+    if (!seededRef.current) baseQuery().range(0, PAGE_SIZE - 1).then(({ data, error }) => {
       if (cancelled) return
       if (error) { console.error('[portal] news', error); setFailed(true); setLoading(false); setHasMore(false); return }
       const rows = (data ?? []) as NewsView[]
@@ -50,7 +53,7 @@ export function usePortalNews(layout: PortalLayout) {
     const id = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return
       baseQuery().range(0, 9).then(({ data, error }) => {
-        if (!cancelled && !error && data) setItems((prev) => mergeById(prev, data as NewsView[]))
+        if (!cancelled && !error && data) setItems((prev) => mergeById(prev, (data as NewsView[]).map((n) => ({ ...n, content_truncated: false }))))
       })
     }, REFRESH_MS)
     return () => { cancelled = true; window.clearInterval(id) }
@@ -82,5 +85,15 @@ export function usePortalNews(layout: PortalLayout) {
     })
   }, [hasMore, loading])
 
-  return { items, loading, loadingMore, hasMore, failed, loadMore }
+  /** Para el modal: si la historia vino recortada del servidor, trae el cuerpo completo. */
+  const fullStory = useCallback(async (item: NewsView): Promise<NewsView> => {
+    if (!item.content_truncated) return item
+    const { data, error } = await supabase.from('news').select('*').eq('id', item.id).maybeSingle()
+    if (error || !data) return item
+    const full = { ...item, ...(data as NewsView), content_truncated: false }
+    setItems((prev) => mergeById(prev, [full]))
+    return full
+  }, [])
+
+  return { items, loading, loadingMore, hasMore, failed, loadMore, fullStory }
 }

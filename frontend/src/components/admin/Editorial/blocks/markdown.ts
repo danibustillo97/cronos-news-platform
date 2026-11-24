@@ -3,6 +3,7 @@
 // as [IMAGEN n] / [VIDEO n] markers and are restored as the SAME blocks, so a
 // round-trip through an AI never loses photos or videos.
 
+import { unwrapAnswer, withCopyPaste } from "@/lib/chatgpt";
 import { cleanInline, newId, plainText, type Block } from "./blockModel";
 
 const MEDIA_TYPES = new Set<Block["type"]>(["image", "embed", "placeholder", "divider", "raw"]);
@@ -30,7 +31,7 @@ export function buildAiPrompt(ctx: PromptContext): string {
   const sources = ctx.sources.length
     ? ctx.sources.map((s, i) => `${i + 1}. ${s.name}${s.url ? ` — ${s.url}` : ""}`).join("\n")
     : "(sin fuente registrada: trabaja solo con los datos del texto)";
-  return `Actúa como editor jefe de deportes con 20 años en redacciones digitales de referencia (Marca, AS, ESPN, El Tiempo), especialista en SEO para Google News y Google Discover. Hoy es ${ctx.today}. El medio publica ${ctx.contentLabel} para lectores de Colombia y Latinoamérica.
+  return withCopyPaste(`Actúa como editor jefe de deportes con 20 años en redacciones digitales de referencia (Marca, AS, ESPN, El Tiempo), especialista en SEO para Google News y Google Discover. Hoy es ${ctx.today}. El medio publica ${ctx.contentLabel} para lectores de Colombia y Latinoamérica.
 
 TAREA
 Convierte el material de abajo en una noticia lista para publicar: precisa, original, bien posicionable y monetizable.
@@ -76,7 +77,7 @@ SECCIÓN: ${ctx.category}` : ""}
 MATERIAL
 ---
 ${toMarkdown(ctx.title, ctx.excerpt, ctx.blocks).trim()}
----`;
+---`);
 }
 
 function inlineToMarkdown(html: string): string {
@@ -190,7 +191,7 @@ const EXCERPT_LINE = /^(\*\*|__)?\s*(entradilla|lead|bajada|sumario)\s*:?\s*(\*\
  * them; media the text no longer mentions is appended at the end, never lost.
  */
 export function fromMarkdown(input: string, previous: Block[] = []): ParsedArticle {
-  const { body: text, seo } = extractSeo(input.replace(/\r/g, ""));
+  const { body: text, seo } = extractSeo(unwrapAnswer(input));
   const media = previous.filter((b) => MEDIA_TYPES.has(b.type) && b.type !== "divider");
   const used = new Set<number>();
   let title: string | null = null;

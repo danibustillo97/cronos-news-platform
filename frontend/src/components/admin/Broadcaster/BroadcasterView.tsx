@@ -873,14 +873,14 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     "lineup-home": "Alineación local", "lineup-away": "Alineación visitante", stats: "NEXUS Estadísticas",
   };
 
-  const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string }) => {
+  const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string; title?: string; subtitle?: string }) => {
     const graphic: BroadcastGraphic = {
       id: createId("graphic"),
       mode: "football",
       name: options?.name ?? FOOTBALL_NAMES[variant] ?? variant,
       kind: ["elite", "compact", "editorial", "live"].includes(variant) ? "scoreboard" : variant === "lower" ? "lower-third" : "ticker",
-      title: "",
-      subtitle: "",
+      title: options?.title ?? "",
+      subtitle: options?.subtitle ?? "",
       accent: getCompetition(fm.match.competitionId ?? "custom").accent,
       variant,
       style: options?.style,

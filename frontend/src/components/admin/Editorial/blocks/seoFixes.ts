@@ -3,6 +3,7 @@
 // back exactly where it belongs (subheadings between the right paragraphs,
 // long sentences replaced one by one, header/SEO fields into their fields).
 
+import { unwrapAnswer, withCopyPaste } from "@/lib/chatgpt";
 import { cleanInline, emptyBlock, isTextBlock, newId, plainText, type Block } from "./blockModel";
 import { fold, sentences, type SeoReport } from "./seo";
 
@@ -208,7 +209,7 @@ export function buildFixPrompt(report: SeoReport, ctx: FixContext): FixPromptPla
     : "";
   const frases = longSentences.length ? `\n\nFRASES LARGAS\n${longSentences.map((s, i) => `[F${i + 1}] ${s.text}`).join("\n\n")}` : "";
 
-  const prompt = `Actúa como editor jefe de deportes y especialista SEO (20 años en medios digitales). Corrige SOLO lo que te pido de esta noticia; no reescribas nada más.
+  const prompt = withCopyPaste(`Actúa como editor jefe de deportes y especialista SEO (20 años en medios digitales). Corrige SOLO lo que te pido de esta noticia; no reescribas nada más.
 
 TITULAR ACTUAL: ${ctx.title}
 ENTRADILLA ACTUAL: ${ctx.excerpt || "(vacía)"}
@@ -222,7 +223,7 @@ REGLAS
 - Español neutro, estilo periodístico, voz activa, sin clickbait.
 
 FORMATO DE RESPUESTA (exacto, una línea por elemento, sin comentarios)
-${format.join("\n")}${numbered}${frases}`;
+${format.join("\n")}${numbered}${frases}`);
 
   return { prompt, paragraphIds, longSentences, wants };
 }
@@ -250,6 +251,7 @@ export function parseFixAnswer(answer: string, plan: FixPromptPlan, ctx: FixCont
   proposals: FixProposal[];
   apply: (acceptedKeys: Set<string>) => FixPatch;
 } {
+  answer = unwrapAnswer(answer);
   const proposals: FixProposal[] = [];
   const title = plan.wants.has("title") ? labelValue(answer, ["titular"]) : null;
   const excerpt = plan.wants.has("excerpt") ? labelValue(answer, ["entradilla"]) : null;

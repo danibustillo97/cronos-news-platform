@@ -72,12 +72,14 @@ export default function GlobalSearch({ open, onClose }: { open: boolean; onClose
           <input
             ref={inputRef}
             id="global-search"
-            type="search"
+            type="text"
+            role="searchbox"
+            enterKeyHint="search"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Busca un jugador o una noticia"
             autoComplete="off"
-            className="h-12 min-w-0 flex-1 bg-transparent text-base text-[var(--nx-ink)] placeholder:text-[var(--nx-muted)] focus:outline-none"
+            className="h-12 min-w-0 flex-1 bg-transparent text-base text-[var(--nx-ink)] placeholder:text-[var(--nx-muted)] focus:outline-none focus-visible:!outline-none"
           />
           {busy && <Loader2 size={16} className="shrink-0 animate-spin text-[var(--nx-muted)]" aria-hidden="true" />}
           <button type="button" onClick={onClose} aria-label="Cerrar" className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--nx-muted)] hover:bg-[var(--nx-surface-2)]">
