@@ -8,6 +8,7 @@ import type { ReactNode } from 'react'
 import Footer from '@/components/layout/Footer'
 import { usePortalTheme } from '@/context/ThemeContext'
 import PortalNavbar from './PortalNavbar'
+import PwaClient from './PwaClient'
 
 export const pageShell = 'mx-auto w-full px-4 sm:px-6 lg:px-8'
 
@@ -21,6 +22,7 @@ export default function PortalPage({ children }: { children: ReactNode }) {
       <div className="sticky top-0 z-50"><PortalNavbar /></div>
       <main id="contenido" tabIndex={-1} className="outline-none">{children}</main>
       <Footer />
+      <PwaClient />
     </div>
   )
 }

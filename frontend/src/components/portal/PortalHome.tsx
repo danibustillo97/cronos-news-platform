@@ -35,6 +35,7 @@ import StageVideo from './StageVideo'
 import StageSkeleton from './StageSkeleton'
 import { RadioMiniPlayer, RadioProvider, StageRadio, type RadioStation } from './Radio'
 import ReelsFeed from './ReelsFeed'
+import PwaClient from './PwaClient'
 import { PollBlock } from './PollCard'
 import { usePolls } from '@/lib/usePolls'
 import { inPlacement, sortPolls, type Poll } from '@/lib/polls'
@@ -168,6 +169,7 @@ export default function PortalHome({ initialNews, initialLayout }: { initialNews
                 hasMore={news.hasMore}
                 loadingMore={news.loadingMore}
                 onLoadMore={news.loadMore}
+                onRefresh={news.refresh}
               />
             </section>
           </main>
@@ -175,6 +177,7 @@ export default function PortalHome({ initialNews, initialLayout }: { initialNews
           {station && <div aria-hidden="true" className="h-24 sm:h-0" />}
           <div className="nx-snap-item"><Footer /></div>
           <RadioMiniPlayer />
+          <PwaClient />
         </RadioProvider>
       </div>
     </MotionConfig>

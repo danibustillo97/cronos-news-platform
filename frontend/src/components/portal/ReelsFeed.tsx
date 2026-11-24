@@ -7,9 +7,10 @@
 // trae las noticias con sus enlaces). En teléfono cada tarjeta encaja con
 // scroll-snap; en desktop el snap es suave (proximity).
 
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
-import { Loader2 } from 'lucide-react'
+import { Loader2, RefreshCw } from 'lucide-react'
+import LiveStrip from './LiveStrip'
 import { composeReels, interleavePolls, autoFacts, TABLE_ROTATION } from '@/lib/reels'
 import { useManyStandings } from '@/lib/useStandings'
 import { LEAGUE_LABELS } from '@/lib/leagueLogos'
@@ -27,8 +28,9 @@ const FACT_LEAGUES = ['col.1', 'eng.1', 'esp.1', 'ita.1', 'ger.1'] as const
 const MAX_AUTO_LOADS = 4
 
 export default function ReelsFeed({
-  stories, stageStories, matches, polls, dark, onOpen, hasMore, loadingMore, onLoadMore,
+  stories, stageStories, matches, polls, dark, onOpen, hasMore, loadingMore, onLoadMore, onRefresh,
 }: {
+  onRefresh?: () => Promise<number>
   stories: NewsView[]
   stageStories: NewsView[]
   matches: Match[]
@@ -77,16 +79,39 @@ export default function ReelsFeed({
     return () => io.disconnect()
   }, [hasMore, loadingMore, onLoadMore])
 
+  const [refreshing, setRefreshing] = useState(false)
+  const [refreshNote, setRefreshNote] = useState<string | null>(null)
+  const doRefresh = async () => {
+    if (!onRefresh || refreshing) return
+    setRefreshing(true)
+    setRefreshNote(null)
+    try { navigator.vibrate?.(8) } catch { /* sin vibración */ }
+    const added = await onRefresh().catch(() => 0)
+    setRefreshing(false)
+    setRefreshNote(added > 0 ? `${added} ${added === 1 ? 'novedad' : 'novedades'}` : 'Estás al día')
+    window.setTimeout(() => setRefreshNote(null), 2500)
+  }
+
   let newsSeen = 0
 
   return (
     <div className="grid w-full min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,640px)_minmax(0,1fr)]">
       <div className="hidden xl:block" aria-hidden="true" />
       <div className="mx-auto w-full min-w-0 max-w-[640px]">
-        <div className="mb-4 px-1">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]">Noticias, datos y tablas en un solo hilo</p>
-          <h2 id="feed-heading" className="mt-1 text-2xl font-bold tracking-[-0.015em] text-[var(--nx-ink)]">Pulso</h2>
+        <div className="mb-4 flex items-end justify-between gap-3 px-1">
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]">Noticias, datos y tablas en un solo hilo</p>
+            <h2 id="feed-heading" className="mt-1 text-2xl font-bold tracking-[-0.015em] text-[var(--nx-ink)]">Pulso</h2>
+          </div>
+          {onRefresh && (
+            <button type="button" onClick={doRefresh} disabled={refreshing} aria-live="polite" className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-[var(--nx-line)] px-3.5 text-[13px] font-semibold text-[var(--nx-ink-2)] transition-transform hover:border-[var(--nx-line-strong)] active:scale-95 disabled:opacity-70">
+              <RefreshCw size={14} className={refreshing ? 'animate-spin' : ''} aria-hidden="true" />
+              {refreshing ? 'Actualizando…' : refreshNote ?? 'Actualizar'}
+            </button>
+          )}
         </div>
+
+        <LiveStrip matches={matches} />
 
         <ol className="nx-reels flex w-full min-w-0 flex-col gap-5" aria-labelledby="feed-heading">
           {items.map((item) => {
