@@ -1,0 +1,4 @@
+# Vercel's FastAPI runtime needs the explicit module path because the
+# application entrypoint is nested under app/presentation/.
+[tool.vercel]
+entrypoint = "app.presentation.main:app"
