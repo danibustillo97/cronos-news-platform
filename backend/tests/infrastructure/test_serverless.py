@@ -53,7 +53,7 @@ def test_dispatch_posts_workflow_dispatch(monkeypatch):
     assert dispatch_workflow("media-processing.yml") is True
     assert calls == [(
         "https://api.github.com/repos/owner/repo/actions/workflows/media-processing.yml/dispatches",
-        {"ref": "main"},
+        {"ref": "master"},
         "Bearer t0k",
     )]
 
