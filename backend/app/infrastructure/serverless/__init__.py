@@ -51,7 +51,7 @@ def dispatch_workflow(workflow_file: str) -> bool:
         logger.info("workflow_dispatch skipped for %s: GitHub dispatch not configured", workflow_file)
         return False
 
-    ref = os.getenv("GITHUB_DISPATCH_REF", "main")
+    ref = os.getenv("GITHUB_DISPATCH_REF", "master")
     url = f"{_GITHUB_API}/repos/{repository}/actions/workflows/{workflow_file}/dispatches"
     try:
         response = httpx.post(
