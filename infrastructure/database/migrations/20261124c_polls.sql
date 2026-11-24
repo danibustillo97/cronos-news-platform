@@ -71,3 +71,4 @@ end;
 $$;
 
 revoke all on function public.cast_poll_vote(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.cast_poll_vote(uuid, uuid, text) to service_role;
