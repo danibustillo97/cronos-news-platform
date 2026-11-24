@@ -39,7 +39,7 @@ import { PollBlock } from './PollCard'
 import { usePolls } from '@/lib/usePolls'
 import { inPlacement, sortPolls, type Poll } from '@/lib/polls'
 
-const shell = 'mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8'
+const shell = 'mx-auto w-full min-w-0 max-w-[1440px] px-3 sm:px-6 lg:px-8'
 
 export default function PortalHome({ initialNews, initialLayout }: { initialNews?: NewsView[] | null; initialLayout?: PortalLayout | null }) {
   const { theme } = usePortalTheme()
@@ -74,15 +74,20 @@ export default function PortalHome({ initialNews, initialLayout }: { initialNews
   const loading = news.loading || !layoutReady
 
   // Encuestas/debates (se ocultan solos si el backend responde 404/503).
-  const homePolls = usePolls('placement=home')
-  const pulsePolls = usePolls('placement=pulse')
+  const homePolls = usePolls('placement=home&limit=30')
+  const pulsePolls = usePolls('placement=pulse&limit=30')
   const { featuredPoll, feedPolls } = useMemo(() => {
     const now = new Date()
     const byId = new Map<string, Poll>()
     for (const p of [...homePolls.polls, ...pulsePolls.polls]) byId.set(p.id, p)
     const all = sortPolls([...byId.values()], now)
     const featured = all.find((p) => inPlacement(p, 'home')) ?? null
-    return { featuredPoll: featured, feedPolls: all.filter((p) => p.id !== featured?.id && inPlacement(p, 'pulse')) }
+    return {
+      featuredPoll: featured,
+      // Los debates publicados en Portada también entran al Pulso, aunque
+      // el editor no haya marcado expresamente la ubicación "pulse".
+      feedPolls: all.filter((p) => p.id !== featured?.id && (inPlacement(p, 'pulse') || (p.kind === 'debate' && inPlacement(p, 'home')))),
+    }
   }, [homePolls.polls, pulsePolls.polls])
 
   useEffect(() => {
@@ -128,7 +133,7 @@ export default function PortalHome({ initialNews, initialLayout }: { initialNews
 
   return (
     <MotionConfig reducedMotion="user">
-      <div className={`nx-portal ${portalFont.className} min-h-screen overflow-x-clip`} data-theme={theme} data-preview={preview || undefined} style={style}>
+      <div className={`nx-portal ${portalFont.className} min-h-screen w-full min-w-0 max-w-full overflow-x-clip`} data-theme={theme} data-preview={preview || undefined} style={style}>
         <a href="#contenido" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[80] focus:rounded-full focus:bg-[#FACC15] focus:px-5 focus:py-3 focus:text-sm focus:font-black focus:text-black">
           Saltar al contenido
         </a>
@@ -137,22 +142,22 @@ export default function PortalHome({ initialNews, initialLayout }: { initialNews
         <RadioProvider station={station}>
           <NewsModal news={selected} onClose={closeNews} onNewsClick={openNews} />
 
-          <main id="contenido" tabIndex={-1} className="outline-none">
+          <main id="contenido" tabIndex={-1} className="w-full min-w-0 max-w-full outline-none">
             <h1 className="sr-only">NEXUS News: noticias de fútbol de Colombia y el mundo</h1>
 
-            <section id="portal-stage" aria-label="Portada" className={`nx-section nx-snap-item ${shell} pt-4 lg:pt-6`}>
+            <section id="portal-stage" aria-label="Portada" className={`nx-section nx-snap-item min-w-0 ${shell} pt-4 lg:pt-6`}>
               {renderStage()}
             </section>
 
             {featuredPoll && (
               <section aria-label={featuredPoll.kind === 'debate' ? 'El debate del día' : 'La pregunta del día'} className={`nx-snap-item ${shell} mt-8`}>
-                <div className={featuredPoll.kind === 'debate' ? '' : 'mx-auto max-w-2xl'}>
+                <div className="mx-auto w-full min-w-0 max-w-3xl">
                   <PollBlock poll={featuredPoll} hero />
                 </div>
               </section>
             )}
 
-            <section id="portal-feed" aria-labelledby="feed-heading" className={`nx-section ${shell} mt-10 pb-16`}>
+            <section id="portal-feed" aria-labelledby="feed-heading" className={`nx-section min-w-0 ${shell} mt-10 pb-16`}>
               <ReelsFeed
                 stories={feedStories}
                 stageStories={stageStories}
