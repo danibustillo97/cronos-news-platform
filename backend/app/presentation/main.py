@@ -73,12 +73,47 @@ def health() -> dict:
 
 
 @app.get("/diagnostics/env")
-def diagnostics_env() -> dict:
-    """Reporta SOLO si cada variable está configurada o no en ESTE proceso
-    (el mismo que atiende /api/*, no otra terminal) -- nunca el valor.
-    also which key `get_supabase_client()` ends up using, sin revelarla,
-    para poder distinguir "estoy usando anon" de "estoy usando service_role"."""
+def diagnostics_env(verify_github: bool = False) -> dict:
+    """Reporta configuración sin revelar secretos. Si verify_github=true,
+    valida en modo solo lectura que el token puede consultar los workflows."""
     using_service_role = bool(os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
+    token = os.getenv("GITHUB_DISPATCH_TOKEN", "")
+    repository = os.getenv("GITHUB_REPOSITORY", "")
+    github_check: dict = {
+        "token_configured": bool(token),
+        "repository_configured": bool(repository),
+        "dispatch_ref": os.getenv("GITHUB_DISPATCH_REF", "master"),
+        "verification": "not_requested",
+    }
+
+    if verify_github:
+        if not token or not repository:
+            github_check["verification"] = "missing_configuration"
+        else:
+            try:
+                response = httpx.get(
+                    f"https://api.github.com/repos/{repository}/actions/workflows",
+                    headers={
+                        "Authorization": f"Bearer {token}",
+                        "Accept": "application/vnd.github+json",
+                        "X-GitHub-Api-Version": "2022-11-28",
+                    },
+                    params={"per_page": 1},
+                    timeout=6.0,
+                )
+                github_check["http_status"] = response.status_code
+                if response.status_code == 200:
+                    github_check["verification"] = "authenticated_actions_read"
+                    github_check["visible_workflows"] = response.json().get("total_count", 0)
+                elif response.status_code == 401:
+                    github_check["verification"] = "token_rejected"
+                elif response.status_code == 403:
+                    github_check["verification"] = "actions_permission_or_rate_limit"
+                else:
+                    github_check["verification"] = "github_api_error"
+            except httpx.HTTPError:
+                github_check["verification"] = "github_api_unreachable"
+
     return {
         "env_file_loaded_from": str(supabase_client_module._ENV_FILE),
         "env_file_exists": supabase_client_module._ENV_FILE.exists(),
@@ -86,4 +121,5 @@ def diagnostics_env() -> dict:
         "SUPABASE_PUBLISHABLE_KEY": "configured" if (os.getenv("SUPABASE_PUBLISHABLE_KEY") or os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")) else "missing",
         "SUPABASE_SECRET_KEY": "configured" if using_service_role else "missing",
         "client_will_use": "service_role" if using_service_role else "anon (falls back)",
+        "github_dispatch": github_check,
     }
