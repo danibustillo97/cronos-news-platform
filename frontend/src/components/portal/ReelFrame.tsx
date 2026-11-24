@@ -98,7 +98,7 @@ export default function ReelFrame({ icon, kind, tone = 'default', time, media, b
     ? 'bg-[var(--nx-live)] text-white'
     : tone === 'accent' ? 'bg-[#FACC15] text-black' : 'bg-[var(--nx-surface-2)] text-[var(--nx-ink-2)]'
   return (
-    <article aria-labelledby={labelledBy} className="relative overflow-hidden rounded-[20px] border border-[var(--nx-line)] bg-[var(--nx-surface)]">
+    <article aria-labelledby={labelledBy} className="relative box-border w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-[var(--nx-line)] bg-[var(--nx-surface)]">
       <header className="flex h-12 items-center justify-between gap-3 px-4">
         <span className={`inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-bold uppercase tracking-[0.1em] ${chip}`}>
           {icon}{kind}
@@ -107,7 +107,7 @@ export default function ReelFrame({ icon, kind, tone = 'default', time, media, b
       </header>
       {media}
       {(title || body || meta) && (
-        <div className="flex flex-col gap-2 px-4 pb-1 pt-3.5">
+        <div className="flex min-w-0 flex-col gap-2 px-3 pb-1 pt-3.5 sm:px-4">
           {title}
           {body}
           {meta && <div className="text-xs text-[var(--nx-muted)]">{meta}</div>}
