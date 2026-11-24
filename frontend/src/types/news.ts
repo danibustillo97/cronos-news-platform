@@ -59,4 +59,9 @@ export interface NewsView {
   // Powers "En Contexto"; absent until that migration runs and something
   // populates it.
   content_format?: string | null;
+  // Campos reales de la tabla `news` que el portal ya recibe con select('*').
+  summary?: string | null;
+  source?: string | null;
+  source_url?: string | null;
+  views?: number | null;
 }

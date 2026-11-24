@@ -9,7 +9,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import ModernNavbar from '@/components/ui/ModernNavbar'
+import ModernNavbar from '@/components/portal/PortalNavbar'
 import Footer from '@/components/layout/Footer'
 import PostCard from '@/components/platform/PostCard'
 import { slugifyName } from '@/components/platform/CreatorBadge'

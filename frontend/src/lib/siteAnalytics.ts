@@ -136,6 +136,8 @@ function entryAttribution() {
 }
 
 async function sendEvent(event: AnalyticsEvent): Promise<void> {
+  // The admin's "Portada" live preview (?preview=1 inside an iframe) is not a reader.
+  if (typeof window !== "undefined" && new URLSearchParams(window.location.search).has("preview")) return;
   try {
     const response = await fetch("/api/analytics/event", {
       method: "POST",

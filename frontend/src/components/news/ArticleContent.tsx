@@ -17,6 +17,7 @@ import {
 } from 'lucide-react'
 import { proxiedImage } from '@/lib/media'
 import RelatedNews from './RelatedNews'
+import ArticlePolls from '@/components/portal/ArticlePolls'
 import AdSlot from '@/components/ads/AdSlot'
 import DOMPurify from 'isomorphic-dompurify'
 import parse from 'html-react-parser'
@@ -266,6 +267,8 @@ export default function ArticleContent({
           ">
             {parse(safeArticleContent || `<p>${news.excerpt || 'Sin contenido disponible.'}</p>`)}
           </div>
+
+          <ArticlePolls newsId={news.id} />
 
           <AdSlot position="ARTICLE_END" className="my-10" />
 

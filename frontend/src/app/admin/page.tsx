@@ -14,7 +14,7 @@ import AdminSeoTags from "@/components/admin/AdminSeoTags";
 import AdminProviders from "@/components/admin/AdminProviders";
 import AdminAds from "@/components/admin/AdminAds";
 import NexusStudioView from "@/components/admin/NexusStudio/NexusStudioView";
-import BroadcasterView from "@/components/admin/Broadcaster/BroadcasterView";
+import BroadcasterHub from "@/components/admin/Broadcaster/BroadcasterHub";
 import EditorialView from "@/components/admin/Editorial/EditorialView";
 import { DistributionView } from "@/components/admin/Distribution/DistributionView";
 import { useProduction } from "@/studio/lab/ProductionContext";
@@ -143,7 +143,7 @@ export default function AdminPage() {
         <main className={`min-h-0 flex-1 ${fullBleed ? 'overflow-hidden' : visibleView === "dashboard" ? 'p-3 sm:p-4 overflow-y-auto' : 'p-6 overflow-y-auto'}`}>
           {/* Always mounted: leaving the view must not cut a live broadcast or a recording. */}
           <div className={visibleView === "broadcaster" ? "h-full" : "hidden"}>
-            <BroadcasterView active={visibleView === "broadcaster"} />
+            <BroadcasterHub active={visibleView === "broadcaster"} />
           </div>
           {visibleView === "broadcaster" || visibleView === "nexus_studio" ? (
             <div className={visibleView === "nexus_studio" ? "h-full" : "hidden"}><NexusStudioView /></div>

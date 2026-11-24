@@ -12,6 +12,7 @@ from app.domain.shared.errors import (
 from app.domain.ports import ProviderUnavailableError, RuntimeUnavailableError
 from app.infrastructure.serverless import ReadOnlyEnvironmentError
 from app.infrastructure.persistence.supabase.content_profile_repository import ContentProfileUnavailableError
+from app.infrastructure.persistence.supabase.portal_layout_repository import PortalLayoutUnavailableError
 
 logger = logging.getLogger("cronos.errors")
 
@@ -26,6 +27,10 @@ def _log_cause(exc: Exception) -> None:
 
 
 def register_error_handlers(app: FastAPI) -> None:
+    @app.exception_handler(PortalLayoutUnavailableError)
+    async def _portal_layout_unavailable(request: Request, exc: PortalLayoutUnavailableError):
+        return JSONResponse(status_code=503, content={"error": "SCHEMA_NOT_PROVISIONED", "message": str(exc)})
+
     @app.exception_handler(ContentProfileUnavailableError)
     async def _content_profile_unavailable(request: Request, exc: ContentProfileUnavailableError):
         return JSONResponse(status_code=503, content={"error": "SCHEMA_NOT_PROVISIONED", "message": str(exc)})

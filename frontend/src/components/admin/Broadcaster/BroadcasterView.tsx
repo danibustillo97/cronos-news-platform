@@ -19,6 +19,8 @@ import { ProgramMixer, type MixerSource } from "./audioMixer";
 import { startFrameClock } from "./frameClock";
 import { createRoomCode, guestUrl, hostPeerId, peerOptions } from "./guestLink";
 import { FootballConsole } from "./football/FootballConsole";
+import { gatewayEndpoint } from "./live/whip";
+import { kickPlayerUrl, portalEndLive, portalGoLive } from "./live/portalOnAir";
 import { EXIT_MS } from "./football/motion";
 import { FootballDeck } from "./football/FootballDeck";
 import { AudioBar } from "./football/AudioBar";
@@ -157,9 +159,23 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   const [selectedCameraId, setSelectedCameraId] = useState("");
   const [selectedMicrophoneId, setSelectedMicrophoneId] = useState("");
   const [editingGraphic, setEditingGraphic] = useState<BroadcastGraphic | null>(null);
-  const [whipUrl, setWhipUrl] = useState("");
+  const [whipUrl, setWhipUrl] = useState(gatewayEndpoint("live"));
   const [whipToken, setWhipToken] = useState("");
   const [whipOpen, setWhipOpen] = useState(false);
+  // On air -> homepage stage switches to the Kick player (restored on stop).
+  const [kickChannel, setKickChannel] = useState("");
+  const [portalOnLive, setPortalOnLive] = useState(true);
+  useEffect(() => {
+    try {
+      const saved = JSON.parse(window.localStorage.getItem("nexus.broadcast.portal") || "{}");
+      if (typeof saved.kickChannel === "string") setKickChannel(saved.kickChannel);
+      if (typeof saved.portalOnLive === "boolean") setPortalOnLive(saved.portalOnLive);
+    } catch { /* sin almacenamiento */ }
+  }, []);
+  useEffect(() => {
+    try { window.localStorage.setItem("nexus.broadcast.portal", JSON.stringify({ kickChannel, portalOnLive })); } catch { /* sin almacenamiento */ }
+  }, [kickChannel, portalOnLive]);
+  const portalSwitchedRef = useRef(false);
   const [live, setLive] = useState(false);
   const liveRef = useRef(live);
   const [recording, setRecording] = useState(false);
@@ -702,6 +718,15 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       });
       setLive(true);
       toast.success("Emisión conectada");
+      const kickUrl = kickPlayerUrl(kickChannel);
+      if (portalOnLive && kickUrl) {
+        portalGoLive("video", { url: kickUrl, title: "EN VIVO en Nexus" }).then(
+          () => { portalSwitchedRef.current = true; toast.success("La portada cambió a la transmisión en vivo."); },
+          (error) => toast.error("No se pudo cambiar la portada", { description: error instanceof Error ? error.message : String(error) }),
+        );
+      } else if (portalOnLive && !kickUrl) {
+        toast.warning("Agrega tu canal de Kick en Ajustes para que la portada muestre la transmisión.");
+      }
     } catch (error) {
       peer?.close();
       peerConnectionRef.current = null;
@@ -724,6 +749,10 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     const token = whipAuthRef.current;
     whipResourceRef.current = null;
     setLive(false);
+    if (portalSwitchedRef.current) {
+      portalSwitchedRef.current = false;
+      portalEndLive("video").catch(() => toast.error("No se pudo devolver la portada a la noticia destacada"));
+    }
     if (resource) {
       try {
         // WHIP servers that require a token for the offer also require it to tear the session down.
@@ -2344,8 +2373,21 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
                 className="mt-1 h-9 w-full rounded-md border border-white/10 bg-black/20 px-2.5 text-xs text-white outline-none focus:border-white/25"
               />
             </label>
+            <label className="mt-3 block text-[10px] text-neutral-400">Tu canal de Kick (para mostrar el vivo en la portada)
+              <input
+                value={kickChannel}
+                onChange={(event) => setKickChannel(event.target.value)}
+                placeholder="nexusnews o https://kick.com/nexusnews"
+                spellCheck={false}
+                className="mt-1 h-9 w-full rounded-md border border-white/10 bg-black/20 px-2.5 text-xs text-white outline-none focus:border-white/25"
+              />
+            </label>
+            <label className="mt-2 flex items-center gap-2 text-[10px] text-neutral-300">
+              <input type="checkbox" checked={portalOnLive} onChange={(event) => setPortalOnLive(event.target.checked)} />
+              Cambiar la portada a la transmisión en vivo al emitir (y volver a la noticia al terminar)
+            </label>
             <div className="mt-3 rounded-lg border border-amber-400/15 bg-amber-400/[0.04] p-3 text-[9px] leading-relaxed text-amber-100/70">
-              El navegador no envía RTMP directamente. Broadcaster publica por WHIP/WebRTC; conecta aquí un gateway como MediaMTX o SRS para retransmitir a YouTube, Facebook u otros destinos RTMP. El endpoint no se guarda en disco.
+              El navegador no envía RTMP. Con el puente local encendido (infrastructure/live-gateway/start-gateway.ps1) el endpoint es {gatewayEndpoint("live")} y el puente retransmite a la vez a Kick y TikTok con las claves que configures allí.
             </div>
             <div className="mt-4 flex justify-end gap-2">
               <button type="button" onClick={() => { setWhipUrl(whipDraftRef.current.url); setWhipToken(whipDraftRef.current.token); setWhipOpen(false); }} className="rounded-md border border-white/10 px-3 py-2 text-[10px] text-neutral-400 hover:bg-white/[0.05]">Cancelar</button>

@@ -3,7 +3,7 @@
 import React, { useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { X } from 'lucide-react'
-import ModernNavbar from '@/components/ui/ModernNavbar'
+import ModernNavbar from '@/components/portal/PortalNavbar'
 import ArticleContent from './ArticleContent'
 import type { NewsView } from '@/types/news'
 

@@ -1,5 +1,5 @@
-import ModernNewsPortal from '@/components/news/ModernNewsPortal'
+import PortalHome from '@/components/portal/PortalHome'
 
 export default function HomePage() {
-  return <ModernNewsPortal />
+  return <PortalHome />
 }

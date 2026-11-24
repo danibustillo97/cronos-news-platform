@@ -1,0 +1,36 @@
+# NEXUS Live Gateway (MediaMTX v1.9.3)
+#
+#   Broadcaster video  --WHIP-->  /live   --ffmpeg-->  Kick + TikTok (RTMP, a la vez)
+#   Estación de radio  --WHIP-->  /radio  --ffmpeg-->  Zeno.fm (Icecast)
+#
+# Solo escucha en tu PC. Las claves viven en gateway.env (ignorado por git).
+
+logLevel: info
+
+api: no
+metrics: no
+pprof: no
+playback: no
+hls: no
+rtmp: no
+srt: no
+
+# RTSP solo en localhost: es la salida interna que lee ffmpeg para retransmitir.
+rtsp: yes
+rtspAddress: 127.0.0.1:8554
+protocols: [tcp]
+
+# Entrada WHIP desde el navegador (panel admin en localhost:3000 o el dominio real).
+webrtc: yes
+webrtcAddress: :8889
+webrtcAllowOrigin: "*"
+webrtcLocalUDPAddress: :8189
+webrtcIPsFromInterfaces: yes
+
+paths:
+  live:
+    runOnReady: powershell -NoProfile -ExecutionPolicy Bypass -File restream.ps1 -Target live
+    runOnReadyRestart: yes
+  radio:
+    runOnReady: powershell -NoProfile -ExecutionPolicy Bypass -File restream.ps1 -Target radio
+    runOnReadyRestart: yes

@@ -35,6 +35,7 @@ from app.infrastructure.runtime.github_discovery_runner import GitHubActionsDisc
 from app.infrastructure.serverless import is_serverless
 from app.infrastructure.persistence.supabase.editorial_automation_repository import SupabaseEditorialAutomationRepository
 from app.infrastructure.persistence.supabase.content_profile_repository import SupabaseContentProfileRepository
+from app.infrastructure.persistence.supabase.portal_layout_repository import SupabasePortalLayoutRepository
 from app.application.use_cases.content_profile import GetContentProfile, UpdateContentProfile
 from app.application.use_cases.editorial_board import (
     CheckArticleOriginality, CreateArticle, GetEditorialBoard, SetFeatureImage, UploadArticleImage, WriteDiscoveryItem,
@@ -136,6 +137,7 @@ class Container:
         self.ad_banner_storage = SupabaseAdBannerStorageAdapter(client)
         self.editorial_automation_repo = SupabaseEditorialAutomationRepository(client)
         self.content_profile_repo = SupabaseContentProfileRepository(client)
+        self.portal_layout_repo = SupabasePortalLayoutRepository(client)
 
         reader = default_reader()
         self.lab_editorial = LocalEditorialIntelligenceAdapter(reader)
