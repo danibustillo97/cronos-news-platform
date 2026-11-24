@@ -10,7 +10,7 @@
 import { useEffect, useMemo, useRef } from 'react'
 import Link from 'next/link'
 import { Loader2 } from 'lucide-react'
-import { composeReels, autoFacts, TABLE_ROTATION } from '@/lib/reels'
+import { composeReels, interleavePolls, autoFacts, TABLE_ROTATION } from '@/lib/reels'
 import { useManyStandings } from '@/lib/useStandings'
 import { LEAGUE_LABELS } from '@/lib/leagueLogos'
 import type { Poll } from '@/lib/polls'
@@ -40,10 +40,19 @@ export default function ReelsFeed({
   onLoadMore: () => void
 }) {
   const now = useNow(60_000)
-  const items = useMemo(
-    () => composeReels({ stories, stageStories, leagues: TABLE_ROTATION, pollSlots: Math.max(2, polls.length), factSlots: 6, matchSlots: 3, capsuleSlots: 3, picks: true }),
-    [stories, stageStories, polls.length],
-  )
+  const items = useMemo(() => {
+    const base = composeReels({
+      stories,
+      stageStories,
+      leagues: TABLE_ROTATION,
+      pollSlots: 0,
+      factSlots: 6,
+      matchSlots: 3,
+      capsuleSlots: 3,
+      picks: true,
+    })
+    return interleavePolls(base, polls.length)
+  }, [stories, stageStories, polls])
   const { capsules } = useCapsules('limit=12')
   const { data: picks } = usePicks()
 
@@ -71,15 +80,15 @@ export default function ReelsFeed({
   let newsSeen = 0
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,600px)_minmax(0,1fr)]">
+    <div className="grid w-full min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,640px)_minmax(0,1fr)]">
       <div className="hidden xl:block" aria-hidden="true" />
-      <div className="mx-auto w-full max-w-[600px]">
+      <div className="mx-auto w-full min-w-0 max-w-[640px]">
         <div className="mb-4 px-1">
           <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]">Noticias, datos y tablas en un solo hilo</p>
           <h2 id="feed-heading" className="mt-1 text-2xl font-bold tracking-[-0.015em] text-[var(--nx-ink)]">Pulso</h2>
         </div>
 
-        <ol className="nx-reels flex flex-col gap-5" aria-labelledby="feed-heading">
+        <ol className="nx-reels flex w-full min-w-0 flex-col gap-5" aria-labelledby="feed-heading">
           {items.map((item) => {
             switch (item.type) {
               case 'news':
