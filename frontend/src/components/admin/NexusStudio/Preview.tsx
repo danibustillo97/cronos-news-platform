@@ -139,6 +139,19 @@ function sceneImageUrls(
   return image ? [image] : []
 }
 
+function sceneRenderImageUrls(
+  scene: StudioScene,
+  source: StudioSourceArtifact | null,
+  isPremiumEditorial: boolean,
+): string[] {
+  const urls = sceneImageUrls(scene, source, isPremiumEditorial)
+  if (isPremiumEditorial) {
+    const logo = proxiedImage(process.env.NEXT_PUBLIC_BRAND_LOGO_URL)
+    if (logo) urls.push(logo)
+  }
+  return [...new Set(urls)]
+}
+
 function waitForPaint(): Promise<void> {
   return new Promise((resolve) => {
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()))
@@ -352,7 +365,7 @@ export default function Preview({
       if (isPremiumEditorial && urls.length === 0) {
         throw new Error('La diapositiva no tiene una imagen destacada disponible.')
       }
-      await Promise.all(urls.map(preloadImage))
+      await Promise.all(sceneRenderImageUrls(scene, source, isPremiumEditorial).map(preloadImage))
       await waitForPaint()
       const blob = await canvasToPng(canvas)
       downloadBlob(blob, `${safeFilename(project.title)}-slide-${scene.order + 1}.png`)
@@ -399,7 +412,7 @@ export default function Preview({
 
         // Load the real assets before seeking; later scenes must never be
         // exported as blank frames just because they were not previewed yet.
-        await Promise.all(urls.map(preloadImage))
+        await Promise.all(sceneRenderImageUrls(scene, source, isPremiumEditorial).map(preloadImage))
         onSeek(sceneOffset)
         await waitForPaint()
 
