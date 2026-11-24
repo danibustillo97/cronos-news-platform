@@ -1,3 +1,9 @@
+-- SUPERSEDED — DO NOT EXECUTE.
+-- Replaced by infrastructure/database/migrations/20261124d_security_lockdown.sql.
+-- This older proposal was not applied to NEWS_DEPORT and does not match the
+-- live tiktok_accounts schema or the complete set of existing policies.
+-- Kept for historical reference only.
+--
 -- CRONOS security remediation migration
 -- Applies policies only. Run manually after review. Idempotent.
 
