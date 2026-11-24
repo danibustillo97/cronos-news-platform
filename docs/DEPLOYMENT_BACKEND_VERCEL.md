@@ -60,7 +60,6 @@ Vercel → **Add New → Project** → importar `cronos-news-platform` →
 | `ANTHROPIC_API_KEY` | si se generan artículos desde el panel |
 | `ARTIFACT_PROVIDER` | `anthropic` |
 | `ADMIN_EMAILS` / `ADMIN_USER_IDS` | mismos valores que el frontend |
-
 | `CORS_ALLOWED_ORIGINS` | opcional; solo si algo llama al backend directamente desde el navegador |
 | `GITHUB_DISPATCH_TOKEN` | PAT fine-grained, solo este repo, *Actions: Read and write* |
 | `GITHUB_REPOSITORY` | `danibustillo97/cronos-news-platform` |
@@ -75,7 +74,7 @@ Verificar después del deploy: `https://<backend>/health` → `{"status":"ok"}` 
 - Resto: ver `docs/DEPLOYMENT_VERCEL.md`.
 
 ### 4. Secrets de GitHub Actions
-`SUPABASE_URL`, `SUPABASE_SECRET_KEY` (todos los workers), `ANTHROPIC_API_KEY`, `SCRAPER_SOURCES`, `RUNTIME_BASE_URL`. Ver `docs/GITHUB_ACTIONS.md`.
+`SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `ANTHROPIC_API_KEY`, `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` y, opcionalmente, `SCRAPER_SOURCES`. `BACKEND_PUBLIC_URL` se configura en Vercel para el frontend, no como variable del backend. Ver `docs/GITHUB_ACTIONS.md`.
 
 ## Límites del plan Hobby (gratis)
 
