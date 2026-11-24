@@ -3,17 +3,20 @@
 GitHub Actions is CRONOS' worker tier: everything that takes longer than a web request runs
 here and stores its result in Supabase. The backend (Vercel) wakes the right workflow with
 `workflow_dispatch` the moment a job is queued (`GITHUB_DISPATCH_TOKEN`, see
-`DEPLOYMENT_VERCEL.md`); the cron schedule is the safety net. No workflow persists business
+`DEPLOYMENT_BACKEND_VERCEL.md`); the cron schedule is the safety net. No workflow persists business
 state in GitHub Actions.
 
 | Workflow | Runs | Cron | Woken by |
 | --- | --- | --- | --- |
-| `discovery-processing.yml` | `automation/run_discovery_jobs.py`: queued "Buscar noticias" jobs over `SCRAPER_SOURCES`; honours "Detener" between feeds | every 30 min | "Buscar noticias" |
+| `discovery-processing.yml` | `automation/run_discovery_jobs.py`: queued "Buscar noticias" jobs; honours "Detener" between feeds | every 30 min | "Buscar noticias" |
 | `scraper.yml` | `automation/scraper.py`: periodic RSS/Atom ingestion into `discovery_items` (never publishes) | every 10 min | -- |
 | `artifact-processing.yml` | `automation/run_artifact_jobs.py`: AI drafts for stories sent to editorial | every 10 min | "Procesar en Artifact", "Reintentar" |
 | `media-processing.yml` | `automation/run_media_generation_jobs.py`: images via Cloudflare Workers AI, stored in Supabase Storage | every 15 min | "Generar imagen" |
 | `scheduled-publications.yml` | `automation/run_scheduled_publications.py`: publishes artifacts whose time has come | every 15 min | -- |
-| `ci.yml` | frontend typecheck/tests/lint and backend tests | pushes to `master`, pull requests | -- |
+| `ci.yml` | frontend TypeScript, ESLint, production build; Python syntax compilation only | pushes to `master`, pull requests | -- |
+
+Automated test suites are intentionally not run by GitHub Actions to reduce runner usage.
+Test files remain in the repository and can be executed manually when needed.
 
 Every worker has a `concurrency` group: a dispatch that arrives while a run is active waits
 instead of processing the same job twice.
@@ -30,9 +33,10 @@ Repository **secrets**:
 
 Repository **variable** (optional): `ARTIFACT_PROVIDER` (default `anthropic`).
 
-Workers use `backend/requirements.txt` (runtime dependencies); tests use `backend/requirements-dev.txt`.
-The workflows set `JOB_EXECUTION=github` and `ASSET_STORAGE=supabase` themselves;
-`RUNTIME_BASE_URL` is not required for cloud workers. Local LAB/Runtime features still need a separately reachable runtime.
+Workers use `backend/requirements.txt` (runtime dependencies). The workflows do not install
+development dependencies or execute pytest/Vitest. The workers set `JOB_EXECUTION=github` and
+`ASSET_STORAGE=supabase` themselves; `RUNTIME_BASE_URL` is not required for cloud workers.
+Local LAB/Runtime features still need a separately reachable runtime.
 
 GitHub-hosted runners must not be assumed to support heavyweight FFmpeg or GPU rendering;
 LAB video productions stay on a local machine.
