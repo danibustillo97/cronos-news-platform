@@ -904,3 +904,53 @@ body {
 /* Buscadores del portal: el contenedor marca el foco (focus-within), no el input. */
 .nx-portal input[type="search"]:focus-visible { outline: none; }
 .nx-portal input[type="search"]::-webkit-search-cancel-button { cursor: pointer; }
+
+
+/* ------------------------------------------------------------------
+   Mobile guardrails for the editorial portal.
+   Prevent long debate copy, card internals and feed grids from defining
+   the viewport width on narrow devices.
+   ------------------------------------------------------------------ */
+.nx-portal,
+.nx-portal main,
+.nx-portal .nx-section,
+.nx-portal .nx-reels {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.nx-portal .nx-reels > li {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.nx-portal .nx-reels article,
+.nx-portal .nx-debate-card {
+  box-sizing: border-box;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.nx-portal .nx-debate-card h3,
+.nx-portal .nx-debate-card h4,
+.nx-portal .nx-debate-card p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 767px) {
+  .nx-portal main > section {
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .nx-portal .nx-reels > li > article {
+    border-radius: 16px;
+  }
+
+  .nx-portal .nx-debate-card {
+    gap: 0.875rem;
+  }
+}
