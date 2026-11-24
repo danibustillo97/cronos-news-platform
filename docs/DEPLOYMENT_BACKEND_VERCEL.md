@@ -34,7 +34,7 @@ Para reproducir el comportamiento de Vercel en local: `CRONOS_SERVERLESS=1 uvico
 
 ## Archivos
 
-- `backend/index.py`: punto de entrada que Vercel detecta (re-exporta `app`). No se llama `app.py` porque chocaría con el paquete `app/`.
+- `backend/api/index.py`: entrypoint efectivo configurado en `backend/vercel.json` (añade `backend/` a `sys.path` y exporta `app`). `backend/index.py` queda como alias/entrypoint alternativo; la configuración de Vercel enruta explícitamente a `api/index.py`.
 - `backend/.python-version`: Python 3.13 (igual que los workflows).
 - `backend/.vercelignore`: excluye `venv/`, `tests/`, `.env`.
 - `backend/app/infrastructure/serverless/`: detección del entorno y `workflow_dispatch`.
@@ -54,20 +54,23 @@ Vercel → **Add New → Project** → importar `cronos-news-platform` →
 | `SUPABASE_URL` | `https://<ref>.supabase.co` |
 | `SUPABASE_SECRET_KEY` | secret key, antes service_role (Supabase → Project Settings → API Keys) |
 | `SUPABASE_PUBLISHABLE_KEY` | publishable key (antes anon) |
+| `JOB_EXECUTION` | `github` (envía trabajos largos a GitHub Actions) |
+| `ASSET_STORAGE` | `supabase` (evita disco local efímero en Vercel) |
+| `ASSET_STORAGE_BUCKET` | `media` (bucket existente en Supabase Storage) |
 | `ANTHROPIC_API_KEY` | si se generan artículos desde el panel |
 | `ARTIFACT_PROVIDER` | `anthropic` |
 | `ADMIN_EMAILS` / `ADMIN_USER_IDS` | mismos valores que el frontend |
-| `BACKEND_PUBLIC_URL` | URL pública de este proyecto, p. ej. `https://cronos-backend.vercel.app` |
-| `CORS_ALLOWED_ORIGINS` | URL del frontend (solo si algo llama al backend desde el navegador) |
+
+| `CORS_ALLOWED_ORIGINS` | opcional; solo si algo llama al backend directamente desde el navegador |
 | `GITHUB_DISPATCH_TOKEN` | PAT fine-grained, solo este repo, *Actions: Read and write* |
 | `GITHUB_REPOSITORY` | `danibustillo97/cronos-news-platform` |
-| `GITHUB_DISPATCH_REF` | `main` |
+| `GITHUB_DISPATCH_REF` | `master` en Production; `feature/social-media-studio-v2` en Preview |
 | `DISCOVERY_RUNNER` | `github` (por defecto en Vercel) |
 
 Verificar después del deploy: `https://<backend>/health` → `{"status":"ok"}` y `https://<backend>/diagnostics/env` (muestra solo configured/missing, nunca valores).
 
 ### 3. Variables del proyecto frontend
-- `BACKEND_PUBLIC_URL` = URL del backend (sin `/` final).
+- `BACKEND_PUBLIC_URL` = URL del backend (sin `/` final). Esta variable pertenece al frontend; no se configura en el backend.
 - **No** definir `NEXT_PUBLIC_API_BASE_URL`: así el navegador usa el proxy `/api/*` y no hay CORS ni exposición de la URL.
 - Resto: ver `docs/DEPLOYMENT_VERCEL.md`.
 
