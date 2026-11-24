@@ -48,3 +48,5 @@ jobs:
       - run: python -m pip install -r backend/requirements-dev.txt
       - run: python -m pytest -q
         working-directory: backend
+      - name: Discovery worker tests
+        run: python -m pytest -q automation/test_discovery_jobs.py
