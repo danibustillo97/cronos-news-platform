@@ -23,7 +23,12 @@ Nombres reales, nunca valores — ver el `.env.example` de cada servicio para la
 | `NEXT_PUBLIC_API_BASE_URL` | frontend | `http://localhost:8000` solo para desarrollo local | **dejar sin definir**: el navegador usa el proxy same-origin `/api/*`; `BACKEND_PUBLIC_URL` apunta al backend desde el servidor Next.js |
 | `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | frontend | valores actuales de Supabase como fallback | mismo proyecto Supabase, o uno distinto por ambiente si se decide separar staging/producción |
 | `TIKTOK_CLIENT_KEY` / `_SECRET` / `_REDIRECT_URI` / `_DEMO_MODE` | frontend (server-side) | requeridas para probar OAuth real | credenciales reales de producción de TikTok Developer |
-| `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` | backend | fallback embebido en `client.py` | mismas, o proyecto distinto |
+| `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` | backend | variables locales | mismas, o proyecto distinto por ambiente |
+| `SUPABASE_SECRET_KEY` | backend, GitHub Actions | requerida para escrituras privilegiadas | requerida en Vercel backend y workers; nunca exponer como `NEXT_PUBLIC_*` |
+| `BACKEND_PUBLIC_URL` | frontend (server-side) | URL local del backend/proxy | URL pública del proyecto Vercel FastAPI (sin slash final) |
+| `JOB_EXECUTION` | backend | `inline` | `github` |
+| `GITHUB_DISPATCH_REF` | backend | `master` por defecto | `master` en Production; rama de Preview en Preview |
+| `ASSET_STORAGE` / `ASSET_STORAGE_BUCKET` | backend | `local` / `media` | `supabase` / `media` |
 | `SUPABASE_SECRET_KEY` | backend, GitHub Actions | requerida para escrituras privilegiadas | requerida en Vercel backend y workers; nunca exponer como `NEXT_PUBLIC_*` |
 | `RUNTIME_BASE_URL` | backend | `http://localhost:8801` | No configurar `localhost` en Vercel; definir solo si se despliega un runtime accesible externamente |
 | `LAB_WORKSPACE_PATH` | backend | auto-detectado (`automation/lab/workspace/exports`) | necesario si Automation corre en un host distinto al backend |
