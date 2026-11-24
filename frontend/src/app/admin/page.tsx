@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
+import { Menu as MenuIcon } from "lucide-react";
 
 import AdminSidebar from "@/components/admin/AdminSidebar";
 import AdminTopBar from "@/components/admin/AdminTopBar";
@@ -33,6 +34,7 @@ export default function AdminPage() {
   const { activeView, setActiveView } = useProduction();
   useAdminSessionSync();
   const [loading, setLoading] = useState(true);
+  const [navOpen, setNavOpen] = useState(false);
 
   const router = useRouter();
 
@@ -119,16 +121,23 @@ export default function AdminPage() {
   const fullBleed = visibleView === "nexus_studio" || visibleView === "broadcaster" || visibleView === "distribution" || visibleView === "editorial";
 
   return (
-    <div className="bg-[#050505] h-screen text-white overflow-hidden">
+    <div className="bg-[#050505] h-dvh text-white overflow-hidden">
       <AdminSidebar
         activeView={visibleView}
         setActiveView={(view) => setActiveView(view as View)}
         onLogout={handleLogout}
+        mobileOpen={navOpen}
+        onMobileClose={() => setNavOpen(false)}
       />
 
-      <div className="flex flex-col h-screen overflow-hidden" style={{ marginLeft: 64, width: 'calc(100vw - 64px)' }}>
-        {visibleView !== "nexus_studio" && (
-          <AdminTopBar title={pageTitle} activeView={visibleView} />
+      <div className="flex h-dvh w-full flex-col overflow-hidden md:ml-16 md:w-[calc(100vw-64px)]">
+        {visibleView !== "nexus_studio" ? (
+          <AdminTopBar title={pageTitle} activeView={visibleView} onOpenMenu={() => setNavOpen(true)} />
+        ) : (
+          <button type="button" onClick={() => setNavOpen(true)} aria-label="Abrir menú"
+            className="fixed bottom-4 left-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-[#0b0b0d]/95 text-neutral-200 shadow-xl md:hidden">
+            <MenuIcon size={18} />
+          </button>
         )}
 
         <main className={`min-h-0 flex-1 ${fullBleed ? 'overflow-hidden' : visibleView === "dashboard" ? 'p-3 sm:p-4 overflow-y-auto' : 'p-6 overflow-y-auto'}`}>

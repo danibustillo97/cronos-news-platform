@@ -6,7 +6,7 @@ describe('Next.js admin authorization', () => {
   beforeEach(() => {
     vi.restoreAllMocks()
     process.env.SUPABASE_URL = 'https://example.supabase.co'
-    process.env.SUPABASE_ANON_KEY = 'test-anon'
+    process.env.SUPABASE_PUBLISHABLE_KEY = 'test-anon'
     process.env.ADMIN_USER_IDS = ''
     process.env.ADMIN_EMAILS = ''
   })

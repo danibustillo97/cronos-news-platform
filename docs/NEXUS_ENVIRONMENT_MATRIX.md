@@ -21,14 +21,14 @@ Nombres reales, nunca valores — ver el `.env.example` de cada servicio para la
 | Variable | Servicio | Local (default) | Producción |
 |---|---|---|---|
 | `NEXT_PUBLIC_API_BASE_URL` | frontend | `http://localhost:8000` (fallback en código) | **debe** setearse a la URL real del backend — hoy no hay ninguna (backend no está deployado, §16 de Deployment Architecture) |
-| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` | frontend | valores actuales de Supabase como fallback | mismo proyecto Supabase, o uno distinto por ambiente si se decide separar staging/producción |
+| `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | frontend | valores actuales de Supabase como fallback | mismo proyecto Supabase, o uno distinto por ambiente si se decide separar staging/producción |
 | `TIKTOK_CLIENT_KEY` / `_SECRET` / `_REDIRECT_URI` / `_DEMO_MODE` | frontend (server-side) | requeridas para probar OAuth real | credenciales reales de producción de TikTok Developer |
-| `SUPABASE_URL` / `SUPABASE_KEY` | backend | fallback embebido en `client.py` | mismas, o proyecto distinto |
-| `SUPABASE_SERVICE_ROLE_KEY` | backend, automation/runtime | requerida para escrituras reales | requerida siempre — sin ella, solo lecturas anónimas |
+| `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` | backend | fallback embebido en `client.py` | mismas, o proyecto distinto |
+| `SUPABASE_SECRET_KEY` | backend, automation/runtime | requerida para escrituras reales | requerida siempre — sin ella, solo lecturas anónimas |
 | `RUNTIME_BASE_URL` | backend | `http://localhost:8801` | URL real de Automation/Runtime — no existe todavía fuera de local |
 | `LAB_WORKSPACE_PATH` | backend | auto-detectado (`automation/lab/workspace/exports`) | necesario si Automation corre en un host distinto al backend |
 | `CORS_ALLOWED_ORIGINS` | backend | vacío (usa defaults locales) | **debe** incluir la URL real del frontend en producción (nuevo, agregado en esta tarea) |
-| `SUPABASE_URL` / `SUPABASE_KEY` | automation (scraper legado) | ya trackeado en git — pendiente rotación | sin cambios (sigue en cron de GitHub Actions, fuera de este matrix de deployment) |
+| `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY` | automation (scraper legado) | ya trackeado en git — pendiente rotación | sin cambios (sigue en cron de GitHub Actions, fuera de este matrix de deployment) |
 | `OPENROUTER_API_KEY` | automation (scraper legado) | ídem | ídem |
 
 ## `nexus.local` vs URL real

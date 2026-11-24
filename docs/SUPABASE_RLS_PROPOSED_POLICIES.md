@@ -72,7 +72,7 @@ Replace `TABLE_NAME` with one real table. Do not run this as an automated migrat
 
 ## Worker writes
 
-GitHub Actions workers use `SUPABASE_SERVICE_ROLE_KEY`. This is server-only and bypasses RLS. Worker authorization must be enforced by repository-controlled workflow secrets and atomic status transitions.
+GitHub Actions workers use `SUPABASE_SECRET_KEY`. This is server-only and bypasses RLS. Worker authorization must be enforced by repository-controlled workflow secrets and atomic status transitions.
 
 Workers may write:
 

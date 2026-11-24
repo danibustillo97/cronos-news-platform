@@ -9,8 +9,8 @@ Uso:
       --backend https://cronos-backend.vercel.app \
       --frontend https://nexusnews.info                        # después del deploy
 
-Variables: SUPABASE_URL + (SUPABASE_SERVICE_ROLE_KEY o SUPABASE_KEY/anon).
-Opcional: SUPABASE_ANON_KEY para revisar qué ve un visitante anónimo,
+Variables: SUPABASE_URL + SUPABASE_SECRET_KEY (o SUPABASE_PUBLISHABLE_KEY).
+Opcional: SUPABASE_PUBLISHABLE_KEY para revisar qué ve un visitante anónimo,
 SCRAPER_SOURCES para probar los feeds.
 
 Salida: una línea por chequeo (OK / AVISO / FALLA). Código 1 si hay FALLAS.
@@ -62,11 +62,11 @@ def _rest(base: str, key: str):
 
 def check_supabase(report: Report) -> None:
     url = (os.getenv("SUPABASE_URL") or "").rstrip("/")
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+    key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
     if not url or not key:
         report.add("Supabase", FAIL, "Credenciales", "faltan SUPABASE_URL y una key")
         return
-    privileged = bool(os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
+    privileged = bool(os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
     get = _rest(url, key)
 
     try:
@@ -127,7 +127,7 @@ def check_supabase(report: Report) -> None:
                    "hay al menos una" if r.json() else "ninguna noticia en estado 'published'")
 
     # 3. Seguridad: lo que ve un visitante anónimo
-    anon = os.getenv("SUPABASE_ANON_KEY") or (None if privileged else key)
+    anon = os.getenv("SUPABASE_PUBLISHABLE_KEY") or os.getenv("SUPABASE_ANON_KEY") or (None if privileged else key)
     if anon:
         anon_get = _rest(url, anon)
         exposed = [t for t in PRIVATE_TABLES
@@ -181,7 +181,7 @@ def check_backend(report: Report, base: str) -> None:
         r = client.get(f"{base}/diagnostics/env")
         if r.status_code == 200:
             env = r.json()
-            missing = [k for k in ("SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY") if env.get(k) != "configured"]
+            missing = [k for k in ("SUPABASE_URL", "SUPABASE_SECRET_KEY") if env.get(k) != "configured"]
             report.add("Backend", FAIL if missing else OK, "Variables de entorno",
                        ("faltan " + ", ".join(missing)) if missing else "Supabase con service_role")
         for path in ("/api/categories", "/api/settings/seo", "/api/published-content?limit=1"):

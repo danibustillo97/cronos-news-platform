@@ -45,6 +45,18 @@ describe("seo analyzer", () => {
     const report = analyzeSeo({ ...good, blocks: parseHtml("<p>El fichaje costó 5 millones [VERIFICAR cifra].</p>") });
     expect(report.verifyMarks).toBe(1);
     expect(report.checks.find((c) => c.id === "verify")?.status).toBe("fail");
+    expect(report.verifySnippets).toEqual(["El fichaje costó 5 millones [VERIFICAR cifra]."]);
+  });
+
+  it("locates every [VERIFICAR] mark so the editor can find it", () => {
+    const report = analyzeSeo({ ...good, blocks: parseHtml(
+      "<p>Ganó 2-1 [VERIFICAR]. El DT habló.</p><p>Juega el domingo [VERIFICAR fecha] y [VERIFICAR rival].</p>") });
+    expect(report.verifyMarks).toBe(3);
+    expect(report.verifySnippets).toEqual([
+      "Ganó 2-1 [VERIFICAR].",
+      "Juega el domingo [VERIFICAR fecha] y [VERIFICAR rival].",
+      "Juega el domingo [VERIFICAR fecha] y [VERIFICAR rival].",
+    ]);
   });
 
   it("suggests the focus keyword from the title and body", () => {

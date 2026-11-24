@@ -38,7 +38,7 @@ export default function AdminLogin() {
     setError(null)
 
     if (!isSupabaseConfigured) {
-      setError('Supabase no está configurado: define NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_ANON_KEY en frontend/.env.local y reinicia el servidor.')
+      setError('Supabase no está configurado: define NEXT_PUBLIC_SUPABASE_URL y NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY en frontend/.env.local y reinicia el servidor.')
       setLoading(false)
       return
     }

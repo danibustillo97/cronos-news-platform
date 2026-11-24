@@ -52,8 +52,8 @@ Vercel → **Add New → Project** → importar `cronos-news-platform` →
 | Variable | Valor |
 |---|---|
 | `SUPABASE_URL` | `https://<ref>.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | service_role (Supabase → Project Settings → API) |
-| `SUPABASE_KEY` | anon key |
+| `SUPABASE_SECRET_KEY` | secret key, antes service_role (Supabase → Project Settings → API Keys) |
+| `SUPABASE_PUBLISHABLE_KEY` | publishable key (antes anon) |
 | `ANTHROPIC_API_KEY` | si se generan artículos desde el panel |
 | `ARTIFACT_PROVIDER` | `anthropic` |
 | `ADMIN_EMAILS` / `ADMIN_USER_IDS` | mismos valores que el frontend |
@@ -72,7 +72,7 @@ Verificar después del deploy: `https://<backend>/health` → `{"status":"ok"}` 
 - Resto: ver `docs/DEPLOYMENT_VERCEL.md`.
 
 ### 4. Secrets de GitHub Actions
-`SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` (todos los workers), `ANTHROPIC_API_KEY`, `SCRAPER_SOURCES`, `RUNTIME_BASE_URL`. Ver `docs/GITHUB_ACTIONS.md`.
+`SUPABASE_URL`, `SUPABASE_SECRET_KEY` (todos los workers), `ANTHROPIC_API_KEY`, `SCRAPER_SOURCES`, `RUNTIME_BASE_URL`. Ver `docs/GITHUB_ACTIONS.md`.
 
 ## Límites del plan Hobby (gratis)
 

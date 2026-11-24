@@ -43,6 +43,8 @@ export interface SeoReport {
   readabilityLabel: string;
   checks: SeoCheck[];
   verifyMarks: number;
+  /** Sentence around each [VERIFICAR] mark, so the editor can find it. */
+  verifySnippets: string[];
 }
 
 const STOP = new Set(`a al ante bajo con contra de del desde durante e el en entre es esa ese eso esta este esto ha hasta
@@ -130,6 +132,17 @@ export function suggestKeyword(title: string, body: string): string {
   return best ? best[0] : titleWords.filter((w) => !STOP.has(fold(w))).slice(0, 2).join(" ");
 }
 
+function findVerifySnippets(title: string, body: string): string[] {
+  const out: string[] = [];
+  if (/\[VERIFICAR/i.test(title)) out.push(`Titular: ${title.trim()}`);
+  for (const sentence of body.split(/(?<=[.!?])\s+|\n+/)) {
+    const marks = sentence.match(/\[VERIFICAR[^\]]*\]/gi)?.length ?? 0;
+    const s = sentence.trim();
+    for (let i = 0; i < marks; i++) out.push(s.length > 160 ? `${s.slice(0, 157)}…` : s);
+  }
+  return out;
+}
+
 function check(id: string, group: CheckGroup, label: string, weight: number, status: CheckStatus, detail: string, fix?: string): SeoCheck {
   return { id, group, label, weight, status, detail, fix: status === "pass" ? undefined : fix };
 }
@@ -144,6 +157,7 @@ export function analyzeSeo(input: SeoInput): SeoReport {
   const keywordSource = input.keyword?.trim() ? "manual" : "auto";
   const checks: SeoCheck[] = [];
   const verifyMarks = (body.match(/\[VERIFICAR[^\]]*\]/gi) ?? []).length + (input.title.match(/\[VERIFICAR/gi) ?? []).length;
+  const verifySnippets = verifyMarks ? findVerifySnippets(input.title, body) : [];
 
   // ── Titular ───────────────────────────────────────────────────────────────
   const tLen = input.title.trim().length;
@@ -291,6 +305,6 @@ export function analyzeSeo(input: SeoInput): SeoReport {
   const earned = checks.reduce((sum, c) => sum + (c.status === "pass" ? c.weight : c.status === "warn" ? c.weight * 0.5 : 0), 0);
   return {
     score: total ? Math.round((earned / total) * 100) : 0,
-    keyword, keywordSource, words: wordCount, readability: fh, readabilityLabel: readabilityLabel(fh), checks, verifyMarks,
+    keyword, keywordSource, words: wordCount, readability: fh, readabilityLabel: readabilityLabel(fh), checks, verifyMarks, verifySnippets,
   };
 }

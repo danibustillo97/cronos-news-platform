@@ -13,7 +13,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  AlertCircle, BookOpen, Check, ChevronLeft, ChevronRight, FileCheck2, Loader2, RefreshCw, Search, Sparkles, Trash2, X,
+  AlertCircle, BookOpen, Check, ChevronLeft, ChevronRight, FileCheck2, ListChecks, Loader2, MoreHorizontal, RefreshCw, Search, Sparkles, Trash2, X,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/studio/lab/api-client";
@@ -138,6 +138,7 @@ export default function RevisionWorkspace({
   const [mobilePane, setMobilePane] = useState<"list" | "editor">("list");
   const [inspectorOpen, setInspectorOpen] = useState(false);
   const [researchOpen, setResearchOpen] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
   const [bodyEditor, setBodyEditor] = useState<Editor | null>(null);
   const [queueSearch, setQueueSearch] = useState("");
   const [archivedOpen, setArchivedOpen] = useState(false);
@@ -623,7 +624,7 @@ export default function RevisionWorkspace({
   }, [queue, queueSearch]);
 
   return (
-    <div className="flex h-full min-h-0">
+    <div className="touch-safe-inputs flex h-full min-h-0">
       {/* LISTA -- independent scroll (hidden in focus mode: the board is the list) */}
       <div className={`${focusMode ? "hidden" : mobilePane === "list" ? "flex" : "hidden md:flex"} w-full md:w-[280px] lg:w-[310px] flex-shrink-0 flex-col border-r border-white/10 h-full min-h-0 bg-[#0b0b0b]`}>
         <div className="flex-shrink-0 border-b border-white/10 px-4 py-4">
@@ -694,29 +695,30 @@ export default function RevisionWorkspace({
       <div className={`${mobilePane === "editor" ? "flex" : "hidden"} md:flex flex-1 min-w-0 flex-col h-full min-h-0`}>
         {selected && draft ? (
           <>
-            <div className="flex flex-shrink-0 flex-wrap items-center gap-3 border-b border-white/10 px-4 py-2.5">
+            <div className="flex flex-shrink-0 items-center gap-2 border-b border-white/10 px-2 py-2 sm:gap-3 sm:px-4 sm:py-2.5 md:flex-wrap">
               {focusMode ? (
                 <button
                   onClick={async () => { if (await flushPendingSave()) onClose?.(); }}
-                  className="flex items-center gap-1 rounded-lg px-2 py-1.5 text-xs font-medium text-neutral-300 hover:bg-white/10 hover:text-white"
+                  aria-label="Volver al tablero"
+                  className="flex h-9 items-center gap-1 rounded-lg px-2 text-xs font-medium text-neutral-300 hover:bg-white/10 hover:text-white sm:h-auto sm:py-1.5"
                 >
-                  <ChevronLeft size={14} /> Tablero
+                  <ChevronLeft size={16} /> <span className="hidden sm:inline">Tablero</span>
                 </button>
               ) : (
-                <button onClick={() => setMobilePane("list")} className="md:hidden text-xs text-neutral-400 hover:text-white">← Lista</button>
+                <button onClick={() => setMobilePane("list")} className="flex h-9 items-center px-2 text-xs text-neutral-400 hover:text-white md:hidden">← Lista</button>
               )}
-              {focusMode && <StatusPill status={selected.status} issues={selected.validationIssues.length} />}
+              {focusMode && <span className="hidden sm:contents"><StatusPill status={selected.status} issues={selected.validationIssues.length} /></span>}
 
-              <div className="flex items-center gap-1.5 text-[11.5px]">
-                {saveStatus === "pending" && <span className="text-neutral-400">Cambios sin guardar…</span>}
+              <div className="flex min-w-0 items-center gap-1.5 whitespace-nowrap text-[11.5px]">
+                {saveStatus === "pending" && <span className="text-neutral-400"><span className="hidden sm:inline">Cambios sin guardar…</span><span className="sm:hidden">Sin guardar</span></span>}
                 {saveStatus === "saving" && <span className="flex items-center gap-1.5 text-neutral-400"><Loader2 size={12} className="animate-spin" /> Guardando…</span>}
                 {saveStatus === "saved" && <span className="flex items-center gap-1.5 text-green-400"><Check size={12} /> Guardado</span>}
                 {saveStatus === "error" && (
                   <button type="button" onClick={() => void flushPendingSave()} className="flex items-center gap-1.5 text-red-400 hover:text-red-300">
-                    <AlertCircle size={12} /> Error al guardar · Reintentar
+                    <AlertCircle size={12} /> <span className="hidden sm:inline">Error al guardar ·</span> Reintentar
                   </button>
                 )}
-                {saveStatus === "idle" && <span className="text-neutral-500">Sin cambios</span>}
+                {saveStatus === "idle" && <span className="hidden text-neutral-500 sm:inline">Sin cambios</span>}
               </div>
 
               <span className="hidden sm:inline text-[11.5px] text-neutral-600 ml-2">
@@ -737,14 +739,48 @@ export default function RevisionWorkspace({
                 </div>
               )}
 
-              <div className="ml-auto flex flex-wrap items-center justify-end gap-1.5">
+              <div className="ml-auto flex flex-shrink-0 items-center justify-end gap-1.5 md:flex-wrap">
                 <button
                   onClick={flushPendingSave}
                   disabled={saveStatus === "saving"}
-                  className="flex items-center gap-1.5 text-[12px] font-bold px-3.5 py-1.5 rounded-lg bg-red-600 text-white hover:bg-red-500 disabled:opacity-50"
+                  className="flex h-9 items-center gap-1.5 rounded-lg bg-red-600 px-3.5 text-[12px] font-bold text-white hover:bg-red-500 disabled:opacity-50 md:h-auto md:py-1.5"
                 >
-                  {selected.status === "DRAFT" ? "Guardar borrador" : "Guardar"}
+                  {selected.status === "DRAFT" ? <><span className="hidden sm:inline">Guardar borrador</span><span className="sm:hidden">Guardar</span></> : "Guardar"}
                 </button>
+                <div className="relative md:hidden">
+                  <button onClick={() => setMoreOpen((o) => !o)} aria-label="Más acciones" aria-expanded={moreOpen}
+                    className="flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-neutral-300 hover:bg-white/5">
+                    <MoreHorizontal size={16} />
+                  </button>
+                  {moreOpen && (
+                    <>
+                      <button aria-label="Cerrar menú" className="fixed inset-0 z-40 cursor-default" onClick={() => setMoreOpen(false)} />
+                      <div className="absolute right-0 top-full z-50 mt-1.5 w-60 rounded-xl border border-white/10 bg-neutral-900 p-1 shadow-2xl">
+                        {!focusMode && selected.status === "DRAFT" && (
+                          <button onClick={() => { setMoreOpen(false); void submitForReview(); }} disabled={submitting || saveStatus === "saving" || openingManualItem}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-left text-[13px] text-green-300 hover:bg-white/5 disabled:opacity-50">
+                            {submitting ? <Loader2 className="animate-spin" size={15} /> : <FileCheck2 size={15} />} Enviar a revisión
+                          </button>
+                        )}
+                        {focusMode && selected.status === "SCHEDULED" && (
+                          <button onClick={() => { setMoreOpen(false); void cancelSchedule(); }} disabled={publishing}
+                            className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-left text-[13px] text-neutral-200 hover:bg-white/5 disabled:opacity-50">
+                            <X size={15} /> Cancelar programación
+                          </button>
+                        )}
+                        <button onClick={() => { setMoreOpen(false); setResearchOpen((open) => !open); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-left text-[13px] text-neutral-200 hover:bg-white/5">
+                          <BookOpen size={15} /> {researchOpen ? "Cerrar búsqueda" : "Buscar información"}
+                        </button>
+                        <button onClick={() => { setMoreOpen(false); setInspectorOpen(true); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-3 py-3 text-left text-[13px] text-neutral-200 hover:bg-white/5">
+                          <ListChecks size={15} /> Detalles y revisión
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
+                <div className="hidden items-center gap-1.5 md:contents">
                 {!focusMode && selected.status === "DRAFT" && (
                   <button
                     onClick={() => void submitForReview()}
@@ -777,12 +813,13 @@ export default function RevisionWorkspace({
                 >
                   Detalles y revisión
                 </button>
+                </div>
               </div>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto">
               {selected.sources[0] && (
-                <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-white/[0.015] text-[11px] text-neutral-500">
-                  <span className="font-semibold text-neutral-400">Fuente original:</span>
+                <div className="flex min-w-0 items-center gap-2 border-b border-white/5 bg-white/[0.015] px-3 py-2 text-[11px] text-neutral-500 sm:px-4">
+                  <span className="flex-shrink-0 font-semibold text-neutral-400">Fuente<span className="hidden sm:inline"> original</span>:</span>
                   <a href={safeHttpUrl(selected.sources[0].sourceUrl) ?? undefined} target="_blank" rel="noreferrer" className="truncate hover:text-white hover:underline">
                     {selected.sources[0].sourceName ?? selected.sources[0].sourceDomain}
                   </a>
@@ -816,11 +853,11 @@ export default function RevisionWorkspace({
         inspectorOpen && (
           <div className="fixed inset-0 z-40 flex justify-end">
             <div className="fixed inset-0 bg-black/60 backdrop-blur-[2px]" onClick={() => setInspectorOpen(false)} />
-            <div className="relative h-full w-full max-w-md overflow-y-auto border-l border-white/10 bg-neutral-950 shadow-2xl">
+            <div className="relative h-full w-full overflow-y-auto overscroll-contain border-l border-white/10 bg-neutral-950 pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-w-md">
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-neutral-950/95 px-4 py-3 backdrop-blur">
                 <span className="text-sm font-semibold text-white">Detalles y revisión</span>
-                <button onClick={() => setInspectorOpen(false)} aria-label="Cerrar detalles">
-                  <X size={16} className="text-neutral-500 hover:text-white" />
+                <button onClick={() => setInspectorOpen(false)} aria-label="Cerrar detalles" className="-mr-2 rounded-full p-2">
+                  <X size={18} className="text-neutral-500 hover:text-white" />
                 </button>
               </div>
               <RevisionInspector
@@ -837,7 +874,11 @@ export default function RevisionWorkspace({
       )}
 
       {researchOpen && selected && (
-        <div className="fixed bottom-4 right-4 top-28 z-30 w-[min(340px,calc(100vw-2rem))] overflow-y-auto rounded-xl shadow-2xl shadow-black/60">
+        <div className="touch-safe-inputs fixed inset-x-2 bottom-2 top-16 z-40 overflow-y-auto overscroll-contain rounded-xl shadow-2xl shadow-black/60 md:inset-x-auto md:bottom-4 md:right-4 md:top-28 md:z-30 md:w-[340px]">
+          <button onClick={() => setResearchOpen(false)} aria-label="Cerrar búsqueda"
+            className="absolute right-2 top-2 z-10 rounded-full bg-black/60 p-2 text-neutral-300 hover:text-white md:hidden">
+            <X size={16} />
+          </button>
           <ResearchPanel key={selected.id} editor={bodyEditor} />
         </div>
       )}

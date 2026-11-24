@@ -27,7 +27,7 @@ jobs:
       - name: Run queued discovery jobs (botón Buscar)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY || secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SCRAPER_SOURCES: ${{ secrets.SCRAPER_SOURCES }}
           SCRAPER_MAX_AGE_HOURS: ${{ vars.SCRAPER_MAX_AGE_HOURS }}
           SCRAPER_MAX_ITEMS_PER_SOURCE: ${{ vars.SCRAPER_MAX_ITEMS_PER_SOURCE }}

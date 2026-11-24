@@ -22,7 +22,7 @@ instead of processing the same job twice.
 
 Repository **secrets**:
 
-- `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY` -- every worker
+- `SUPABASE_URL`, `SUPABASE_SECRET_KEY` -- every worker
 - `SCRAPER_SOURCES` -- comma-separated RSS/Atom feed URLs (discovery, scraper)
 - `ANTHROPIC_API_KEY` -- artifact processing
 - `CLOUDFLARE_ACCOUNT_ID`, `CLOUDFLARE_API_TOKEN` -- media processing (Workers AI, model

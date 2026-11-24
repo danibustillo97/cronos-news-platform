@@ -11,9 +11,9 @@ server, no Nginx and no local Automation runtime in production:
 | Data, files, auth | Supabase | Postgres (RLS), Storage bucket `media`, Auth |
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY` only for server routes that require privileged access
+- `SUPABASE_SECRET_KEY` only for server routes that require privileged access
 - `BACKEND_PUBLIC_URL`: URL of the FastAPI backend Vercel project (see `docs/DEPLOYMENT_BACKEND_VERCEL.md`). Leave `NEXT_PUBLIC_API_BASE_URL` unset so the browser goes through the `/api/*` proxy.
 - `TIKTOK_CLIENT_KEY`
 - `TIKTOK_CLIENT_SECRET`

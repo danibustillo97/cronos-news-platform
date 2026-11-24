@@ -63,7 +63,7 @@ python automation/migrate_legacy_news.py --apply  # ejecuta (idempotente, no bor
 | Nombre | Para qué |
 |---|---|
 | `SUPABASE_URL` | Todos los workers |
-| `SUPABASE_SERVICE_ROLE_KEY` | Todos los workers |
+| `SUPABASE_SECRET_KEY` | Todos los workers |
 | `SCRAPER_SOURCES` | Feeds: `https://sitio/rss|Fútbol, https://otro/feed` |
 | `ANTHROPIC_API_KEY` | Solo modo automático / botón "Generar" |
 

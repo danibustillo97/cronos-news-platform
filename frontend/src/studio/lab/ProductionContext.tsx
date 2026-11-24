@@ -8,7 +8,7 @@
 // just calls use cases and stores their responses.
 
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { apiUrl } from './api-client';
+import { apiFetch } from './api-client';
 import { supabase } from '@/lib/supabaseClient';
 import type { StoryWorkspaceDTO, CompositionDTO, ProductionDTO, ActiveProductionItemDTO, ApiErrorBody } from './api-types';
 
@@ -77,7 +77,7 @@ export function ProductionProvider({ children }: { children: React.ReactNode }) 
   const refreshWorkspace = useCallback(async (id: string) => {
     setIsLoadingWorkspace(true);
     try {
-      const res = await fetch(apiUrl(`/api/stories/${encodeURIComponent(id)}/workspace`));
+      const res = await apiFetch(`/api/stories/${encodeURIComponent(id)}/workspace`);
       if (res.status === 404) {
         setWorkspace(null);
         setLastError(null);
@@ -101,7 +101,7 @@ export function ProductionProvider({ children }: { children: React.ReactNode }) 
     setStoryId(id);
     setLastError(null);
     try {
-      const res = await fetch(apiUrl(`/api/stories/${encodeURIComponent(id)}/produce`), {
+      const res = await apiFetch(`/api/stories/${encodeURIComponent(id)}/produce`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ newsId: activeStory?.newsId ?? null }),
@@ -124,7 +124,7 @@ export function ProductionProvider({ children }: { children: React.ReactNode }) 
 
   const reviewComposition = useCallback(async (compositionId: string, decision: 'APPROVE' | 'REJECT') => {
     try {
-      const res = await fetch(apiUrl(`/api/compositions/${encodeURIComponent(compositionId)}/review`), {
+      const res = await apiFetch(`/api/compositions/${encodeURIComponent(compositionId)}/review`, {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ decision }),
       });
       if (!res.ok) {
@@ -144,7 +144,7 @@ export function ProductionProvider({ children }: { children: React.ReactNode }) 
     setIsProducing(true);
     setLastError(null);
     try {
-      const res = await fetch(apiUrl(`/api/news/${encodeURIComponent(newsId)}/convert-to-content`), { method: 'POST' });
+      const res = await apiFetch(`/api/news/${encodeURIComponent(newsId)}/convert-to-content`, { method: 'POST' });
       if (!res.ok) {
         setLastError(await readJson(res) as ApiErrorBody);
         return null;
@@ -214,7 +214,7 @@ export function ProductionProvider({ children }: { children: React.ReactNode }) 
   useEffect(() => {
     let cancelled = false;
 
-    fetch(apiUrl('/api/productions')).then(readJson).then((body) => {
+    apiFetch('/api/productions').then(readJson).then((body) => {
       if (!cancelled && body?.items) setActiveProductions(body.items as ActiveProductionItemDTO[]);
     }).catch((e) => {
       // Same fix as reviewComposition below (ERROR 3): an unhandled

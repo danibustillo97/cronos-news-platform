@@ -396,9 +396,9 @@ function Cmd-Doctor {
     Write-Host ""
     C-Blue "-- Env files (presence + key names only, never values) --"
     $envFiles = @(
-        @{ Path = "$Backend\.env"; Keys = @("SUPABASE_SERVICE_ROLE_KEY") },
-        @{ Path = "$Automation\.env"; Keys = @("SUPABASE_URL", "SUPABASE_KEY", "OPENROUTER_API_KEY") },
-        @{ Path = "$Runtime\.env"; Keys = @("SUPABASE_SERVICE_ROLE_KEY") }
+        @{ Path = "$Backend\.env"; Keys = @("SUPABASE_URL", "SUPABASE_PUBLISHABLE_KEY", "SUPABASE_SECRET_KEY") },
+        @{ Path = "$Automation\.env"; Keys = @("SUPABASE_URL", "SUPABASE_SECRET_KEY", "OPENROUTER_API_KEY") },
+        @{ Path = "$Runtime\.env"; Keys = @("SUPABASE_URL", "SUPABASE_SECRET_KEY") }
     )
     foreach ($e in $envFiles) {
         if (Test-Path $e.Path) {

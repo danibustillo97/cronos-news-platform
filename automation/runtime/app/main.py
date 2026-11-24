@@ -89,13 +89,13 @@ def diagnostics_env() -> dict:
     """Igual que news/backend GET /diagnostics/env: reporta SOLO
     configured/missing, jamás el valor, y desde ESTE proceso (el que
     realmente corre supabase_mirror.get_client())."""
-    using_service_role = bool(os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
+    using_service_role = bool(os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
     return {
         "env_file_loaded_from": str(supabase_mirror._ENV_FILE),
         "env_file_exists": supabase_mirror._ENV_FILE.exists(),
         "SUPABASE_URL": "configured" if os.getenv("SUPABASE_URL") else "using_default",
-        "SUPABASE_KEY": "configured" if os.getenv("SUPABASE_KEY") else "missing",
-        "SUPABASE_SERVICE_ROLE_KEY": "configured" if using_service_role else "missing",
+        "SUPABASE_PUBLISHABLE_KEY": "configured" if (os.getenv("SUPABASE_PUBLISHABLE_KEY") or os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")) else "missing",
+        "SUPABASE_SECRET_KEY": "configured" if using_service_role else "missing",
         "client_will_use": "service_role" if using_service_role else "anon_or_missing",
     }
 

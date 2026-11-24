@@ -83,11 +83,14 @@ cd automation/runtime && python -m venv venv && ./venv/Scripts/pip install -r re
 
 ## Variables de entorno
 
-Nunca centralizadas en un solo archivo — cada servicio tiene el suyo, nunca commiteado (excepto `automation/.env`, que quedó trackeado desde antes de esta consolidación, ver `automation/.gitignore`):
+Cada servicio tiene su propio archivo, nunca commiteado (plantillas en los `.env.example`). Se usan los nombres actuales de Supabase: publishable key (antes anon) y secret key (antes service_role); los nombres antiguos siguen funcionando como respaldo.
 
-- `backend/.env` — `SUPABASE_SERVICE_ROLE_KEY`
-- `automation/.env` — `SUPABASE_URL`, `SUPABASE_KEY`, `OPENROUTER_API_KEY`
-- `automation/runtime/.env` — `SUPABASE_SERVICE_ROLE_KEY`
+- `backend/.env` — `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`
+- `frontend/.env.local` — `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`
+- `automation/.env` — `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, `OPENROUTER_API_KEY`
+- `automation/runtime/.env` — `SUPABASE_URL`, `SUPABASE_SECRET_KEY`
+
+Detalle completo en `docs/ENVIRONMENT_VARIABLES.md`.
 
 `nexus doctor` verifica que existan y qué claves tienen, nunca sus valores.
 

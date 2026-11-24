@@ -785,3 +785,13 @@ body {
   pointer-events: none;
 }
 .article-content [contenteditable="true"]:focus { outline: none; }
+
+/* iOS zooms the page when a focused form control is under 16px. Editor
+   screens opt in with .touch-safe-inputs so typing on a phone never zooms. */
+@media (pointer: coarse) {
+  .touch-safe-inputs input:not([type="checkbox"]):not([type="radio"]),
+  .touch-safe-inputs textarea,
+  .touch-safe-inputs select {
+    font-size: max(16px, 1em);
+  }
+}

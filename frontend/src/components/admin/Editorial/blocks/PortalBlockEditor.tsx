@@ -28,6 +28,7 @@ import { applyRewrites, articlePlainText, buildRewritePrompt, parseRewrites, pla
 import { buildImagePrompt, type ImageModel } from "./imagePrompt";
 import { aiFixableCount, autoFixes, buildFixPrompt, parseFixAnswer, type FixContext, type FixPatch, type FixPromptPlan } from "./seoFixes";
 import type { SeoReport } from "./seo";
+import { BottomSheet, MobileBlockToolbar, useKeyboardInset, useTouchLayout } from "./mobile";
 
 /** Lets the cover and image blocks copy an AI image prompt built from the whole article. */
 type ImagePromptFn = (opts: { purpose: "cover" | "body"; suggestion?: string; model: ImageModel }) => Promise<{ alt: string; caption: string } | null>;
@@ -84,6 +85,22 @@ export default function PortalBlockEditor({
   const [dragId, setDragId] = useState<string | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
+  // Touch layout: the block being edited drives the toolbar docked above the keyboard.
+  const touch = useTouchLayout();
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const blocksRootRef = useRef<HTMLDivElement>(null);
+  const toolbarBottom = useKeyboardInset(touch && activeId !== null);
+  useEffect(() => {
+    if (!touch) return;
+    // Focus moving to the header, SEO panel, a dialog… ends block editing.
+    const onFocusIn = (e: FocusEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target?.closest("[data-block-id]") && !blocksRootRef.current?.contains(target)) setActiveId(null);
+    };
+    document.addEventListener("focusin", onFocusIn);
+    return () => document.removeEventListener("focusin", onFocusIn);
+  }, [touch]);
+
   const commit = useCallback((next: Block[]) => {
     setBlocks(next);
     onFieldChange({ contentHtml: serialize(next) });
@@ -108,6 +125,13 @@ export default function PortalBlockEditor({
     list.splice(index, replace ? 1 : 0, block);
     commit(list);
     if (isTextBlock(block)) focusBlock(block.id, "start");
+  };
+
+  const removeWithUndo = (id: string) => {
+    const before = blocksRef.current;
+    remove(id, false);
+    setActiveId(null);
+    toast.success("Bloque eliminado", { action: { label: "Deshacer", onClick: () => commit(before) }, duration: 8000 });
   };
 
   const remove = (id: string, focusPrevious = true) => {
@@ -520,61 +544,75 @@ export default function PortalBlockEditor({
   };
 
   const firstParagraphId = blocks.find((b) => b.type === "paragraph")?.id;
+  const activeIndex = activeId ? blocks.findIndex((b) => b.id === activeId) : -1;
+  const activeBlock = activeIndex >= 0 ? { block: blocks[activeIndex], index: activeIndex } : null;
   const words = wordCount(blocks);
   const minutes = Math.max(1, Math.round(words / 200));
 
   return (
     <ImagePromptContext.Provider value={copyImagePrompt}>
-    <div className="min-h-full bg-white text-neutral-900">
-      <div className="sticky top-0 z-20 flex items-center gap-3 border-b border-neutral-200 bg-white/95 px-4 py-1.5 text-[11px] text-neutral-500 backdrop-blur">
-        <span className="font-semibold uppercase tracking-wide text-neutral-400">Vista exacta del portal</span>
-        <span>{words} palabras · {minutes} min de lectura</span>
-        <span className={draft.title.length > TITLE_MAX ? "text-red-500" : ""}>Titular {draft.title.length}/{TITLE_MAX}</span>
+    <div className="touch-safe-inputs min-h-full bg-white text-neutral-900">
+      <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-neutral-200 bg-white/95 px-3 py-1.5 text-[11px] text-neutral-500 backdrop-blur sm:gap-3 sm:px-4">
+        <span className="hidden font-semibold uppercase tracking-wide text-neutral-400 md:inline">Vista exacta del portal</span>
+        <span className="whitespace-nowrap">
+          <span className="sm:hidden">{words} pal.</span>
+          <span className="hidden sm:inline">{words} palabras · {minutes} min de lectura</span>
+        </span>
+        <span className={`whitespace-nowrap ${draft.title.length > TITLE_MAX ? "text-red-500" : "hidden sm:inline"}`}>Titular {draft.title.length}/{TITLE_MAX}</span>
         <button
           type="button" onClick={() => setSeoOpen(true)} title="Ver análisis SEO y antiplagio"
-          className={`rounded-full px-2 py-0.5 font-bold lg:pointer-events-none ${report.score >= 85 ? "bg-emerald-50 text-emerald-700" : report.score >= 70 ? "bg-lime-50 text-lime-700" : report.score >= 50 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}
+          className={`whitespace-nowrap rounded-full px-2 py-1 font-bold lg:pointer-events-none lg:py-0.5 ${report.score >= 85 ? "bg-emerald-50 text-emerald-700" : report.score >= 70 ? "bg-lime-50 text-lime-700" : report.score >= 50 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}
         >
           SEO {report.score}
         </button>
         {originalityNow && (
-          <span className={`rounded-full px-2 py-0.5 font-bold ${originalityNow.originality >= 80 ? "bg-emerald-50 text-emerald-700" : originalityNow.originality >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
-            {Math.round(originalityNow.originality)}% original{originalityNow.stale ? " *" : ""}
+          <span className={`whitespace-nowrap rounded-full px-2 py-0.5 font-bold ${originalityNow.originality >= 80 ? "bg-emerald-50 text-emerald-700" : originalityNow.originality >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+            {Math.round(originalityNow.originality)}%<span className="hidden sm:inline"> original</span>{originalityNow.stale ? " *" : ""}
           </span>
         )}
-        {readOnly && <span className="ml-auto rounded bg-neutral-100 px-2 py-0.5 text-neutral-600">Publicada · solo lectura</span>}
-        {!readOnly && <span className="ml-auto hidden xl:inline">Escribe <kbd className="rounded border px-1">/</kbd> en un párrafo vacío para insertar bloques</span>}
+        {readOnly && <span className="ml-auto hidden rounded bg-neutral-100 px-2 py-0.5 text-neutral-600 sm:inline">Publicada · solo lectura</span>}
+        {!readOnly && <span className="ml-auto hidden xl:pointer-fine:inline">Escribe <kbd className="rounded border px-1">/</kbd> en un párrafo vacío para insertar bloques</span>}
         <div className={`${readOnly ? "" : "xl:ml-3"} ml-auto flex items-center gap-1.5`}>
           <div className="relative">
             <button
-              type="button" onClick={() => setCopyOpen((o) => !o)}
-              className="inline-flex items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 py-1 font-medium text-neutral-700 hover:bg-neutral-50"
+              type="button" onClick={() => setCopyOpen((o) => !o)} aria-label="Copiar para IA" aria-expanded={copyOpen}
+              className="inline-flex h-8 items-center gap-1.5 rounded-md border border-neutral-200 px-2.5 font-medium text-neutral-700 hover:bg-neutral-50 sm:h-auto sm:py-1"
             >
-              <ClipboardCopy size={13} /> Copiar para IA
+              <ClipboardCopy size={14} /> <span className="hidden sm:inline">Copiar para IA</span><span className="sm:hidden">IA</span>
             </button>
             {copyOpen && (
-              <div className="absolute right-0 top-full z-30 mt-1 w-72 rounded-xl border border-neutral-200 bg-white p-1 shadow-xl">
-                <button type="button" onClick={() => void copyAll(true)} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-50">
-                  <span className="block text-[12.5px] font-medium text-neutral-900">Copiar con instrucciones para ChatGPT</span>
-                  <span className="block text-[11px] text-neutral-500">Le pide mejorarla y mantener el formato y las fotos</span>
-                </button>
-                <button type="button" onClick={() => void copyAll(false)} className="block w-full rounded-lg px-3 py-2 text-left hover:bg-neutral-50">
-                  <span className="block text-[12.5px] font-medium text-neutral-900">Copiar solo el texto</span>
-                  <span className="block text-[11px] text-neutral-500">Titular, entradilla y cuerpo con formato simple</span>
-                </button>
-              </div>
+              <>
+                <button type="button" aria-label="Cerrar menú" className="fixed inset-0 z-20 cursor-default" onClick={() => setCopyOpen(false)} />
+                <div className="absolute right-0 top-full z-30 mt-1 w-[min(18rem,calc(100vw-1.5rem))] rounded-xl border border-neutral-200 bg-white p-1 shadow-xl">
+                  <button type="button" onClick={() => void copyAll(true)} className="block w-full rounded-lg px-3 py-2.5 text-left hover:bg-neutral-50">
+                    <span className="block text-[12.5px] font-medium text-neutral-900">Copiar con instrucciones para ChatGPT</span>
+                    <span className="block text-[11px] text-neutral-500">Le pide mejorarla y mantener el formato y las fotos</span>
+                  </button>
+                  <button type="button" onClick={() => void copyAll(false)} className="block w-full rounded-lg px-3 py-2.5 text-left hover:bg-neutral-50">
+                    <span className="block text-[12.5px] font-medium text-neutral-900">Copiar solo el texto</span>
+                    <span className="block text-[11px] text-neutral-500">Titular, entradilla y cuerpo con formato simple</span>
+                  </button>
+                  {!readOnly && (
+                    <button type="button" onClick={() => { setCopyOpen(false); setReplaceOpen(true); }} className="block w-full rounded-lg px-3 py-2.5 text-left hover:bg-neutral-50 sm:hidden">
+                      <span className="block text-[12.5px] font-medium text-neutral-900">Pegar y reemplazar</span>
+                      <span className="block text-[11px] text-neutral-500">Trae la respuesta de ChatGPT a la noticia</span>
+                    </button>
+                  )}
+                </div>
+              </>
             )}
           </div>
           {!readOnly && (
             <button
               type="button" onClick={() => setReplaceOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 py-1 font-semibold text-white hover:bg-neutral-700"
+              className="hidden items-center gap-1.5 rounded-md bg-neutral-900 px-2.5 py-1 font-semibold text-white hover:bg-neutral-700 sm:inline-flex"
             >
               <ClipboardPaste size={13} /> Pegar y reemplazar
             </button>
           )}
           {!readOnly && onPublish && status !== "SCHEDULED" && (
             <button type="button" onClick={() => setPublishOpen(true)} disabled={publishing}
-              className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500 px-3 py-1 font-bold text-black hover:bg-emerald-400 disabled:opacity-50">
+              className="inline-flex h-8 items-center gap-1.5 rounded-md bg-emerald-500 px-3 font-bold text-black hover:bg-emerald-400 disabled:opacity-50 sm:h-auto sm:py-1">
               {publishing && <Loader2 size={13} className="animate-spin" />} Publicar
             </button>
           )}
@@ -597,10 +635,10 @@ export default function PortalBlockEditor({
       )}
       {seoOpen && (
         <div className="fixed inset-0 z-40 flex justify-end bg-black/40 lg:hidden" onClick={() => setSeoOpen(false)}>
-          <div className="h-full w-full max-w-sm overflow-y-auto bg-white p-4 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-            <div className="mb-3 flex items-center justify-between">
+          <div className="h-full w-full overflow-y-auto overscroll-contain bg-white px-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-2xl sm:max-w-sm" onClick={(e) => e.stopPropagation()}>
+            <div className="sticky top-0 z-10 -mx-4 mb-3 flex items-center justify-between border-b border-neutral-100 bg-white px-4 py-3">
               <p className="text-sm font-semibold text-neutral-900">SEO y antiplagio</p>
-              <button type="button" onClick={() => setSeoOpen(false)} aria-label="Cerrar" className="text-neutral-400 hover:text-neutral-900"><X size={16} /></button>
+              <button type="button" onClick={() => setSeoOpen(false)} aria-label="Cerrar" className="-mr-2 rounded-full p-2 text-neutral-400 hover:text-neutral-900"><X size={18} /></button>
             </div>
             <SeoPanel
               report={report} keyword={keyword} onKeywordChange={setKeyword} fields={seo} title={draft.title}
@@ -615,7 +653,7 @@ export default function PortalBlockEditor({
         </div>
       )}
 
-      <div ref={canvasRef} className="relative w-full max-w-7xl mx-auto px-4 md:px-6 pt-6 md:pt-10 pb-24">
+      <div ref={canvasRef} className={`relative w-full max-w-7xl mx-auto px-4 md:px-6 pt-5 md:pt-10 ${touch && !readOnly ? "pb-44" : "pb-24"}`}>
         <ArticleHeader
           draft={draft} onFieldChange={onFieldChange} categoryGroups={categoryGroups} readOnly={readOnly}
           artifactId={artifactId} feature={mediaRequirements.find((m) => m.kind === "FEATURE_IMAGE") ?? null}
@@ -629,16 +667,19 @@ export default function PortalBlockEditor({
           <aside className="hidden lg:block" aria-hidden />
 
           <div className="min-w-0">
-            <div className="article-content max-w-none">
+            <div ref={blocksRootRef} className="article-content max-w-none">
               {blocks.map((block, index) => (
                 <div
                   key={block.id}
-                  className={`group/block relative ${dragId === block.id ? "opacity-40" : ""}`}
+                  data-block-id={block.id}
+                  className={`group/block relative ${dragId === block.id ? "opacity-40" : ""} ${touch && !readOnly && activeId === block.id ? "rounded-md ring-2 ring-yellow-400/60 ring-offset-4 ring-offset-white" : ""}`}
                   onDragOver={(e) => { if (dragId) e.preventDefault(); }}
                   onDrop={onDrop(block.id)}
+                  onFocusCapture={() => { if (touch && !readOnly) setActiveId(block.id); }}
+                  onPointerDownCapture={() => { if (touch && !readOnly) setActiveId(block.id); }}
                 >
                   {!readOnly && (
-                    <div className="absolute -left-14 top-1 hidden h-8 items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100 group-focus-within/block:opacity-100 lg:flex">
+                    <div className="absolute -left-14 top-1 hidden h-8 items-center gap-0.5 opacity-0 transition-opacity group-hover/block:opacity-100 group-focus-within/block:opacity-100 lg:pointer-fine:flex">
                       <button
                         type="button" aria-label="Insertar bloque debajo" title="Insertar bloque debajo"
                         onClick={(e) => openInsertMenu(index + 1, false, e.currentTarget)}
@@ -685,7 +726,7 @@ export default function PortalBlockEditor({
             {!readOnly && (
               <button
                 type="button" onClick={(e) => openInsertMenu(blocks.length, false, e.currentTarget)}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-lg border border-dashed border-neutral-300 px-3 py-2 text-xs font-medium text-neutral-500 hover:border-neutral-400 hover:text-neutral-800"
+                className="mt-4 inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-dashed border-neutral-300 px-3 py-3 text-xs font-medium text-neutral-500 hover:border-neutral-400 hover:text-neutral-800 sm:w-auto sm:py-2"
               >
                 <Plus size={14} /> Agregar bloque
               </button>
@@ -709,7 +750,23 @@ export default function PortalBlockEditor({
           </aside>
         </div>
 
-        {menu && (
+        {menu && (touch ? (
+          <BottomSheet title="Insertar bloque" onClose={() => setMenu(null)}>
+            <div className="grid grid-cols-3 gap-2 pb-1">
+              {INSERT_OPTIONS.map((option) => {
+                const Icon = option.icon;
+                return (
+                  <button key={option.key} type="button"
+                    onClick={() => { insertAt(menu.index, option.make(), menu.replace); setMenu(null); }}
+                    className="flex flex-col items-center gap-1.5 rounded-xl border border-neutral-200 px-1 py-3 text-center active:bg-neutral-100">
+                    <Icon size={20} className="text-neutral-700" />
+                    <span className="text-[11.5px] font-medium leading-tight text-neutral-800">{option.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </BottomSheet>
+        ) : (
           <InsertMenu
             top={menu.top} left={menu.left}
             onClose={() => setMenu(null)}
@@ -719,9 +776,29 @@ export default function PortalBlockEditor({
               setMenu(null);
             }}
           />
-        )}
-        {!readOnly && <InlineToolbar container={canvasRef} />}
+        ))}
+        {!readOnly && !touch && <InlineToolbar container={canvasRef} />}
       </div>
+      {!readOnly && touch && activeBlock && !menu && (
+        <MobileBlockToolbar
+          block={activeBlock.block} isFirst={activeBlock.index === 0} isLast={activeBlock.index === blocks.length - 1}
+          bottom={toolbarBottom}
+          onInsert={() => setMenu({ index: activeBlock.index + 1, replace: false, top: 0, left: 0 })}
+          onConvert={(to) => {
+            const id = activeBlock.block.id;
+            commit(blocksRef.current.map((b) => (b.id === id ? convertBlock(b, to) : b)));
+            focusBlock(id);
+          }}
+          onMove={(d) => {
+            move(activeBlock.block.id, d);
+            const id = activeBlock.block.id;
+            requestAnimationFrame(() => blocksRootRef.current?.querySelector(`[data-block-id="${id}"]`)?.scrollIntoView({ block: "center", behavior: "smooth" }));
+          }}
+          onDuplicate={() => insertAt(activeBlock.index + 1, { ...activeBlock.block, id: newId() } as Block)}
+          onDelete={() => removeWithUndo(activeBlock.block.id)}
+          onDone={() => { (document.activeElement as HTMLElement | null)?.blur(); setActiveId(null); }}
+        />
+      )}
     </div>
     </ImagePromptContext.Provider>
   );
@@ -750,8 +827,8 @@ function ReplaceDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 font-sans" onClick={onCancel}>
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 font-sans sm:items-center sm:p-4" onClick={onCancel}>
+      <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-h-[90vh] sm:rounded-2xl sm:pb-0" onClick={(e) => e.stopPropagation()}>
         <div className="border-b border-neutral-200 px-5 py-4">
           <h3 className="text-base font-semibold text-neutral-900">Pegar y reemplazar todo el contenido</h3>
           <p className="mt-1 text-[12.5px] leading-relaxed text-neutral-500">
@@ -794,10 +871,10 @@ function ReplaceDialog({
           )}
         </div>
         <div className="flex justify-end gap-2 border-t border-neutral-200 px-5 py-3">
-          <button type="button" onClick={onCancel} className="rounded-md px-3 py-1.5 text-xs text-neutral-500 hover:text-neutral-900">Cancelar</button>
+          <button type="button" onClick={onCancel} className="rounded-md px-3 py-2.5 text-xs text-neutral-500 sm:py-1.5 hover:text-neutral-900">Cancelar</button>
           <button
             type="button" disabled={!preview} onClick={() => onApply(text, useHeader)}
-            className="rounded-md bg-neutral-900 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-40"
+            className="rounded-md bg-neutral-900 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-40 sm:py-1.5"
           >
             Reemplazar contenido
           </button>
@@ -817,8 +894,8 @@ function FixDialog({ plan, ctx, onCancel, onApply }: {
   const parsed = useMemo(() => parseFixAnswer(text, plan, ctx), [text, plan, ctx]);
   const accepted = new Set(parsed.proposals.map((p) => p.key).filter((k) => !rejected.has(k)));
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 font-sans" onClick={onCancel}>
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 font-sans sm:items-center sm:p-4" onClick={onCancel}>
+      <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-h-[90vh] sm:rounded-2xl sm:pb-0" onClick={(e) => e.stopPropagation()}>
         <div className="border-b border-neutral-200 px-5 py-4">
           <h3 className="text-base font-semibold text-neutral-900">Pegar correcciones de ChatGPT</h3>
           <p className="mt-1 text-[12.5px] text-neutral-500">Cada cambio va a su lugar exacto. Desmarca lo que no quieras.</p>
@@ -839,9 +916,9 @@ function FixDialog({ plan, ctx, onCancel, onApply }: {
           ))}
         </div>
         <div className="flex justify-end gap-2 border-t border-neutral-200 px-5 py-3">
-          <button type="button" onClick={onCancel} className="rounded-md px-3 py-1.5 text-xs text-neutral-500">Cancelar</button>
+          <button type="button" onClick={onCancel} className="rounded-md px-3 py-2.5 text-xs text-neutral-500 sm:py-1.5">Cancelar</button>
           <button type="button" disabled={!accepted.size} onClick={() => onApply(parsed.apply(accepted))}
-            className="rounded-md bg-neutral-900 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-40">Aplicar {accepted.size || ""}</button>
+            className="rounded-md bg-neutral-900 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-40 sm:py-1.5">Aplicar {accepted.size || ""}</button>
         </div>
       </div>
     </div>
@@ -865,25 +942,38 @@ function PublishDialog({ report, originality, blockingIssues, publishing, onCanc
   const canPublish = !hard.length && (!soft.length || accept) && !publishing;
   const date = when ? new Date(when) : null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 font-sans" onClick={onCancel}>
-      <div className="w-full max-w-md rounded-2xl bg-white p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 font-sans sm:items-center sm:p-4" onClick={onCancel}>
+      <div className="max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-t-2xl bg-white p-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] shadow-2xl sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
         <h3 className="text-base font-semibold text-neutral-900">Publicar noticia</h3>
         <p className="mt-1 text-[12.5px] text-neutral-500">SEO {report.score}/100{originality ? ` · ${Math.round(originality.originality)}% original` : ""}</p>
-        {hard.length > 0 && <ul className="mt-3 space-y-1 rounded-lg bg-red-50 p-3 text-[12px] text-red-700">{hard.map((h) => <li key={h}>✕ {h}</li>)}</ul>}
+        {hard.length > 0 && (
+          <div className="mt-3 rounded-lg bg-red-50 p-3 text-[12px] text-red-700">
+            <ul className="space-y-1">{hard.map((h) => <li key={h}>✕ {h}</li>)}</ul>
+            {report.verifySnippets.length > 0 && (
+              <ul className="mt-2 space-y-1 border-l-2 border-red-200 pl-2 text-[11.5px] text-red-600">
+                {report.verifySnippets.map((s, i) => <li key={i}>«{s}»</li>)}
+              </ul>
+            )}
+            <p className="mt-2 text-[11.5px] text-red-600">Corrígelo en el editor para poder publicar: confirma cada dato con la fuente y borra la marca.</p>
+          </div>
+        )}
         {soft.length > 0 && (
           <div className="mt-3 rounded-lg bg-amber-50 p-3 text-[12px] text-amber-800">
             <ul className="space-y-1">{soft.map((s) => <li key={s}>⚠ {s}</li>)}</ul>
-            <label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} /> Publicar igualmente</label>
+            {/* Overriding only makes sense for warnings; hard blockers can't be skipped. */}
+            {!hard.length && (
+              <label className="mt-2 flex items-center gap-2"><input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} /> Publicar igualmente</label>
+            )}
           </div>
         )}
         <label className="mt-4 block text-[12px] text-neutral-600">Programar (opcional)
           <input type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} className="mt-1 w-full rounded-lg border border-neutral-300 px-2 py-1.5 text-sm" />
         </label>
         <div className="mt-4 flex justify-end gap-2">
-          <button type="button" onClick={onCancel} className="rounded-md px-3 py-1.5 text-xs text-neutral-500">Cancelar</button>
+          <button type="button" onClick={onCancel} className="rounded-md px-3 py-2.5 text-xs text-neutral-500 sm:py-1.5">Cancelar</button>
           <button type="button" disabled={!canPublish || (date !== null && date.getTime() <= Date.now())}
             onClick={() => onPublish(date ?? undefined)}
-            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500 px-4 py-1.5 text-xs font-bold text-black disabled:opacity-40">
+            className="inline-flex items-center gap-1.5 rounded-md bg-emerald-500 px-4 py-2.5 text-xs font-bold text-black disabled:opacity-40 sm:py-1.5">
             {publishing && <Loader2 size={12} className="animate-spin" />} {date ? "Programar" : "Publicar ahora"}
           </button>
         </div>
@@ -918,8 +1008,8 @@ function RewriteDialog({
   });
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 font-sans" onClick={onCancel}>
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-2xl bg-white shadow-2xl" onClick={(e) => e.stopPropagation()}>
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 font-sans sm:items-center sm:p-4" onClick={onCancel}>
+      <div className="flex max-h-[92dvh] w-full max-w-2xl flex-col rounded-t-2xl bg-white pb-[env(safe-area-inset-bottom)] shadow-2xl sm:max-h-[90vh] sm:rounded-2xl sm:pb-0" onClick={(e) => e.stopPropagation()}>
         <div className="border-b border-neutral-200 px-5 py-4">
           <h3 className="text-base font-semibold text-neutral-900">Pegar correcciones de ChatGPT</h3>
           <p className="mt-1 text-[12.5px] text-neutral-500">Pega la respuesta (líneas <code>[1] …</code>, <code>[2] …</code>). Cada frase nueva reemplaza solo la suya.</p>
@@ -957,9 +1047,9 @@ function RewriteDialog({
         <div className="flex items-center justify-between gap-2 border-t border-neutral-200 px-5 py-3">
           <span className="text-[11.5px] text-neutral-500">{text.trim() ? `${accepted.length} de ${proposals.length} se aplicarán` : ""}</span>
           <div className="flex gap-2">
-            <button type="button" onClick={onCancel} className="rounded-md px-3 py-1.5 text-xs text-neutral-500 hover:text-neutral-900">Cancelar</button>
+            <button type="button" onClick={onCancel} className="rounded-md px-3 py-2.5 text-xs text-neutral-500 sm:py-1.5 hover:text-neutral-900">Cancelar</button>
             <button type="button" disabled={!accepted.length} onClick={() => onApply(accepted)}
-              className="rounded-md bg-neutral-900 px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-40">
+              className="rounded-md bg-neutral-900 px-4 py-2.5 text-xs font-semibold text-white disabled:opacity-40 sm:py-1.5">
               Aplicar {accepted.length || ""} corrección(es)
             </button>
           </div>
@@ -1011,7 +1101,7 @@ function ArticleHeader({
           </button>
           <span className="h-px w-8 bg-yellow-400" />
           {categoryOpen && (
-            <div className="absolute left-0 top-full z-30 mt-2 max-h-80 w-64 overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1 shadow-xl">
+            <div className="absolute left-0 top-full z-30 mt-2 max-h-[60dvh] w-[min(16rem,calc(100vw-2rem))] overflow-y-auto rounded-xl border border-neutral-200 bg-white p-1 shadow-xl">
               {categoryGroups.map((group) => (
                 <div key={group.id} className="py-1">
                   <p className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-neutral-400">{group.name}</p>
@@ -1019,7 +1109,7 @@ function ArticleHeader({
                     <button
                       key={c.id} type="button"
                       onClick={() => { onFieldChange({ categoryId: c.id }); setCategoryOpen(false); }}
-                      className={`block w-full rounded-md px-2 py-1.5 text-left text-sm hover:bg-neutral-100 ${c.id === draft.categoryId ? "font-semibold text-neutral-900" : "text-neutral-700"}`}
+                      className={`block w-full rounded-md px-2 py-2.5 text-left text-sm hover:bg-neutral-100 sm:py-1.5 ${c.id === draft.categoryId ? "font-semibold text-neutral-900" : "text-neutral-700"}`}
                     >
                       {c.name}
                     </button>
@@ -1129,7 +1219,7 @@ function CoverImage({
         </div>
       )}
       {!readOnly && (
-        <div className={`absolute inset-x-0 bottom-0 flex flex-wrap justify-center gap-2 bg-gradient-to-t from-black/70 to-transparent p-3 transition-opacity ${url ? "opacity-0 group-hover/cover:opacity-100 focus-within:opacity-100" : "opacity-100"}`}>
+        <div className={`absolute inset-x-0 bottom-0 flex flex-wrap justify-center gap-2 bg-gradient-to-t from-black/70 to-transparent p-3 transition-opacity ${url ? "pointer-fine:opacity-0 pointer-fine:group-hover/cover:opacity-100 pointer-fine:focus-within:opacity-100" : ""}`}>
           <input
             ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden"
             onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void run(async () => setCover(await uploadImage(artifactId, file))); }}
@@ -1150,7 +1240,7 @@ function CoverImage({
                 <ImageIcon size={13} /> Prompt para IA
               </button>
               {promptMenu && (
-                <div className="absolute bottom-full right-0 z-30 mb-2 w-64 rounded-xl border border-neutral-200 bg-white p-1 text-left font-sans shadow-xl">
+                <div className="absolute bottom-full right-0 z-30 mb-2 w-[min(16rem,calc(100vw-2rem))] rounded-xl border border-neutral-200 bg-white p-1 text-left font-sans shadow-xl">
                   {([["chatgpt", "Para ChatGPT", "En español, listo para pegar"], ["midjourney", "Para Midjourney / Leonardo", "En inglés, con --ar 3:2"]] as const).map(([model, label, hint]) => (
                     <button key={model} type="button"
                       onClick={async () => { setPromptMenu(false); aiMeta.current = await copyImagePrompt({ purpose: "cover", model }); }}
@@ -1300,7 +1390,7 @@ function ImageBlock({
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={block.src} alt={block.alt} />
       {!readOnly && (
-        <div className="absolute right-3 top-3 flex gap-1.5 font-sans opacity-0 transition-opacity group-hover/img:opacity-100">
+        <div className="absolute right-2 top-2 flex flex-wrap justify-end gap-1.5 font-sans transition-opacity pointer-fine:opacity-0 pointer-fine:group-hover/img:opacity-100 pointer-fine:focus-within:opacity-100 sm:right-3 sm:top-3">
           <input ref={fileRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden"
             onChange={(e) => { const file = e.target.files?.[0]; e.target.value = ""; if (file) void upload(file); }} />
           <button type="button" onClick={() => fileRef.current?.click()} className="rounded-full bg-black/60 px-3 py-1.5 text-[11px] font-semibold text-white backdrop-blur hover:bg-black/80">
@@ -1333,14 +1423,14 @@ function EmbedBlock({
     return (
       <figure className="flex flex-col gap-2 rounded-2xl border-2 border-dashed border-neutral-300 bg-neutral-50 p-5 font-sans">
         <label className="text-xs font-semibold text-neutral-600">Enlace del video de YouTube</label>
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <input
             autoFocus value={value} onChange={(e) => setValue(e.target.value)} placeholder="https://www.youtube.com/watch?v=…"
             onKeyDown={(e) => { if (e.key === "Enter") { const id = youtubeId(value); if (id) onChange({ videoId: id } as Partial<Block>); else toast.error("No es un enlace de YouTube válido"); } }}
             className="min-w-0 flex-1 rounded-lg border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-900 outline-none focus:border-neutral-600"
           />
           <button type="button" onClick={() => { const id = youtubeId(value); if (id) onChange({ videoId: id } as Partial<Block>); else toast.error("No es un enlace de YouTube válido"); }}
-            className="rounded-lg bg-neutral-900 px-4 text-xs font-semibold text-white">Insertar</button>
+            className="rounded-lg bg-neutral-900 px-4 py-2.5 text-xs font-semibold text-white">Insertar</button>
           <button type="button" onClick={onRemove} className="px-2 text-xs text-neutral-500 hover:text-neutral-900">Quitar</button>
         </div>
       </figure>
@@ -1354,7 +1444,7 @@ function EmbedBlock({
       />
       {!readOnly && (
         <button type="button" onClick={onRemove} aria-label="Quitar video"
-          className="absolute right-3 top-3 rounded-full bg-black/60 p-1.5 text-white opacity-0 backdrop-blur transition-opacity group-hover/embed:opacity-100">
+          className="absolute right-3 top-3 rounded-full bg-black/60 p-2 text-white backdrop-blur transition-opacity pointer-fine:p-1.5 pointer-fine:opacity-0 pointer-fine:group-hover/embed:opacity-100 pointer-fine:focus-visible:opacity-100">
           <Trash2 size={13} />
         </button>
       )}

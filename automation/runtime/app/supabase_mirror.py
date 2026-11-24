@@ -45,10 +45,10 @@ _load_env_file()
 @lru_cache(maxsize=1)
 def get_client() -> Client:
     url = os.getenv("SUPABASE_URL", _DEFAULT_URL)
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+    key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
     if not key:
         raise RuntimeError(
-            "Falta SUPABASE_SERVICE_ROLE_KEY (o SUPABASE_KEY) en el entorno del Runtime -- "
+            "Falta SUPABASE_SECRET_KEY en el entorno del Runtime -- "
             "las tablas nuevas (production_jobs, runtime_registrations, story_intelligence "
             "en escritura) exigen role 'authenticated' por RLS; el Runtime corre server-side, "
             "fuera del browser, así que puede usar una key con privilegios reales."

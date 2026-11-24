@@ -411,7 +411,8 @@ export default function EditorialBoard() {
 
       {/* Full-screen editor */}
       {openArticleId && (
-        <div className="fixed inset-0 z-30 bg-[#080808]">
+        // Above the admin sidebar (z-50): the editor owns the whole screen.
+        <div className="fixed inset-0 z-[60] bg-[#080808]">
           <RevisionWorkspace
             key={openArticleId}
             focusArtifactId={openArticleId}

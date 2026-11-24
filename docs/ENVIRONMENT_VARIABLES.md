@@ -2,12 +2,16 @@
 
 ## Vercel / frontend
 
+Supabase keys use the current dashboard names (Project Settings -> API Keys):
+the **publishable** key (formerly "anon") and the **secret** key (formerly
+"service_role"). The legacy names (`SUPABASE_KEY`, `SUPABASE_ANON_KEY`,
+`NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`) are still read as
+fallbacks so existing deployments keep working; rename them when convenient.
+
 - `NEXT_PUBLIC_SUPABASE_URL`: public Supabase project URL.
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`: public anon key; protected by RLS.
-- `SUPABASE_URL`: server-side Supabase URL.
-- `SUPABASE_ANON_KEY`: optional server-side anon fallback.
-- `SUPABASE_SERVICE_ROLE_KEY`: privileged server/worker key; never `NEXT_PUBLIC_*`.
-- `SUPABASE_ANON_KEY`: anon key used by server-side session validation.
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: publishable key; protected by RLS.
+- `SUPABASE_SECRET_KEY`: privileged server-only key (Next.js API routes); never `NEXT_PUBLIC_*`.
+- `SUPABASE_URL` / `SUPABASE_PUBLISHABLE_KEY`: optional server-side overrides; default to the `NEXT_PUBLIC_*` values.
 - `ADMIN_USER_IDS`: comma-separated Supabase user UUIDs with administrative access.
 - `ADMIN_EMAILS`: comma-separated administrator emails as a secondary allowlist.
 - `OAUTH_STATE_SECRET`: random server secret of at least 32 characters for signed OAuth state cookies.
@@ -29,8 +33,8 @@
 ## Backend
 
 - `SUPABASE_URL`
-- `SUPABASE_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_PUBLISHABLE_KEY`: validates user sessions (`/auth/v1/user`).
+- `SUPABASE_SECRET_KEY`: required for the backend's own writes.
 - `JOB_EXECUTION`: `inline` (local dev, jobs run in-process) or `github` (Vercel: jobs run on GitHub Actions).
 - `ASSET_STORAGE`: `local` (LAB workspace on disk) or `supabase` (Storage bucket, required on Vercel/GitHub Actions).
 - `ASSET_STORAGE_BUCKET`: Storage bucket for artifact images, default `media`.
@@ -44,6 +48,6 @@
 
 ## GitHub Actions
 
-Store `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` as repository or environment secrets. Do not print secret values in logs.
+Store `SUPABASE_URL` and `SUPABASE_SECRET_KEY` as repository or environment secrets. Do not print secret values in logs. Workflows fall back to the legacy `SUPABASE_SERVICE_ROLE_KEY` secret until it is renamed; `verify.yml` also reads `SUPABASE_PUBLISHABLE_KEY` (fallback `SUPABASE_ANON_KEY`).
 
 Workers also need `SCRAPER_SOURCES`, `ANTHROPIC_API_KEY`, `CLOUDFLARE_ACCOUNT_ID` and `CLOUDFLARE_API_TOKEN` (see `GITHUB_ACTIONS.md`).

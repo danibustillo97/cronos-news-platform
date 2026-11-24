@@ -5,10 +5,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise Exception("SUPABASE_URL or SUPABASE_KEY not set")
+    raise Exception("SUPABASE_URL or SUPABASE_SECRET_KEY not set")
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 

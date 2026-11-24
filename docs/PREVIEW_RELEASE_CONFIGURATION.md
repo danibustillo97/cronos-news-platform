@@ -17,7 +17,7 @@ Do not point Preview at the production Supabase project unless explicitly author
 Public variables:
 
 - `NEXT_PUBLIC_SUPABASE_URL`
-- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
 - `NEXT_PUBLIC_API_BASE_URL`, only if FastAPI compatibility is deployed
 - `NEXT_PUBLIC_ADSENSE_ENABLED=false`
 - `NEXT_PUBLIC_ADSTERRA_ENABLED=false`
@@ -26,8 +26,8 @@ Public variables:
 Server variables:
 
 - `SUPABASE_URL`
-- `SUPABASE_ANON_KEY`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_PUBLISHABLE_KEY`
+- `SUPABASE_SECRET_KEY`
 - `BACKEND_PUBLIC_URL`, only for actual FastAPI proxy compatibility
 - `ADMIN_USER_IDS`
 - `ADMIN_EMAILS`
@@ -47,7 +47,7 @@ Never place service role, OAuth secret or encryption key in a `NEXT_PUBLIC_*` va
 Required by scheduled publications:
 
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_SECRET_KEY`
 
 Artifact processing additionally:
 

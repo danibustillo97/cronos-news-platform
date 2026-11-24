@@ -66,12 +66,12 @@ def diagnostics_env() -> dict:
     (el mismo que atiende /api/*, no otra terminal) -- nunca el valor.
     also which key `get_supabase_client()` ends up using, sin revelarla,
     para poder distinguir "estoy usando anon" de "estoy usando service_role"."""
-    using_service_role = bool(os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
+    using_service_role = bool(os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY"))
     return {
         "env_file_loaded_from": str(supabase_client_module._ENV_FILE),
         "env_file_exists": supabase_client_module._ENV_FILE.exists(),
         "SUPABASE_URL": "configured" if os.getenv("SUPABASE_URL") else "missing",
-        "SUPABASE_KEY": "configured" if os.getenv("SUPABASE_KEY") else "missing",
-        "SUPABASE_SERVICE_ROLE_KEY": "configured" if using_service_role else "missing",
+        "SUPABASE_PUBLISHABLE_KEY": "configured" if (os.getenv("SUPABASE_PUBLISHABLE_KEY") or os.getenv("SUPABASE_ANON_KEY") or os.getenv("SUPABASE_KEY")) else "missing",
+        "SUPABASE_SECRET_KEY": "configured" if using_service_role else "missing",
         "client_will_use": "service_role" if using_service_role else "anon (falls back)",
     }
