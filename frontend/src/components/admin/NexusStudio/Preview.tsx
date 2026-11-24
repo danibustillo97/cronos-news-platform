@@ -246,11 +246,24 @@ export default function Preview({
           })
           : null
 
+        // Premium editorial scenes can override the source copy per slide.
+        // The first visible TEXT clip is the headline; subsequent TEXT clips
+        // are concatenated as the slide summary. When no override exists,
+        // the original Artifact copy remains the default.
+        const sceneText = scene.clips
+          .filter((clip) => clip.track === 'TEXT' && !clip.hidden && Boolean(clip.text?.trim()))
+          .sort((a, b) => a.startMs - b.startMs)
+          .map((clip) => clip.text!.trim())
+        const sceneTitle = sceneText[0] || source.title
+        const sceneSummary = sceneText.length > 1
+          ? sceneText.slice(1).join(' ')
+          : source.subtitle || source.excerpt || source.summary || null
+
         renderPremiumEditorial(ctx, {
-          title: source.title,
+          title: sceneTitle,
           category: categoryLabel,
           status: source.status,
-          summary: source.subtitle || source.excerpt || source.summary || null,
+          summary: sceneSummary,
           publishedAt: source.publishedAt || source.createdAt,
           readMinutes: estimateReadMinutes(source.summary, source.excerpt),
           location: source.location || null,
