@@ -1,15 +1,14 @@
-"""Supabase client factory. Falls back to the anon key (read-only per RLS
-— supabase_setup/cronos_platform_schema.sql only grants writes to role
-'authenticated') unless SUPABASE_SERVICE_ROLE_KEY is set, which this
-backend needs for its own writes (Story/Production/Composition/...).
+"""Supabase client factory.
 
-That key is never hardcoded, never logged, never sent to the frontend —
-only read from the environment, optionally via backend/.env (gitignored,
-same manual-parser pattern as automation/lab/config/settings.py — no
-new dependency). Set it locally:
+Prefer the server-only secret key for backend writes. When it is absent,
+fall back to a publishable/anon key; that client remains subject to RLS and
+is intentionally limited to operations allowed to public clients.
 
-    # news/backend/.env
-    SUPABASE_SERVICE_ROLE_KEY=...
+Supported names:
+  - Server secret: SUPABASE_SECRET_KEY or SUPABASE_SERVICE_ROLE_KEY
+  - Publishable: SUPABASE_PUBLISHABLE_KEY, SUPABASE_ANON_KEY or SUPABASE_KEY
+
+No key is hardcoded, logged, or returned from this module.
 """
 from __future__ import annotations
 
@@ -18,6 +17,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from supabase import create_client, Client
+
 
 _ENV_FILE = Path(__file__).resolve().parents[4] / ".env"  # backend/.env
 
@@ -41,9 +41,19 @@ _load_env_file()
 @lru_cache(maxsize=1)
 def get_supabase_client() -> Client:
     url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+    secret_key = os.getenv("SUPABASE_SECRET_KEY") or os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    publishable_key = (
+        os.getenv("SUPABASE_PUBLISHABLE_KEY")
+        or os.getenv("SUPABASE_ANON_KEY")
+        or os.getenv("SUPABASE_KEY")
+    )
+    key = secret_key or publishable_key
+
     if not url:
         raise RuntimeError("SUPABASE_URL is required")
     if not key:
-        raise RuntimeError("SUPABASE_KEY or SUPABASE_SERVICE_ROLE_KEY is required")
+        raise RuntimeError(
+            "SUPABASE_SECRET_KEY/SUPABASE_SERVICE_ROLE_KEY or "
+            "SUPABASE_PUBLISHABLE_KEY/SUPABASE_ANON_KEY is required"
+        )
     return create_client(url, key)
