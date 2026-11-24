@@ -50,7 +50,6 @@ export interface ReelsInput<S extends FeedStory> {
   /** Tamaño mínimo del feed: se rellena con bloques de datos cuando hay pocas noticias. */
   minItems?: number
 }
-
 export function hasBrief(story: FeedStory): boolean {
   return briefPoints(story).length >= 2
 }
