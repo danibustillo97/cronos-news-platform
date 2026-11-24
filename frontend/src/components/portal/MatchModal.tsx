@@ -31,12 +31,12 @@ const TABS: { id: Tab; label: string }[] = [
 
 // ------------------------------------------------------- datos inteligentes
 
-function InsightCard({ athleteId, name }: { athleteId: string; name: string }) {
+export function InsightCard({ athleteId, name, inset = true }: { athleteId: string; name: string; inset?: boolean }) {
   const { data, loaded } = usePlayerInsights(athleteId)
   const reduce = useReducedMotion()
   if (!loaded) {
     return (
-      <div className="ml-11 mt-2 flex items-center gap-2 rounded-xl border border-dashed border-[var(--nx-line-strong)] px-3 py-2 text-[12px] text-[var(--nx-muted)]">
+      <div className={`${inset ? 'ml-11' : ''} mt-2 flex items-center gap-2 rounded-xl border border-dashed border-[var(--nx-line-strong)] px-3 py-2 text-[12px] text-[var(--nx-muted)]`}>
         <span className="nx-live-dot text-[#FACC15]" style={{ width: 6, height: 6 }} aria-hidden="true" /> Buscando datos de {name}…
       </div>
     )
@@ -48,7 +48,7 @@ function InsightCard({ athleteId, name }: { athleteId: string; name: string }) {
       initial={reduce ? false : { opacity: 0, y: 8, height: 0 }}
       animate={{ opacity: 1, y: 0, height: 'auto' }}
       transition={{ duration: 0.35 }}
-      className="ml-11 mt-2 overflow-hidden rounded-2xl border border-[#FACC15]/30 bg-[#FACC15]/[0.06] p-3"
+      className={`${inset ? 'ml-11' : ''} mt-2 overflow-hidden rounded-2xl border border-[#FACC15]/30 bg-[#FACC15]/[0.06] p-3`}
     >
       <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-[var(--nx-accent-text)]">Datos inteligentes</p>
       <div className="flex items-center gap-3">

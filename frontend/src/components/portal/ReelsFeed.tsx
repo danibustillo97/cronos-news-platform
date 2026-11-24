@@ -11,6 +11,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, RefreshCw } from 'lucide-react'
 import LiveStrip from './LiveStrip'
+import MomentCard from './MomentCard'
+import { useMoments } from '@/lib/useMoments'
 import { composeReels, interleavePolls, autoFacts, TABLE_ROTATION } from '@/lib/reels'
 import { useManyStandings } from '@/lib/useStandings'
 import { LEAGUE_LABELS } from '@/lib/leagueLogos'
@@ -52,15 +54,21 @@ export default function ReelsFeed({
       matchSlots: 3,
       capsuleSlots: 3,
       picks: true,
+      momentSlots: 6,
     })
     return interleavePolls(base, polls.length)
   }, [stories, stageStories, polls])
   const { capsules } = useCapsules('limit=12')
   const { data: picks } = usePicks()
+  const moments = useMoments()
+  // Lo que se juega ahora vive en la franja fija "Se juega ahora"; las tarjetas de partidos muestran el resto.
+  const notLive = useMemo(() => matches.filter((m) => m.status !== 'live'), [matches])
 
   const standings = useManyStandings(FACT_LEAGUES)
+  // "Partidos en vivo ahora" ya lo muestra la franja "Se juega ahora": no se repite en la lista.
   const facts = useMemo(
-    () => autoFacts(standings.map((s) => ({ league: s.league, label: LEAGUE_LABELS[s.league] ?? s.leagueName, table: s.table })), matches, now),
+    () => autoFacts(standings.map((s) => ({ league: s.league, label: LEAGUE_LABELS[s.league] ?? s.leagueName, table: s.table })), matches, now)
+      .filter((f) => f.id !== 'live-now'),
     [standings, matches, now],
   )
 
@@ -124,7 +132,11 @@ export default function ReelsFeed({
               case 'table':
                 return <TableReel key={item.key} league={item.league} dark={dark} />
               case 'match':
-                return <MatchReel key={item.key} matches={matches} slot={item.slot} now={now} />
+                return <MatchReel key={item.key} matches={notLive} slot={item.slot} now={now} />
+              case 'moment': {
+                const mo = moments.items[item.slot]
+                return mo ? <li key={`${item.key}-${mo.key}`} className={reelLi}><MomentCard item={mo} fresh={moments.fresh} /></li> : null
+              }
               case 'poll':
                 return <PollReel key={item.key} poll={polls[item.slot]} />
               case 'fact':

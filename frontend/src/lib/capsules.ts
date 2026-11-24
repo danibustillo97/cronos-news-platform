@@ -111,3 +111,25 @@ export function capsuleOgUrl(c: Capsule, slide: number): string {
   if (s?.image) q.set('image', s.image)
   return `/og/capsule?${q.toString()}`
 }
+
+/**
+ * Imagen de la diapositiva `index` (0 = portada). Cada diapositiva usa SU
+ * imagen; sin imagen -> null (fondo tipográfico, nunca una foto ajena).
+ * La portada usa la imagen de la diapositiva 1 solo si esa la tiene.
+ */
+export function capsuleSlideImage(c: Pick<Capsule, 'slides'>, index: number): string | null {
+  if (index <= 0) return c.slides[0]?.image ?? null
+  return c.slides[index - 1]?.image ?? null
+}
+
+/** Todas las imágenes de la cápsula (para precargar), sin repetir. */
+export function capsuleImages(c: Pick<Capsule, 'slides'>): string[] {
+  return [...new Set(c.slides.map((s) => s.image).filter((u): u is string => Boolean(u)))]
+}
+
+export const SLIDE_IMAGE_MAX_WAIT_MS = 1_500
+
+/** ¿Puede correr el contador de la diapositiva? Sin imagen, ya cargada o tras esperar el máximo. */
+export function slideReady(s: { image: string | null; loaded: boolean; waitedMs: number }, maxWait = SLIDE_IMAGE_MAX_WAIT_MS): boolean {
+  return !s.image || s.loaded || s.waitedMs >= maxWait
+}

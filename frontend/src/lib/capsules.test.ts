@@ -37,3 +37,24 @@ describe('capsules', () => {
     expect(q.get('text')).toBe('Colombia goleó a Argentina 5-0.')
   })
 })
+
+describe('capsule slides (imagen y texto juntos)', () => {
+  it('each slide shows its own image, never a foreign one', async () => {
+    const { capsuleSlideImage, capsuleImages } = await import('./capsules')
+    const c = { slides: [{ text: 'a', image: null }, { text: 'b', image: 'https://x.com/b.jpg' }, { text: 'c', image: null }] }
+    expect(capsuleSlideImage(c, 0)).toBeNull() // portada: la 1 no tiene imagen
+    expect(capsuleSlideImage(c, 1)).toBeNull()
+    expect(capsuleSlideImage(c, 2)).toBe('https://x.com/b.jpg')
+    expect(capsuleSlideImage(c, 3)).toBeNull()
+    expect(capsuleSlideImage({ slides: [{ text: 'a', image: 'https://x.com/a.jpg' }] }, 0)).toBe('https://x.com/a.jpg')
+    expect(capsuleImages({ slides: [{ text: 'a', image: 'u' }, { text: 'b', image: 'u' }, { text: 'c', image: null }] })).toEqual(['u'])
+  })
+
+  it('gates the countdown until the image is ready, at most 1.5 s', async () => {
+    const { slideReady } = await import('./capsules')
+    expect(slideReady({ image: null, loaded: false, waitedMs: 0 })).toBe(true)
+    expect(slideReady({ image: 'u', loaded: false, waitedMs: 200 })).toBe(false)
+    expect(slideReady({ image: 'u', loaded: true, waitedMs: 0 })).toBe(true)
+    expect(slideReady({ image: 'u', loaded: false, waitedMs: 1500 })).toBe(true)
+  })
+})

@@ -197,3 +197,32 @@ describe('composeReels: capsules and picks', () => {
     expect(items.filter((i) => i.type === 'picks')).toHaveLength(1)
   })
 })
+
+describe('composeReels: momentos de partido', () => {
+  const stories = Array.from({ length: 21 }, (_, i) => story(`m${i + 1}`))
+
+  it('puts the newest moment on top and then at most one every 3 news, never next to another block', () => {
+    const items = composeReels({ stories, momentSlots: 6 })
+    expect(items[0]).toMatchObject({ type: 'moment', slot: 0 })
+    const idx = items.flatMap((it, i) => (it.type === 'moment' ? [i] : []))
+    expect(idx.length).toBeGreaterThan(1)
+    for (const i of idx.slice(1)) {
+      expect(items[i - 1].type).toBe('news')
+      if (items[i + 1]) expect(['news', 'ad']).toContain(items[i + 1].type)
+    }
+    const newsCount = items.filter((i) => i.type === 'news').length
+    expect(idx.length - 1).toBeLessThanOrEqual(Math.floor(newsCount / 3))
+    expect(new Set(items.map((i) => i.key)).size).toBe(items.length)
+  })
+
+  it('spreads extra moments through the tail of a thin feed, never two together', () => {
+    const items = composeReels({ stories: [story('t1'), story('t2')], momentSlots: 6 })
+    const idx = items.flatMap((it, i) => (it.type === 'moment' ? [i] : []))
+    expect(idx.length).toBeGreaterThanOrEqual(3)
+    for (let k = 1; k < idx.length; k++) expect(idx[k] - idx[k - 1]).toBeGreaterThan(1)
+  })
+
+  it('adds no moments unless asked', () => {
+    expect(composeReels({ stories }).some((i) => i.type === 'moment')).toBe(false)
+  })
+})
