@@ -26,7 +26,7 @@ import { Skeleton } from './PortalBits'
 import FeedAd from './FeedAd'
 import TableModal from './TableModal'
 
-export const reelLi = 'nx-snap-item'
+export const reelLi = 'nx-snap-item w-full min-w-0 max-w-full'
 
 const openOnClick = (story: NewsView, onOpen: (s: NewsView) => void) => (e: React.MouseEvent<HTMLAnchorElement>) => {
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return
