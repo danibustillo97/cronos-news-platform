@@ -37,8 +37,7 @@ La rama ya contiene los archivos necesarios para desplegar el backend:
 1. Abre [Vercel New Project](https://vercel.com/new) y selecciona el repositorio
    `danibustillo97/cronos-news-platform`.
 2. Asigna un nombre como `cronos-backend`.
-3. En **Root Directory**, selecciona `backend` y confirma que quede habilitada la opción
-   de incluir el directorio raíz del repositorio en la integración Git (no cambies el root a la raíz).
+3. En **Root Directory**, selecciona `backend`. Mantén ese directorio como raíz del proyecto backend.
 4. Framework Preset: **FastAPI** si Vercel lo detecta; de lo contrario deja la detección automática.
 5. No configures un Build Command, Output Directory ni Install Command personalizado.
    Vercel debe instalar `backend/requirements.txt` y detectar `api/index.py`.
