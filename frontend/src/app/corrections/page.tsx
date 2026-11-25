@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Política de Correcciones',
-  description: 'Proceso editorial de correcciones y actualización de contenidos.',
+  description: 'Consulta cómo NEXUS News recibe solicitudes de corrección, verifica información y registra cambios materiales en sus publicaciones deportivas.',
+  alternates: { canonical: '/corrections' },
 }
 
 export default function CorrectionsPage() {

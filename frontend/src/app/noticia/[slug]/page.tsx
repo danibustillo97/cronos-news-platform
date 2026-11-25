@@ -4,6 +4,7 @@ import { notFound } from 'next/navigation';
 import ArticleClient from './ArticleClient';
 import { publicAuthorName } from '@/lib/byline';
 import { jsonLdScript } from '@/lib/jsonLd';
+import { buildArticleSeoTitle } from '@/lib/seoTitle';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -28,7 +29,8 @@ export async function generateMetadata(
   const description = String(data.summary || data.excerpt || data.title).replace(/\s+/g, ' ').trim().slice(0, 160);
 
   return {
-    title: data.title,
+    // Short display title for search snippets; the article H1, Open Graph and NewsArticle headline stay unchanged.
+    title: { absolute: buildArticleSeoTitle(data.title) },
     description,
     alternates: { canonical: url },
     keywords: data.tags && data.tags.length > 0 ? data.tags : undefined,

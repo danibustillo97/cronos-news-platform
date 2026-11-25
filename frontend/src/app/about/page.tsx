@@ -2,7 +2,8 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Sobre Nexus News',
-  description: 'Identidad editorial y propósito de Nexus News.',
+  description: 'Conoce el enfoque editorial de NEXUS News y nuestra cobertura de noticias, resultados y análisis del fútbol colombiano e internacional.',
+  alternates: { canonical: '/about' },
 }
 
 export default function AboutPage() {
