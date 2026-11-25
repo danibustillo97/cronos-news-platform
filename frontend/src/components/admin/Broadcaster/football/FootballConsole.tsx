@@ -93,6 +93,16 @@ export function FootballConsole({ fm, graphics, previewGraphicIds, programGraphi
 
   return (
     <div className="flex min-h-0 flex-1 flex-col">
+      <div className={`flex items-center gap-2 border-b border-white/[0.07] px-2.5 py-1.5 text-[10.5px] ${fm.autoMode ? "bg-emerald-400/[0.08]" : "bg-[#0a0e14]"}`}>
+        <span className={`h-2 w-2 flex-shrink-0 rounded-full ${fm.autoMode ? (fm.autoStatus?.ok === false ? "bg-amber-400" : "animate-pulse bg-emerald-400") : "bg-neutral-600"}`} />
+        <span className="font-bold uppercase tracking-wide text-neutral-200">{fm.autoMode ? "Automático" : "Manual"}</span>
+        <span className="min-w-0 flex-1 truncate text-neutral-500">
+          {!fm.hasFixture ? "Elige un partido: marcador, reloj, tarjetas y goles se actualizan solos" : fm.autoMode ? (fm.autoStatus ? `${fm.autoStatus.text} · cada 15 s` : "Sincronizando…") : "Tú controlas marcador y reloj"}
+        </span>
+        <button type="button" onClick={() => fm.setAutoMode(!fm.autoMode)} className="flex-shrink-0 rounded border border-white/15 px-1.5 py-0.5 font-semibold text-neutral-300 hover:border-white/40">
+          {fm.autoMode ? "Pasar a manual" : "Volver a automático"}
+        </button>
+      </div>
       <div className="grid grid-cols-6 gap-0.5 border-b border-white/[0.07] bg-[#0a0e14] p-1">
         {TABS.map(([id, label]) => (
           <button key={id} type="button" onClick={() => setTab(id)} className={`rounded-md px-1 py-2 text-[10px] font-bold uppercase tracking-wide ${tab === id ? "bg-emerald-400/15 text-emerald-200" : "text-neutral-500 hover:text-neutral-200"}`}>{label}</button>

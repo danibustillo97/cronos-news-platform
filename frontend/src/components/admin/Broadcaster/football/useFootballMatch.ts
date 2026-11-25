@@ -1,5 +1,6 @@
 "use client";
 
+import { planSync } from "./autoSync";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import type { FootballHighlight, FootballScoreboard, FootballTeamPlayer } from "../graphicExport";
@@ -134,6 +135,9 @@ export function useFootballMatch() {
   // ESPN live timeline: suggestions the operator applies or dismisses (optionally goals/cards apply alone).
   const [fixtureKey, setFixtureKey] = useState<string | null>(null);
   const [espnSync, setEspnSync] = useState({ enabled: true, auto: false });
+  // Automatic mode (default): score, clock, period, cards and events follow the live match by themselves.
+  const [autoMode, setAutoMode] = useState(true);
+  const [autoStatus, setAutoStatus] = useState<{ at: number; ok: boolean; text: string } | null>(null);
   const [espnPending, setEspnPending] = useState<TimelineSuggestion[]>([]);
   const handledRef = useRef(new Set<string>());
   const eventsRef = useRef(events);
@@ -485,7 +489,7 @@ export function useFootballMatch() {
   const inPlay = match.period !== "PRE" && match.period !== "FT";
   useEffect(() => {
     const ref = fixtureRef.current;
-    if (!fixtureKey || !ref || !espnSync.enabled || !inPlay) return;
+    if (!fixtureKey || !ref || !espnSync.enabled || !inPlay || autoMode) return;
     let cancelled = false;
     const poll = async () => {
       try {
@@ -505,7 +509,57 @@ export function useFootballMatch() {
     void poll();
     const timer = window.setInterval(() => void poll(), 20000);
     return () => { cancelled = true; window.clearInterval(timer); };
-  }, [fixtureKey, espnSync.enabled, espnSync.auto, inPlay]);
+  }, [fixtureKey, espnSync.enabled, espnSync.auto, inPlay, autoMode]);
+
+  // AUTOMATIC MODE: every 15 s the scoreboard copies the live match. The first sync of a match
+  // only sets the state (no animation flood); later NEW goals/cards/subs are animated on air.
+  const goalRef = useRef(addGoal);
+  goalRef.current = addGoal;
+  const cardRef = useRef(addCard);
+  cardRef.current = addCard;
+  const subRef = useRef(addSubstitution);
+  subRef.current = addSubstitution;
+  useEffect(() => {
+    const ref = fixtureRef.current;
+    if (!fixtureKey || !ref || !autoMode) return;
+    let cancelled = false;
+    let first = true;
+    const sync = async () => {
+      try {
+        const response = await fetch(`/api/matches/${encodeURIComponent(ref.league)}/${encodeURIComponent(ref.id)}`);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const detail = await response.json();
+        if (cancelled) return;
+        const plan = planSync(detail, handledRef.current);
+        if (first) {
+          plan.eventIds.forEach((id) => handledRef.current.add(id));
+        } else {
+          for (const e of plan.newEvents) {
+            handledRef.current.add(e.id);
+            if (e.kind === "goal") goalRef.current(e.team, e.player, e.minute, e.detail);
+            else if (e.kind === "sub") subRef.current(e.team, "", e.player, e.minute);
+            else cardRef.current(e.team, e.kind, e.player, e.minute);
+          }
+        }
+        first = false;
+        setClockStartedAt(plan.running ? Date.now() : null);
+        setMatchState((current) => ({
+          ...current,
+          period: plan.period, clockSeconds: plan.clockSeconds, addedTime: plan.addedTime,
+          homeScore: plan.homeScore, awayScore: plan.awayScore,
+          homeYellow: plan.homeYellow, awayYellow: plan.awayYellow, homeRed: plan.homeRed, awayRed: plan.awayRed,
+          matchStatus: plan.period === "FT" ? "finished" : plan.period === "HT" ? "halftime" : plan.period === "PRE" ? "scheduled" : "live",
+        }));
+        setAutoStatus({ at: Date.now(), ok: true, text: detail.state === "in" ? `En vivo · ${detail.clock}` : detail.statusText || "Sincronizado" });
+      } catch (error) {
+        if (!cancelled) setAutoStatus({ at: Date.now(), ok: false, text: error instanceof Error ? error.message : "Sin conexión" });
+      }
+    };
+    void sync();
+    const timer = window.setInterval(() => void sync(), 15000);
+    return () => { cancelled = true; window.clearInterval(timer); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fixtureKey, autoMode]);
 
   const newMatch = useCallback(() => {
     setClockStartedAt(null);
@@ -522,6 +576,7 @@ export function useFootballMatch() {
     match, events, audit, running, clockStartedAt, clockNow, loading, cloud,
     fixture: fixtureKey ? fixtureRef.current : null,
     hasFixture: fixtureKey !== null, espnSync, setEspnSync, espnPending, applySuggestion, dismissSuggestion, applyAllSuggestions,
+    autoMode, setAutoMode, autoStatus,
     setMatch, setPeriod, toggleClock, resetClock, addGoal, undoGoal, voidEvent, addCard, addSubstitution,
     showPlayer, showVar, loadFixture, refreshDetail, newMatch,
     clearHighlight: () => setMatchState((current) => ({ ...current, highlight: undefined })),

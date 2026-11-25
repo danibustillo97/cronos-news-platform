@@ -965,4 +965,15 @@ body {
 
 /* App instalada: sin rebote/pull-to-refresh accidental y espacio para la barra de pestañas. */
 html.nx-standalone, html.nx-standalone body { overscroll-behavior-y: none; }
-html.nx-standalone body { padding-bottom: var(--nx-tabbar-h, 0px); }
+html.nx-tabbar body { padding-bottom: var(--nx-tabbar-h, 0px); }
+/* Transiciones entre páginas (View Transitions) cortas y sobrias. */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root), ::view-transition-new(root) { animation: none; } }
+
+
+/* Broadcaster: ultra-thin scrollbars everywhere in the studio. */
+.nx-studio, .nx-studio * { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.16) transparent; }
+.nx-studio ::-webkit-scrollbar { width: 4px; height: 4px; }
+.nx-studio ::-webkit-scrollbar-track { background: transparent; }
+.nx-studio ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 4px; }
+.nx-studio ::-webkit-scrollbar-thumb:hover { background: rgba(250, 204, 21, 0.5); }

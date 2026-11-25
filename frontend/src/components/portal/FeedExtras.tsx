@@ -7,19 +7,22 @@
 //   "+18" y "Juega con responsabilidad". Sin enlaces a casas de apuestas.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
+import Image, { getImageProps } from 'next/image'
 import { CalendarDays, ChevronLeft, ChevronRight, Crown, Flame, Lightbulb, Pause, Play, Ticket } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { CAPSULE_ACCENT, CAPSULE_LABEL, SLIDE_IMAGE_MAX_WAIT_MS, capsuleDateLabel, capsuleImages, capsuleOgUrl, capsuleSlideImage, slideReady, type Capsule } from '@/lib/capsules'
+import { CAPSULE_ACCENT, CAPSULE_LABEL, SLIDE_IMAGE_MAX_WAIT_MS, capsuleSlideMs, capsuleDateLabel, capsuleImages, capsuleOgUrl, capsuleSlideImage, slideReady, type Capsule } from '@/lib/capsules'
 import { formChips, formatOdds, formatProbability, safeText, type PicksData } from '@/lib/picks'
-import { slideDurationMs } from '@/lib/reels'
 import { monogram } from '@/lib/leagueLogos'
 import { imageSource } from '@/lib/media'
 import { kickoffLabel } from '@/lib/feedComposer'
 import ReelFrame, { reelTitle } from './ReelFrame'
+import { openSheet } from '@/lib/sheetBus'
 import { TeamCrest } from './Crest'
 
 // ---------------------------------------------------------------- cápsulas
+
+// Las fotos de Supabase pasan por el optimizador (WebP de ~100-200 KB en vez de PNG de 3 MB).
+const SIZES = '(max-width: 640px) 100vw, 600px'
 
 const KIND_ICON = {
   efemeride: CalendarDays,
@@ -28,12 +31,16 @@ const KIND_ICON = {
   momento: Flame,
 } as const
 
-export function CapsuleCard({ capsule }: { capsule: Capsule }) {
+/**
+ * `preview`: vista previa del editor del admin (cápsula aún sin guardar,
+ * id "preview"): sin reacciones/comentarios, compartir ni guardar, y sin
+ * llamadas de red sociales.
+ */
+export function CapsuleCard({ capsule, preview = false, inSheet = false }: { capsule: Capsule; preview?: boolean; inSheet?: boolean }) {
   const reduce = useReducedMotion() ?? false
   const accent = CAPSULE_ACCENT[capsule.kind]
   const Icon = KIND_ICON[capsule.kind]
   const total = capsule.slides.length + 1 // portada + diapositivas
-  const duration = slideDurationMs(total)
   const [index, setIndex] = useState(0)
   const [visible, setVisible] = useState(false)
   const [hold, setHold] = useState(false)
@@ -63,9 +70,13 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
     for (const url of capsuleImages(capsule)) {
       const src = imageSource(url)?.src
       if (!src) continue
+      // Precarga la MISMA variante optimizada que elegirá <Image> (srcset + sizes).
+      const { props } = getImageProps({ src, alt: '', fill: true, sizes: SIZES })
       const img = new window.Image()
       img.decoding = 'async'
-      img.src = src
+      if (props.sizes) img.sizes = props.sizes
+      if (props.srcSet) img.srcset = props.srcSet
+      img.src = props.src
       const done = () => setLoaded((prev) => (prev.has(url) ? prev : new Set(prev).add(url)))
       ;(img.decode ? img.decode() : Promise.reject()).then(done, () => { img.onload = done; if (img.complete && img.naturalWidth) done() })
     }
@@ -119,12 +130,12 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
         >
           <AnimatePresence initial={false}>
             {bg && (
-              <motion.div key={bg} className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: index === 0 ? 0.6 : 0.35 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.35 }}>
-                <Image src={bg} alt="" fill sizes="(max-width: 640px) 100vw, 600px" unoptimized={bgSource?.direct} className="object-cover" />
+              <motion.div key={bg} className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: index === 0 ? 0.9 : 0.6 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.35 }}>
+                <Image src={bg} alt="" fill sizes={SIZES} className="object-cover" />
               </motion.div>
             )}
           </AnimatePresence>
-          {bg && <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/85" />}
+          {bg && <div aria-hidden className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.94)_0%,rgba(0,0,0,0.82)_35%,rgba(0,0,0,0.35)_65%,rgba(0,0,0,0.15)_100%)]" />}
           {capsule.kind === 'leyenda' && <div aria-hidden className="absolute inset-0 shadow-[inset_0_0_0_2px_rgba(212,175,55,0.4)]" />}
 
           <div className="absolute inset-x-3 top-3 z-20 flex gap-1" aria-hidden="true">
@@ -132,38 +143,30 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
               <span key={i} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/25">
                 {i < index && <span className="block h-full w-full bg-white" />}
                 {i === index && (auto ? (
-                  <span key={`${index}-run`} className="block h-full w-full origin-left bg-white" style={{ animation: `nx-progress ${duration}ms linear forwards`, animationPlayState: paused ? 'paused' : 'running' }} onAnimationEnd={() => { if (!last) next() }} />
+                  <span key={`${index}-run`} className="block h-full w-full origin-left bg-white" style={{ animation: `nx-progress ${capsuleSlideMs(slide?.text, index === 0)}ms linear forwards`, animationPlayState: paused ? 'paused' : 'running' }} onAnimationEnd={() => { if (!last) next() }} />
                 ) : <span className="block h-full w-full bg-white" />)}
               </span>
             ))}
           </div>
 
-          <div className="absolute inset-0 z-10 flex flex-col justify-center px-7 pb-14 pt-12 sm:px-10">
+          {/* Texto abajo, sobre un degradado fuerte: contraste AA aun con fotos claras. */}
+          <div className="absolute inset-0 z-10 flex flex-col justify-end px-5 pb-14 pt-12 sm:px-8">
             {index === 0 ? (
-              capsule.kind === 'efemeride' ? (
-                <>
-                  <span className="text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>{dateLabel?.startsWith('Un día') ? 'Un día como hoy' : dateLabel ?? 'Efeméride'}</span>
-                  {capsule.year && <span className="mt-1 text-[clamp(4.5rem,3.6rem+5vw,6.5rem)] font-bold leading-none tracking-[-0.04em] tabular-nums">{capsule.year}</span>}
-                  <p className="mt-3 text-balance text-[clamp(1.25rem,1.05rem+1vw,1.6rem)] font-bold leading-snug">{capsule.title}</p>
-                </>
-              ) : capsule.kind === 'leyenda' ? (
-                <div className="flex flex-col items-start">
-                  {!bg && <span className="mb-4 inline-flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold text-black" style={{ background: `linear-gradient(135deg, ${accent}, #8a6d1a)` }}>{monogram(name)}</span>}
-                  <span className="text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>Leyendas{capsule.year ? ` · ${capsule.year}` : ''}</span>
-                  <p className="mt-2 text-balance text-[clamp(1.7rem,1.3rem+2vw,2.4rem)] font-bold leading-[1.08] tracking-[-0.02em]">{name}</p>
-                  {capsule.subject && <p className="mt-2 text-base text-white/80">{capsule.title}</p>}
-                </div>
-              ) : (
-                <>
-                  <span className="text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>{CAPSULE_LABEL[capsule.kind]}{capsule.year ? ` · ${capsule.year}` : ''}</span>
-                  <p className="mt-3 text-balance text-[clamp(1.6rem,1.25rem+1.8vw,2.3rem)] font-bold leading-[1.1] tracking-[-0.02em]">{capsule.title}</p>
-                </>
-              )
+              <div className="max-w-[38ch]">
+                {capsule.kind === 'leyenda' && !bg && (
+                  <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold text-black" style={{ background: `linear-gradient(135deg, ${accent}, #8a6d1a)` }} aria-hidden="true">{monogram(name)}</span>
+                )}
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: accent }}>
+                  {capsule.kind === 'efemeride' && dateLabel?.startsWith('Un día') ? 'Un día como hoy' : CAPSULE_LABEL[capsule.kind]}{capsule.year ? ` · ${capsule.year}` : ''}
+                </p>
+                <p className="mt-2 text-balance text-[clamp(1.6rem,1.3rem+1.4vw,2.2rem)] font-extrabold leading-[1.08] tracking-[-0.02em]">{capsule.title}</p>
+                {capsule.subject && capsule.subject !== capsule.title && <p className="mt-2 text-[15px] font-medium text-white/80">{capsule.subject}</p>}
+              </div>
             ) : (
-              <>
-                <span className="text-5xl font-bold tabular-nums leading-none" style={{ color: accent }}>{index}</span>
-                <p className="mt-4 text-[clamp(1.1rem,1rem+0.6vw,1.4rem)] font-semibold leading-[1.4]">{slide?.text}</p>
-              </>
+              <div className="max-w-[38ch]">
+                <p className="text-[13px] font-bold tabular-nums" style={{ color: accent }}>{String(index).padStart(2, '0')} / {String(total - 1).padStart(2, '0')}</p>
+                <p className="mt-2 text-[18px] font-semibold leading-[1.45] sm:text-[20px]">{slide?.text}</p>
+              </div>
             )}
           </div>
 
@@ -184,11 +187,15 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
         </div>
       }
       title={<h3 id={titleId} className={reelTitle}>{capsule.title}</h3>}
-      meta={[capsule.subject && capsule.subject !== capsule.title ? capsule.subject : null, dateLabel].filter(Boolean).join(' · ') || undefined}
-      share={{ url: capsuleOgUrl(capsule, 1), title: capsule.title }}
-      saveId={`cap-${capsule.id}`}
-      social={{ type: 'capsule', id: capsule.id }}
-      more={capsule.kind === 'leyenda' ? { href: '/leyendas', label: 'Más leyendas' } : undefined}
+      meta={[capsule.subject && capsule.subject !== capsule.title ? capsule.subject : null, dateLabel]}
+      share={preview ? undefined : { url: capsuleOgUrl(capsule, 1), title: capsule.title }}
+      saveId={preview ? undefined : `cap-${capsule.id}`}
+      social={preview ? undefined : { type: 'capsule', id: capsule.id }}
+      more={preview || inSheet ? undefined : {
+        href: capsule.kind === 'leyenda' ? '/leyendas' : '/',
+        label: 'Ver más',
+        onClick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); openSheet({ kind: 'capsule', payload: capsule }) },
+      }}
     />
   )
 }
@@ -278,7 +285,7 @@ export function PicksCard({ data }: { data: PicksData | null }) {
         meta={`Datos: cuotas ${provider} vía ESPN + racha últimos 5`}
         share={{ url: '/parleys', title: 'Parley del día · NEXUS' }}
         social={{ type: 'picks', id: 'today' }}
-        more={{ href: '/parleys', label: 'Ver todos' }}
+        more={{ href: '/parleys', label: 'Arma tu parley', onClick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); openSheet({ kind: 'parleys' }) } }}
       />
     </li>
   )

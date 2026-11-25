@@ -11,6 +11,8 @@ from __future__ import annotations
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 
+from app.domain.football.formats import format_for, group_label
+
 router = APIRouter(prefix="/api/sports", tags=["sports"])
 
 _ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
@@ -107,8 +109,19 @@ async def get_standings(league: str = Query("col.1")) -> dict:
             raise HTTPException(status_code=502, detail=f"ESPN standings unavailable: {exc}") from exc
 
     children = data.get("children") or []
-    entries = children[0].get("standings", {}).get("entries", []) if children else []
+    groups = [{"name": group_label(c.get("name") or c.get("abbreviation") or "", league),
+               "table": _table_rows(c.get("standings", {}).get("entries", []))} for c in children]
+    groups = [g for g in groups if g["table"]]
+    fmt = format_for(league)
+    return {
+        "league": league, "leagueName": LEAGUE_NAMES.get(league, league),
+        "table": groups[0]["table"] if groups else [],  # first group: backwards compatible
+        "groups": groups,
+        "format": {"kind": fmt.kind, "teams": fmt.teams, "summary": fmt.summary, "stages": list(fmt.stages)} if fmt else None,
+    }
 
+
+def _table_rows(entries: list[dict]) -> list[dict]:
     table = []
     for entry in entries:
         stats = {s.get("name"): s.get("displayValue") for s in entry.get("stats", [])}
@@ -136,8 +149,7 @@ async def get_standings(league: str = Query("col.1")) -> dict:
             "noteColor": f"#{note_color.lstrip('#')}" if note_color else None,
             "noteDescription": note.get("description"),
         })
-
-    return {"league": league, "leagueName": LEAGUE_NAMES.get(league, league), "table": table}
+    return table
 
 
 @router.get("/standings/leagues")

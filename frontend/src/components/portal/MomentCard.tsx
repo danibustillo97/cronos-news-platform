@@ -13,6 +13,8 @@ import { openMatch } from '@/lib/matchModalBus'
 import type { Match } from '@/types/sports'
 import { TeamCrest, LeagueBadge } from './Crest'
 import { InsightCard } from './MatchModal'
+import { ShareGoalButton } from './FanPlay'
+import { chipClass } from './ReelFrame'
 
 function preview(m: Moment): Match {
   return {
@@ -23,13 +25,12 @@ function preview(m: Moment): Match {
 }
 const open = (m: Moment) => openMatch({ league: m.league, id: m.matchId, preview: preview(m) })
 
-const frame = 'overflow-hidden rounded-[20px] border bg-[var(--nx-surface)] transition-colors'
+const frame = 'overflow-hidden rounded-2xl border bg-[var(--nx-surface)] transition-colors'
 
 function Header({ icon, label, league, leagueName, tone }: { icon: React.ReactNode; label: string; league: string; leagueName: string; tone: 'accent' | 'live' | 'muted' }) {
-  const chip = tone === 'live' ? 'bg-[var(--nx-live)] text-white' : tone === 'accent' ? 'bg-[#FACC15] text-black' : 'bg-[var(--nx-surface-2)] text-[var(--nx-ink-2)]'
   return (
-    <div className="flex h-11 items-center justify-between gap-2 px-4">
-      <span className={`inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-bold uppercase tracking-[0.1em] ${chip}`}>{icon}{label}</span>
+    <div className="flex h-12 items-center justify-between gap-2 px-4 sm:px-5">
+      <span className={chipClass(tone === 'live' ? 'live' : 'default')}>{icon}{label}</span>
       <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-[var(--nx-muted)]"><LeagueBadge league={league} name={leagueName} size={14} /><span className="truncate">{leagueName}</span></span>
     </div>
   )
@@ -43,7 +44,7 @@ function GoalMoment({ m, fresh }: { m: Moment; fresh: boolean }) {
   return (
     <article className={`${frame} ${fresh ? 'border-[#FACC15] shadow-[0_0_0_3px_rgba(250,204,21,0.15)]' : 'border-[var(--nx-line)]'}`}>
       <Header icon={<CircleDot size={12} aria-hidden="true" />} label={live ? 'Gol · en vivo' : 'Gol'} league={m.league} leagueName={m.leagueName} tone={live ? 'live' : 'accent'} />
-      <button type="button" onClick={() => open(m)} className="block w-full px-4 pb-3 text-left" aria-label={`${m.headline || `Gol de ${m.player?.name ?? ''}`}. Abrir partido`}>
+      <button type="button" onClick={() => open(m)} className="block w-full px-4 pb-4 text-left sm:px-5" aria-label={`${m.headline || `Gol de ${m.player?.name ?? ''}`}. Abrir partido`}>
         <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
           <span className={`flex min-w-0 items-center gap-2 ${homeScored ? '' : 'opacity-60'}`}><TeamCrest src={m.home.logo} name={m.home.name} size={30} /><span className="truncate text-[14px] font-bold text-[var(--nx-ink)]">{m.home.short}</span></span>
           <span className="text-[1.9rem] font-bold leading-none tabular-nums text-[var(--nx-ink)]">
@@ -58,8 +59,9 @@ function GoalMoment({ m, fresh }: { m: Moment; fresh: boolean }) {
         </p>
         {m.assist && <p className="text-[12px] text-[var(--nx-muted)]">Asistencia: {m.assist.name}</p>}
       </button>
+      <div className="flex justify-end px-2 pb-1 sm:px-3"><ShareGoalButton moment={m} /></div>
       {m.player?.id && (
-        <div className="border-t border-[var(--nx-line)] px-4 pb-3">
+        <div className="border-t border-[var(--nx-line)] px-4 pb-3 sm:px-5">
           <button type="button" onClick={() => setMore((v) => !v)} aria-expanded={more} className="flex min-h-[44px] w-full items-center justify-between text-[13px] font-semibold text-[var(--nx-ink-2)]">
             Datos de {m.player.name}
             <ChevronDown size={16} className={`transition-transform ${more ? 'rotate-180' : ''}`} aria-hidden="true" />
@@ -91,7 +93,7 @@ export default function MomentCard({ item, fresh }: { item: MomentItem; fresh: S
   else if (item.type === 'red') {
     const m = item.moment
     body = (
-      <button type="button" onClick={() => open(m)} className={`${frame} flex w-full items-center gap-3 border-[var(--nx-line)] px-4 py-3 text-left`} aria-label={`${m.headline}. Abrir partido`}>
+      <button type="button" onClick={() => open(m)} className={`${frame} flex w-full items-center gap-3 border-[var(--nx-line)] px-4 py-3.5 text-left sm:px-5`} aria-label={`${m.headline}. Abrir partido`}>
         <span aria-hidden className="inline-block h-6 w-4 shrink-0 rounded-[3px] bg-[#DC2626]" />
         <span className="min-w-0 flex-1">
           <span className="block text-[14px] font-bold leading-snug text-[var(--nx-ink)]">{m.headline || `Roja para ${m.player?.name ?? ''}`}</span>
@@ -104,14 +106,14 @@ export default function MomentCard({ item, fresh }: { item: MomentItem; fresh: S
     body = (
       <article className={`${frame} border-[var(--nx-line)]`}>
         <Header icon={<Flag size={12} aria-hidden="true" />} label="Final" league={m.league} leagueName={m.leagueName} tone="muted" />
-        <div className="px-4 pb-2"><FinalRow m={m} /></div>
+        <div className="px-4 pb-3 sm:px-5"><FinalRow m={m} /></div>
       </article>
     )
   } else if (item.type === 'results') {
     body = (
       <article className={`${frame} border-[var(--nx-line)]`}>
         <Header icon={<Trophy size={12} aria-hidden="true" />} label="Resultados de hoy" league={item.league} leagueName={item.leagueName} tone="muted" />
-        <div className="divide-y divide-[var(--nx-line)] px-4 pb-2">{item.moments.map((m) => <FinalRow key={m.id} m={m} />)}</div>
+        <div className="divide-y divide-[var(--nx-line)] px-4 pb-3 sm:px-5">{item.moments.map((m) => <FinalRow key={m.id} m={m} />)}</div>
       </article>
     )
   }

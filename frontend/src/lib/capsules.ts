@@ -133,3 +133,10 @@ export const SLIDE_IMAGE_MAX_WAIT_MS = 1_500
 export function slideReady(s: { image: string | null; loaded: boolean; waitedMs: number }, maxWait = SLIDE_IMAGE_MAX_WAIT_MS): boolean {
   return !s.image || s.loaded || s.waitedMs >= maxWait
 }
+
+/** Duración de una diapositiva según el largo del texto: portada 3 s; resto clamp(3,5 s, 1,2 s + caracteres/18 s, 6,5 s). */
+export function capsuleSlideMs(text: string | null | undefined, cover: boolean): number {
+  if (cover) return 3_000
+  const chars = (text ?? '').trim().length
+  return Math.round(Math.min(6_500, Math.max(3_500, 1_200 + (chars / 18) * 1_000)))
+}

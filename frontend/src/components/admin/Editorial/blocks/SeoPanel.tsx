@@ -11,6 +11,8 @@ export interface OriginalityResult {
   originality: number;
   articleWords: number;
   comparedSources: number;
+  scanned?: number;
+  webSources?: number;
   sources: { name: string; url: string; overlap: number }[];
   copied: { text: string; source: string; ratio: number }[];
   stale?: boolean;
@@ -161,7 +163,9 @@ export default function SeoPanel({
             </p>
             {originality.stale && <p className="text-[10.5px] text-amber-600">Editaste después del análisis: vuelve a analizar.</p>}
             <p className="text-[11px] text-neutral-500">
-              {originality.comparedSources ? `Comparado con ${originality.comparedSources} fuente(s)` : "No hay fuentes con las que comparar"}
+              {originality.comparedSources
+                ? `Analizado a fondo contra ${originality.comparedSources} fuente(s)${originality.webSources ? ` (${originality.webSources} de internet)` : ""}${originality.scanned ? ` · ${originality.scanned.toLocaleString("es")} textos revisados` : ""}`
+                : "No hay fuentes con las que comparar"}
             </p>
             {originality.sources.filter((s) => s.overlap > 0.02).map((s) => (
               <div key={s.url} className="flex items-center gap-2 text-[11px]">

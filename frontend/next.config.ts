@@ -6,6 +6,12 @@ const nextConfig: NextConfig = {
   images: {
     remotePatterns: [
       {
+        // Storage público de Supabase (cápsulas, anuncios, portadas subidas desde el admin)
+        protocol: "https",
+        hostname: "*.supabase.co",
+        pathname: "/storage/v1/object/public/**",
+      },
+      {
         protocol: "https",
         hostname: "a.espncdn.com",
         pathname: "/**",

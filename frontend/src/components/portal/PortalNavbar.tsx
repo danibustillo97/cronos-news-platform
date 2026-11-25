@@ -15,7 +15,7 @@ import { ChevronDown, Menu, Moon, Search, Sun, X, Zap } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { usePortalTheme } from '@/context/ThemeContext'
 import GlobalSearch from './GlobalSearch'
-import MatchModalHost from './MatchModal'
+import SheetStack from './SheetStack'
 
 interface NavItem { label: string; href: string; match: (path: string) => boolean }
 
@@ -198,7 +198,7 @@ export default function PortalNavbar() {
       </AnimatePresence>
 
       <GlobalSearch open={searchOpen} onClose={() => setSearchOpen(false)} />
-      <MatchModalHost />
+      <SheetStack />
     </div>
   )
 }

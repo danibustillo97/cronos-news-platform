@@ -6,20 +6,22 @@
 // En vivo se actualiza cada 15 s, anima el marcador y muestra "¡GOOOL!".
 // Bajo cada gol, "datos inteligentes" del goleador a medida que llegan.
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { createPortal } from 'react-dom'
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { ArrowUpRight, X } from 'lucide-react'
+import { ArrowUpRight } from 'lucide-react'
 import { useMatchDetail, usePlayerInsights } from '@/lib/useMatchCenter'
 import { clockLabel, EVENT_META, isGoalEvent, possession, sortEvents, statBar, type MatchDetail, type MatchEvent, type Side } from '@/lib/matchCenter'
-import { OPEN_MATCH_EVENT, type OpenMatchDetail } from '@/lib/matchModalBus'
+import { interceptToSheet } from '@/lib/sheetBus'
+import type { Match } from '@/types/sports'
+import { BestPlayer } from './FanPlay'
 import { kickoffLabel } from '@/lib/feedComposer'
 import { localizeStatus } from '@/lib/matchStatus'
 import { usePortalTheme } from '@/context/ThemeContext'
 import { LeagueBadge, TeamCrest } from './Crest'
 import { PlayerAvatar } from './PlayerBits'
 import { FormChips } from './FeedExtras'
+import PlacementAd from './PlacementAd'
 
 type Tab = 'resumen' | 'stats' | 'lineups' | 'relato'
 const TABS: { id: Tab; label: string }[] = [
@@ -54,7 +56,7 @@ export function InsightCard({ athleteId, name, inset = true }: { athleteId: stri
       <div className="flex items-center gap-3">
         <PlayerAvatar src={data.player.image} name={data.player.name} size={44} />
         <div className="min-w-0">
-          <Link href={`/jugadores/${encodeURIComponent(data.player.id || athleteId)}`} className="block truncate text-[15px] font-bold text-[var(--nx-ink)] hover:underline">{data.player.name}</Link>
+          <Link href={`/jugadores/${encodeURIComponent(data.player.id || athleteId)}`} onClick={interceptToSheet({ kind: 'player', id: data.player.id || athleteId, name: data.player.name })} className="block truncate text-[15px] font-bold text-[var(--nx-ink)] hover:underline">{data.player.name}</Link>
           <p className="truncate text-xs text-[var(--nx-muted)]">{[data.player.position, data.player.team].filter(Boolean).join(' · ')}</p>
         </div>
       </div>
@@ -243,128 +245,75 @@ function GoalBanner({ side, detail, at }: { side: Side; detail: MatchDetail; at:
   )
 }
 
-function MatchModal({ request, onClose }: { request: OpenMatchDetail | null; onClose: () => void }) {
+/** Contenido de la ventana del partido (la carcasa, el apilado y el cierre los pone SheetStack). */
+export function MatchSheetContent({ league: reqLeague, id, preview }: { league: string; id: string; preview?: Match }) {
   const { theme } = usePortalTheme()
-  const reduce = useReducedMotion()
-  const open = request !== null
-  const { detail, status, goal } = useMatchDetail(request?.league ?? null, request?.id ?? null, open)
+  const { detail, status, goal } = useMatchDetail(reqLeague, id, true)
   const [tab, setTab] = useState<Tab>('resumen')
-  const [drag, setDrag] = useState(0)
-  const startY = useRef<number | null>(null)
-  const closeRef = useRef<HTMLButtonElement>(null)
-
-  useEffect(() => { if (open) setTab('resumen') }, [open, request?.id])
-  useEffect(() => {
-    if (!open) return
-    const prev = document.body.style.overflow
-    document.body.style.overflow = 'hidden'
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
-    window.addEventListener('keydown', onKey)
-    const t = window.setTimeout(() => closeRef.current?.focus(), 50)
-    return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey); window.clearTimeout(t) }
-  }, [open, onClose])
 
   // Lo que ya se sabe (marcador) mientras llega el detalle.
-  const p = request?.preview
+  const p = preview
   const live = detail ? detail.state === 'in' : p?.status === 'live'
   const home = detail?.home ?? (p ? { name: p.homeTeam, short: p.homeTeam, logo: p.homeLogo, score: p.homeScore, form: '' } : null)
   const away = detail?.away ?? (p ? { name: p.awayTeam, short: p.awayTeam, logo: p.awayLogo, score: p.awayScore, form: '' } : null)
   const scheduled = detail ? detail.state === 'pre' : p?.status === 'scheduled'
   const clock = detail ? clockLabel(detail) : p ? (p.status === 'live' ? localizeStatus(p.statusDetail) : p.status === 'finished' ? 'Final' : kickoffLabel(p.date)) : ''
   const leagueName = detail?.leagueName ?? p?.leagueName ?? ''
-  const league = detail?.league ?? request?.league ?? ''
+  const league = detail?.league ?? reqLeague
 
   return (
-    <AnimatePresence>
-      {open && (
-        <motion.div key="match-modal" className="nx-portal fixed inset-0 z-[95] flex items-end justify-center sm:items-center sm:p-6" data-theme={theme} style={{ background: 'transparent' }}
-          role="dialog" aria-modal="true" aria-label={home && away ? `${home.name} vs ${away.name}` : 'Partido'}
-          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.15 }}>
-          <button type="button" aria-label="Cerrar partido" className="absolute inset-0 bg-black/60" onClick={onClose} />
-          <motion.div
-            className="relative flex max-h-[94svh] w-full flex-col overflow-hidden rounded-t-[22px] border border-[var(--nx-line)] bg-[var(--nx-surface)] shadow-2xl sm:max-h-[88vh] sm:max-w-2xl sm:rounded-[22px]"
-            initial={reduce ? false : { y: 60, opacity: 0.6 }} animate={{ y: drag, opacity: 1 }} exit={reduce ? undefined : { y: 80, opacity: 0 }}
-            transition={drag ? { duration: 0 } : { type: 'spring', damping: 30, stiffness: 340 }}
-          >
-            {goal && detail && <GoalBanner side={goal.side} detail={detail} at={goal.at} />}
-            <div className="flex h-6 shrink-0 cursor-grab touch-none items-center justify-center sm:hidden"
-              onPointerDown={(e) => { startY.current = e.clientY; (e.target as HTMLElement).setPointerCapture(e.pointerId) }}
-              onPointerMove={(e) => { if (startY.current !== null) setDrag(Math.max(0, e.clientY - startY.current)) }}
-              onPointerUp={() => { if (drag > 100) onClose(); setDrag(0); startY.current = null }} aria-hidden="true">
-              <span className="h-1.5 w-10 rounded-full bg-[var(--nx-line-strong)]" />
+    <div className="relative flex min-h-0 flex-1 flex-col">
+      {goal && detail && <GoalBanner side={goal.side} detail={detail} at={goal.at} />}
+      <header className={`relative shrink-0 px-4 pb-3 ${live ? 'bg-[radial-gradient(120%_100%_at_50%_0%,rgba(220,38,38,0.18),transparent_70%)]' : ''}`}>
+        <span className="flex min-w-0 items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--nx-muted)]">
+          {league && <LeagueBadge league={league} name={leagueName} size={16} dark={theme === 'dark'} />}<span className="truncate">{leagueName}</span>
+        </span>
+        {home && away ? (
+          <div className="mt-2 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-center">
+            <div className="flex flex-col items-center gap-1.5"><TeamCrest src={home.logo} name={home.name} size={52} /><span className="text-[14px] font-bold leading-tight text-[var(--nx-ink)]">{home.name}</span>{home.form && <FormChips form={home.form} />}</div>
+            <div className="flex flex-col items-center px-2">
+              {scheduled ? <span className="text-2xl font-bold text-[var(--nx-muted)]">vs</span> : (
+                <span className="flex items-center text-[2.6rem] font-bold leading-none tabular-nums text-[var(--nx-ink)]"><Score value={home.score} /><span className="mx-2 text-[var(--nx-muted)]">-</span><Score value={away.score} /></span>
+              )}
+              <span className={`mt-1.5 inline-flex items-center gap-1.5 text-[13px] font-bold ${live ? 'text-[var(--nx-live)]' : 'text-[var(--nx-muted)]'}`}>
+                {live && <span className="nx-live-dot" style={{ width: 7, height: 7 }} aria-hidden="true" />}{live ? `En vivo · ${clock}` : clock}
+              </span>
             </div>
+            <div className="flex flex-col items-center gap-1.5"><TeamCrest src={away.logo} name={away.name} size={52} /><span className="text-[14px] font-bold leading-tight text-[var(--nx-ink)]">{away.name}</span>{away.form && <FormChips form={away.form} />}</div>
+          </div>
+        ) : <div className="nx-skeleton mt-2 h-24 rounded-xl" />}
+        {detail?.venue && <p className="mt-2 text-center text-[11px] text-[var(--nx-muted)]">{detail.venue}</p>}
+      </header>
 
-            <header className={`relative shrink-0 px-4 pb-3 pt-1 sm:pt-4 ${live ? 'bg-[radial-gradient(120%_100%_at_50%_0%,rgba(220,38,38,0.18),transparent_70%)]' : ''}`}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="flex min-w-0 items-center gap-2 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--nx-muted)]">
-                  {league && <LeagueBadge league={league} name={leagueName} size={16} dark={theme === 'dark'} />}<span className="truncate">{leagueName}</span>
-                </span>
-                <button ref={closeRef} type="button" onClick={onClose} aria-label="Cerrar" className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[var(--nx-muted)] hover:bg-[var(--nx-surface-2)]"><X size={19} /></button>
-              </div>
-              {home && away ? (
-                <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center gap-2 text-center">
-                  <div className="flex flex-col items-center gap-1.5"><TeamCrest src={home.logo} name={home.name} size={52} /><span className="text-[14px] font-bold leading-tight text-[var(--nx-ink)]">{home.name}</span>{home.form && <FormChips form={home.form} />}</div>
-                  <div className="flex flex-col items-center px-2">
-                    {scheduled ? <span className="text-2xl font-bold text-[var(--nx-muted)]">vs</span> : (
-                      <span className="flex items-center text-[2.6rem] font-bold leading-none tabular-nums text-[var(--nx-ink)]"><Score value={home.score} /><span className="mx-2 text-[var(--nx-muted)]">-</span><Score value={away.score} /></span>
-                    )}
-                    <span className={`mt-1.5 inline-flex items-center gap-1.5 text-[13px] font-bold ${live ? 'text-[var(--nx-live)]' : 'text-[var(--nx-muted)]'}`}>
-                      {live && <span className="nx-live-dot" style={{ width: 7, height: 7 }} aria-hidden="true" />}{live ? `En vivo · ${clock}` : clock}
-                    </span>
-                  </div>
-                  <div className="flex flex-col items-center gap-1.5"><TeamCrest src={away.logo} name={away.name} size={52} /><span className="text-[14px] font-bold leading-tight text-[var(--nx-ink)]">{away.name}</span>{away.form && <FormChips form={away.form} />}</div>
-                </div>
-              ) : <div className="nx-skeleton mt-2 h-24 rounded-xl" />}
-              {detail?.venue && <p className="mt-2 text-center text-[11px] text-[var(--nx-muted)]">{detail.venue}</p>}
-            </header>
+      <div role="tablist" aria-label="Secciones del partido" className="flex shrink-0 border-b border-[var(--nx-line)] px-2">
+        {TABS.map((t) => (
+          <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
+            className={`relative min-h-[44px] flex-1 px-2 text-[13px] font-semibold ${tab === t.id ? 'text-[var(--nx-ink)]' : 'text-[var(--nx-muted)]'}`}>
+            {t.label}
+            {tab === t.id && <motion.span layoutId={`match-tab-${id}`} className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#FACC15]" />}
+          </button>
+        ))}
+      </div>
 
-            <div role="tablist" aria-label="Secciones del partido" className="flex shrink-0 border-b border-[var(--nx-line)] px-2">
-              {TABS.map((t) => (
-                <button key={t.id} type="button" role="tab" aria-selected={tab === t.id} onClick={() => setTab(t.id)}
-                  className={`relative min-h-[44px] flex-1 px-2 text-[13px] font-semibold ${tab === t.id ? 'text-[var(--nx-ink)]' : 'text-[var(--nx-muted)]'}`}>
-                  {t.label}
-                  {tab === t.id && <motion.span layoutId="match-tab" className="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#FACC15]" />}
-                </button>
-              ))}
+      <div className="nx-thin-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3 pb-[calc(env(safe-area-inset-bottom,0px)+16px)]" role="tabpanel">
+        {!detail ? (
+          status === 'error' ? (
+            <div className="py-10 text-center">
+              <p className="text-sm text-[var(--nx-muted)]">No pudimos cargar el detalle del partido.</p>
+              <Link href={`/deportes/futbol?league=${encodeURIComponent(league)}`} className="mt-3 inline-flex min-h-[44px] items-center gap-1 text-sm font-semibold text-[var(--nx-accent-text)]">Ver en Deportes <ArrowUpRight size={14} aria-hidden="true" /></Link>
             </div>
-
-            <div className="nx-thin-scroll min-h-0 flex-1 overflow-y-auto px-4 py-3 pb-[calc(env(safe-area-inset-bottom,0px)+16px)]" role="tabpanel">
-              {!detail ? (
-                status === 'error' ? (
-                  <div className="py-10 text-center">
-                    <p className="text-sm text-[var(--nx-muted)]">No pudimos cargar el detalle del partido.</p>
-                    <Link href={`/deportes/futbol?league=${encodeURIComponent(league)}`} className="mt-3 inline-flex min-h-[44px] items-center gap-1 text-sm font-semibold text-[var(--nx-accent-text)]">Ver en Deportes <ArrowUpRight size={14} aria-hidden="true" /></Link>
-                  </div>
-                ) : <div className="space-y-2">{[0, 1, 2, 3].map((i) => <div key={i} className="nx-skeleton h-12 rounded-xl" />)}</div>
-              ) : tab === 'resumen' ? <Resumen detail={detail} />
-                : tab === 'stats' ? <Stats detail={detail} />
-                : tab === 'lineups' ? <Lineups detail={detail} />
-                : <Relato detail={detail} />}
-            </div>
-          </motion.div>
-        </motion.div>
-      )}
-    </AnimatePresence>
+          ) : <div className="space-y-2">{[0, 1, 2, 3].map((i) => <div key={i} className="nx-skeleton h-12 rounded-xl" />)}</div>
+        ) : (
+          <>
+            {tab === 'resumen' ? <Resumen detail={detail} />
+              : tab === 'stats' ? <Stats detail={detail} />
+              : tab === 'lineups' ? <Lineups detail={detail} />
+              : <Relato detail={detail} />}
+            {detail.state === 'post' && <BestPlayer detail={detail} />}
+          </>
+        )}
+        <PlacementAd placement="match-modal" className="mt-6" />
+      </div>
+    </div>
   )
-}
-
-// Una sola ventana aunque haya dos barras montadas (p. ej. la del modal de noticias).
-let owner: symbol | null = null
-
-/** Escucha "nexus:open-match" y muestra la ventana. Va montado en PortalNavbar. */
-export default function MatchModalHost() {
-  const [request, setRequest] = useState<OpenMatchDetail | null>(null)
-  const [mounted, setMounted] = useState(false)
-  useEffect(() => {
-    const me = Symbol('match-host')
-    if (owner) return
-    owner = me
-    setMounted(true)
-    const on = (e: Event) => setRequest((e as CustomEvent<OpenMatchDetail>).detail)
-    window.addEventListener(OPEN_MATCH_EVENT, on)
-    return () => { window.removeEventListener(OPEN_MATCH_EVENT, on); if (owner === me) owner = null }
-  }, [])
-  const close = useCallback(() => setRequest(null), [])
-  if (!mounted) return null
-  return createPortal(<MatchModal request={request} onClose={close} />, document.body)
 }

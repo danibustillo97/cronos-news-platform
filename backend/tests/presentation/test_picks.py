@@ -51,3 +51,20 @@ def test_parlays_use_distinct_matches():
             expected *= p["odds"]
         assert parlay["odds"] == round(expected, 2)
         assert 0 < parlay["probability"] < 1
+
+
+def test_day_labels_in_colombian_time():
+    from datetime import datetime, timezone
+    now = datetime(2026, 11, 25, 15, 0, tzinfo=timezone.utc)  # 10:00 in Bogotá
+    assert picks.day_label("2026-11-25T20:00Z", now) == "hoy"
+    assert picks.day_label("2026-11-26T04:00Z", now) == "hoy"  # 23:00 Bogotá
+    assert picks.day_label("2026-11-26T20:00Z", now) == "mañana"
+
+
+def test_today_first_parlays():
+    from datetime import datetime, timezone
+    events = [_event(str(i), f"L{i}", f"V{i}", ("-250", "+350", "+700")) for i in range(6)]
+    ms = [picks.parse_match(e, "eng.1") for e in events]
+    ps = [{**p, "day": "hoy" if int(p["matchId"]) < 3 else "mañana"} for m in ms for p in picks.candidate_picks(m)]
+    first = picks.today_first_parlays(ps, datetime.now(timezone.utc))[0]
+    assert all(p["day"] == "hoy" for p in first["picks"])

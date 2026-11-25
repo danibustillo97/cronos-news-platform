@@ -4,7 +4,6 @@
 // de datos del navegador renderizan su propio <li> y devuelven null si no
 // hay datos: el feed nunca muestra huecos.
 
-import { useCallback, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { BarChart3, CircleDot, Newspaper, Sparkles, Swords, Table2, Vote } from 'lucide-react'
@@ -23,8 +22,8 @@ import { MatchLine } from './MatchCard'
 import { PollBlock } from './PollCard'
 import { Skeleton } from './PortalBits'
 import FeedAd from './FeedAd'
-import TableModal from './TableModal'
-import StandingsTable from '@/components/news/StandingsTable'
+import { openSheet } from '@/lib/sheetBus'
+import { StandingsGroups } from '@/components/news/StandingsTable'
 
 export const reelLi = 'nx-snap-item w-full min-w-0 max-w-full'
 
@@ -46,7 +45,7 @@ export function NewsReel({ story, onOpen, eager = false }: { story: NewsView; on
       time={story.published_at}
       labelledBy={titleId}
       media={
-        <StoryLink story={story} onOpen={onOpen} className="relative block aspect-[4/5] w-full overflow-hidden bg-[var(--nx-surface-2)] sm:aspect-video" ariaLabel={story.title}>
+        <StoryLink story={story} onOpen={onOpen} className="relative block aspect-video w-full overflow-hidden bg-[var(--nx-surface-2)]" ariaLabel={story.title}>
           {src ? (
             <Image src={src} alt={story.title} fill sizes="(max-width: 640px) 100vw, 600px" loading={eager ? 'eager' : 'lazy'} className="object-cover transition-transform duration-700 hover:scale-[1.02]" />
           ) : (
@@ -59,8 +58,8 @@ export function NewsReel({ story, onOpen, eager = false }: { story: NewsView; on
           <StoryLink story={story} onOpen={onOpen} className="hover:underline hover:decoration-2 hover:underline-offset-4">{story.title}</StoryLink>
         </h3>
       }
-      body={story.excerpt ? <p className="text-[15px] leading-relaxed text-[var(--nx-ink-2)] line-clamp-2">{story.excerpt}</p> : undefined}
-      meta={[source, minutes > 0 ? `${minutes} min de lectura` : null].filter(Boolean).join(' · ') || undefined}
+      body={story.excerpt ? <p className="text-[15px] leading-[1.5] text-[var(--nx-ink-2)] line-clamp-2">{story.excerpt}</p> : undefined}
+      meta={[source, minutes > 0 ? `${minutes} min de lectura` : null]}
       share={{ url: `/noticia/${story.slug}`, title: story.title }}
       saveId={story.id}
       social={{ type: 'news', id: story.id }}
@@ -70,9 +69,8 @@ export function NewsReel({ story, onOpen, eager = false }: { story: NewsView; on
 }
 
 export function TableReel({ league, dark }: { league: string; dark: boolean }) {
-  const { table, leagueName, loading } = useStandings(league)
-  const [open, setOpen] = useState(false)
-  const close = useCallback(() => setOpen(false), [])
+  const { table, groups, leagueName, loading } = useStandings(league)
+  const openTable = () => openSheet({ kind: 'table', league })
   const label = LEAGUE_LABELS[league] ?? leagueName ?? league
   if (!loading && table.length === 0) return null
   const rows = table.slice(0, 6)
@@ -84,19 +82,18 @@ export function TableReel({ league, dark }: { league: string; dark: boolean }) {
         kind="Tabla"
         title={
           <h3 className="text-lg font-bold text-[var(--nx-ink)]">
-            <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-2.5 text-left hover:underline hover:decoration-2 hover:underline-offset-4">
+            <button type="button" onClick={() => openTable()} className="flex items-center gap-2.5 text-left hover:underline hover:decoration-2 hover:underline-offset-4">
               <LeagueBadge league={league} name={label} size={24} dark={dark} /> {label}
             </button>
           </h3>
         }
         body={loading ? <Skeleton className="h-[264px]" /> : (
-          <StandingsTable table={table} limit={6} league={league} showLegend={false} onRowsClick={() => setOpen(true)} caption={`Primeros puestos de ${label}`} />
+          <StandingsGroups groups={groups} limit={6} league={league} showLegend={false} onRowsClick={() => openTable()} />
         )}
         meta={!loading && table.length > rows.length ? `${table.length} equipos · Fuente: ESPN` : 'Fuente: ESPN'}
         share={{ url: href, title: `Tabla de ${label}` }}
-        more={{ href, label: 'Ver tabla completa', onClick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); setOpen(true) } }}
+        more={{ href, label: 'Ver tabla completa', onClick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); openTable() } }}
       />
-      <TableModal open={open} initialLeague={league} onClose={close} />
     </li>
   )
 }
@@ -135,7 +132,7 @@ export function PollReel({ poll }: { poll: Poll | undefined }) {
         body={<PollBlock poll={poll} compact bare />}
         share={{ url: `/encuestas#encuesta-${encodeURIComponent(poll.id)}`, title: poll.question }}
         social={{ type: 'poll', id: poll.id }}
-        more={{ href: '/encuestas', label: 'Más encuestas' }}
+        more={{ href: '/encuestas', label: 'Más encuestas', onClick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); openSheet({ kind: 'polls' }) } }}
       />
     </li>
   )
@@ -188,7 +185,7 @@ export function LiveMini({ matches }: { matches: Match[] }) {
   ].slice(0, 7)
   if (list.length === 0) return null
   return (
-    <aside aria-label="Marcador de hoy" className="w-[280px] rounded-[20px] border border-[var(--nx-line)] bg-[var(--nx-surface)] p-3">
+    <aside aria-label="Marcador de hoy" className="w-[280px] rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] p-3">
       <h2 className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-muted)]">Marcador de hoy</h2>
       <div className="-mx-1 divide-y divide-[var(--nx-line)]">{list.map((m) => <MatchLine key={m.id} match={m} />)}</div>
       <Link href="/deportes/futbol" className="mt-1 flex min-h-[44px] items-center justify-center rounded-xl text-xs font-semibold text-[var(--nx-accent-text)] hover:bg-[var(--nx-surface-2)]">Todos los partidos</Link>

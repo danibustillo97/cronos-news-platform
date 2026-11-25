@@ -91,15 +91,15 @@ export default function BriefReel({ story, onOpen }: { story: NewsView; onOpen: 
           <div className="absolute inset-0 z-10 flex flex-col justify-center px-7 pb-14 pt-12 sm:px-10" aria-live={paused ? 'polite' : 'off'}>
             {slide.kind === 'title' && (
               <>
-                <span className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#FACC15]">{slide.kicker}</span>
-                <p className="mt-3 text-balance text-[clamp(1.5rem,1.2rem+1.4vw,2.1rem)] font-bold leading-[1.15] tracking-[-0.015em]">{slide.text}</p>
+                <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-[#FACC15]">{slide.kicker}</span>
+                <p className="mt-2 max-w-[38ch] text-balance text-[clamp(1.6rem,1.3rem+1.4vw,2.2rem)] font-extrabold leading-[1.08] tracking-[-0.02em]">{slide.text}</p>
                 <p className="mt-4 text-sm text-white/70">Lo esencial en {slides.length - 2} claves</p>
               </>
             )}
             {slide.kind === 'point' && (
               <>
-                <span className="text-5xl font-bold tabular-nums leading-none text-[#FACC15]">{slide.index}</span>
-                <p className="mt-4 text-[clamp(1.125rem,1rem+0.7vw,1.45rem)] font-semibold leading-[1.4]">{slide.text}</p>
+                <span className="text-[13px] font-bold tabular-nums text-[#FACC15]">{String(slide.index).padStart(2, '0')} / {String(slide.total).padStart(2, '0')}</span>
+                <p className="mt-2 max-w-[38ch] text-[18px] font-semibold leading-[1.45] sm:text-[20px]">{slide.text}</p>
               </>
             )}
             {slide.kind === 'cta' && (
@@ -134,7 +134,7 @@ export default function BriefReel({ story, onOpen }: { story: NewsView; onOpen: 
           <StoryLink story={story} onOpen={onOpen} className="hover:underline hover:decoration-2 hover:underline-offset-4">{story.title}</StoryLink>
         </h3>
       }
-      meta={<>{slides.length} diapositivas · unos 30 segundos</>}
+      meta={['En 30 segundos', `${slides.length} diapositivas`]}
       share={{ url: `/noticia/${story.slug}`, title: story.title }}
       saveId={story.id}
       social={{ type: 'news', id: story.id }}

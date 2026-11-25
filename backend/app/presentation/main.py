@@ -13,7 +13,7 @@ from app.presentation.error_handlers import register_error_handlers
 from app.presentation.auth import require_admin
 from app.presentation.api import (
     stories, compositions, discovery, categories, assets, runtime, settings, artifacts, published_content,
-    artifact_providers, ads, sports, location, studio, editorial, portal, radio, polls, players, capsules, picks, social, research, matches,
+    artifact_providers, ads, sports, location, studio, editorial, portal, radio, polls, players, capsules, picks, social, research, matches, insights, ad_slots,
 )
 from app.presentation.api.stories import productions_router
 
@@ -49,6 +49,8 @@ app.include_router(settings.router)
 app.include_router(artifacts.router, dependencies=[require_admin()])
 app.include_router(artifact_providers.router, dependencies=[require_admin()])
 app.include_router(published_content.router)
+app.include_router(ad_slots.router)  # /api/ads/slots before /api/ads/{banner_id}
+app.include_router(ad_slots.admin_router, dependencies=[require_admin()])
 app.include_router(ads.router)
 app.include_router(sports.router)
 app.include_router(location.router)
@@ -67,6 +69,7 @@ app.include_router(social.router)  # public: reactions and comments
 app.include_router(social.admin_router, dependencies=[require_admin()])
 app.include_router(research.router, dependencies=[require_admin()])
 app.include_router(matches.router)  # public: live match centre + scorer insights
+app.include_router(insights.router)  # public: self-publishing match previews/impacts
 
 
 @app.get("/health")

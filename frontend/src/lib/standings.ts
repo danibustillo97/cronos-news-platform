@@ -94,3 +94,26 @@ export function tableGroupLabel(league: string | null | undefined, rows: number)
   if (league === 'col.1') return `Cuadrangulares · ${rows} equipos`
   return `Fase de grupos · ${rows} equipos`
 }
+
+export interface StandingsGroup { name: string | null; table: StandingsRowData[] }
+export interface CompetitionFormat { kind: string; teams: number | null; summary: string; stages: string[] }
+
+/** Lee la respuesta de /api/sports/standings: grupos (o la tabla única de antes) y formato. */
+export function normalizeStandingsResponse(raw: unknown): { leagueName: string; groups: StandingsGroup[]; format: CompetitionFormat | null } {
+  const r = typeof raw === 'object' && raw !== null ? (raw as Record<string, unknown>) : {}
+  const asRows = (v: unknown): StandingsRowData[] => sortStandings(Array.isArray(v) ? (v as StandingsRowData[]) : [])
+  const groups: StandingsGroup[] = Array.isArray(r.groups)
+    ? (r.groups as unknown[]).filter((g): g is Record<string, unknown> => typeof g === 'object' && g !== null)
+      .map((g) => ({ name: typeof g.name === 'string' && g.name.trim() ? g.name.trim() : null, table: asRows(g.table) }))
+      .filter((g) => g.table.length > 0)
+    : []
+  if (groups.length === 0) {
+    const table = asRows(r.table)
+    if (table.length > 0) groups.push({ name: null, table })
+  }
+  const f = typeof r.format === 'object' && r.format !== null ? (r.format as Record<string, unknown>) : null
+  const format = f && typeof f.summary === 'string' && f.summary.trim()
+    ? { kind: String(f.kind ?? ''), teams: typeof f.teams === 'number' ? f.teams : null, summary: f.summary.trim(), stages: Array.isArray(f.stages) ? f.stages.filter((s): s is string => typeof s === 'string') : [] }
+    : null
+  return { leagueName: typeof r.leagueName === 'string' ? r.leagueName : '', groups, format }
+}

@@ -262,7 +262,7 @@ export function RadioMiniPlayer() {
     <div
       role="region"
       aria-label="Reproductor de radio en vivo"
-      className="fixed inset-x-0 bottom-0 z-[65] px-0 sm:inset-x-auto sm:bottom-4 sm:left-4 sm:w-[400px]"
+      className="fixed inset-x-0 bottom-[var(--nx-tabbar-h,0px)] z-[65] px-0 sm:inset-x-auto sm:bottom-4 sm:left-4 sm:w-[400px]"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       <div className="flex items-center gap-3 border-t border-white/10 bg-[#0A0A0A]/95 px-3 py-2 text-white shadow-2xl backdrop-blur-md sm:rounded-2xl sm:border">

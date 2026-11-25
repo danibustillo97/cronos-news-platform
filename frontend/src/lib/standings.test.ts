@@ -48,3 +48,19 @@ describe('standings labels', () => {
     expect(noteLabelEs('Algo nuevo')).toBe('Algo nuevo')
   })
 })
+
+describe('standings response', () => {
+  it('reads groups and format, falling back to the single table', async () => {
+    const { normalizeStandingsResponse } = await import('./standings')
+    const row = (rank: string) => ({ rank, team: `T${rank}`, logo: null, played: '1', won: '0', drawn: '0', lost: '0', points: '0', goalDifference: '0', goalsFor: '0', goalsAgainst: '0' })
+    const d = normalizeStandingsResponse({ leagueName: 'Liga BetPlay', table: [row('1')], groups: [{ name: 'Cuadrangular A', table: [row('2'), row('1')] }, { name: 'Cuadrangular B', table: [] }],
+      format: { kind: 'liga+finales', teams: 20, summary: 'Dos torneos por año.', stages: ['Todos contra todos', 3] } })
+    expect(d.groups.map((g) => g.name)).toEqual(['Cuadrangular A'])
+    expect(d.groups[0].table.map((r) => r.rank)).toEqual(['1', '2'])
+    expect(d.format).toEqual({ kind: 'liga+finales', teams: 20, summary: 'Dos torneos por año.', stages: ['Todos contra todos'] })
+    const old = normalizeStandingsResponse({ table: [row('1')] })
+    expect(old.groups).toEqual([{ name: null, table: [row('1')] }])
+    expect(old.format).toBeNull()
+    expect(normalizeStandingsResponse(null).groups).toEqual([])
+  })
+})

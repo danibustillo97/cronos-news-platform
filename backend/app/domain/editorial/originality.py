@@ -64,7 +64,24 @@ class OriginalityReport:
     article_words: int
     compared_sources: int
     sources: list[SourceOverlap] = field(default_factory=list)
+    scanned: int = 0          # texts screened before the detailed comparison (DB + web)
+    web_sources: int = 0      # of the compared sources, how many came from the open web
     copied: list[CopiedPassage] = field(default_factory=list)
+
+
+def rank_by_overlap(article_text: str, candidates: list[SourceText], keep: int) -> list[SourceText]:
+    """Fast screening of many texts: share of the article's 6-word shingles found in each
+    candidate; returns the `keep` most overlapping (those with any overlap first)."""
+    art = shingles(article_text)
+    if not art:
+        return candidates[:keep]
+    scored = []
+    for c in candidates:
+        common = len(art & shingles(c.text))
+        if common:
+            scored.append((common, c))
+    scored.sort(key=lambda x: -x[0])
+    return [c for _, c in scored[:keep]]
 
 
 def check_originality(article_text: str, sources: list[SourceText]) -> OriginalityReport:

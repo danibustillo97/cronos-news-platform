@@ -47,3 +47,21 @@ describe('picks', () => {
     expect(safeText('El mercado le da 81%')).toBe('El mercado le da 81%')
   })
 })
+
+describe('parley builder helpers', () => {
+  it('groups matches by day with Hoy first and builds fair selections', async () => {
+    const { groupByDay, selectionsForMatch } = await import('./picks')
+    const d = normalizePicks({ matches: [
+      { id: 'a', day: 'mañana', home: { name: 'A' }, away: { name: 'B' }, odds: { x12: { home: 2, draw: 3.5, away: 3.5 }, overUnder: { line: 2.5, over: 1.9, under: 1.9 } } },
+      { id: 'b', day: 'Hoy', home: { name: 'C' }, away: { name: 'D' }, odds: {} },
+      { id: 'c', home: { name: 'E' }, away: { name: 'F' }, odds: {} },
+    ] })!
+    expect(groupByDay(d.matches).map((g) => g.label)).toEqual(['Hoy', 'Mañana', 'Próximos'])
+    const sels = selectionsForMatch(d.matches[0])
+    expect(sels.map((s) => s.pick)).toEqual(['home', 'draw', 'away', 'over', 'under'])
+    expect(sels.slice(0, 3).reduce((p, s) => p + s.probability, 0)).toBeCloseTo(1)
+    expect(sels[3].probability).toBeCloseTo(0.5)
+    expect(sels[3].label).toBe('Más de 2,5 goles')
+    expect(selectionsForMatch(d.matches[1])).toEqual([])
+  })
+})
