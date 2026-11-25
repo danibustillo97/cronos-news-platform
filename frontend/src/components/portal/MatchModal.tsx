@@ -115,8 +115,9 @@ function EventRow({ ev, detail }: { ev: MatchEvent; detail: MatchDetail }) {
             {ev.type === 'own-goal' && <span className="ml-1 text-xs font-semibold text-[var(--nx-muted)]">(autogol)</span>}
           </p>
           <p className="text-[12px] text-[var(--nx-muted)]">
-            {meta.label}{ev.assist ? ` · ${ev.type === 'sub' ? 'Sale' : 'Asistencia'}: ${ev.assist.name}` : ''}{!ev.player && ev.text && ev.text !== meta.label ? ` · ${ev.text}` : ''}
+            {meta.label}{ev.assist ? ` · ${ev.type === 'sub' ? 'Sale' : 'Asistencia'}: ${ev.assist.name}` : ''}
           </p>
+          {ev.text && ev.text !== meta.label && <p className="mt-1 text-[12px] leading-relaxed text-[var(--nx-ink-2)]">{ev.text}</p>}
         </div>
         {team && <TeamCrest src={team.logo} name={team.name} size={20} className="mt-0.5" />}
       </div>
