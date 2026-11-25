@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient'
+import { filterCurrentNews, newsQueryFloor } from '@/lib/newsFreshness';
 import NewsCard from '@/components/news/NewsCard';
 import { RefreshCw } from 'lucide-react';
 
@@ -35,7 +36,7 @@ export default function RelatedNews({ currentNewsId, category, onNewsClick }: Re
         let query = supabase
           .from('news')
           .select('*')
-          .eq('status', 'published')
+          .eq('status', 'published').gte('published_at', newsQueryFloor())
           .neq('id', currentNewsId) // Exclude current news
           .limit(4);
 
