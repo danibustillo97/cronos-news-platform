@@ -21,11 +21,11 @@ export async function generateMetadata(
     .single();
 
   if (!data) {
-    return { title: 'Noticia no encontrada | Nexus News' };
+    return { title: 'Noticia no encontrada | Nexus News', robots: { index: false, follow: false } };
   }
 
   const url = `https://www.nexusnews.info/noticia/${data.slug}`;
-  const description = data.summary || data.excerpt || data.title;
+  const description = String(data.summary || data.excerpt || data.title).replace(/\\s+/g, ' ').trim().slice(0, 160);
 
   return {
     title: data.title,
@@ -35,6 +35,7 @@ export async function generateMetadata(
     authors: [{ name: publicAuthorName(data.author) }],
     openGraph: {
       type: 'article',
+      locale: 'es_CO',
       title: data.title,
       description,
       url,
@@ -73,12 +74,15 @@ export default async function Page({ params }: PageProps) {
   const jsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
+    inLanguage: 'es-CO',
+    isAccessibleForFree: true,
     headline: news.title,
     description: news.summary || news.excerpt || undefined,
-    image: news.image_url ? [news.image_url] : undefined,
+    image: news.image_url ? [{ '@type': 'ImageObject', url: news.image_url, caption: news.title }] : undefined,
     datePublished: news.published_at,
     dateModified,
     author: { '@type': 'Person', name: publicAuthorName(news.author) },
+    articleBody: undefined,
     publisher: {
       '@type': 'Organization',
       name: 'Nexus News',
