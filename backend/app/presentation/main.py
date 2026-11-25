@@ -13,7 +13,7 @@ from app.presentation.error_handlers import register_error_handlers
 from app.presentation.auth import require_admin
 from app.presentation.api import (
     stories, compositions, discovery, categories, assets, runtime, settings, artifacts, published_content,
-    artifact_providers, ads, sports, location, studio, editorial, portal, radio, polls, players, capsules, picks, social, research, matches,
+    artifact_providers, ads, sports, location, studio, editorial, portal, radio, polls, players, capsules, picks, social, research, matches, insights,
 )
 from app.presentation.api.stories import productions_router
 
@@ -67,6 +67,7 @@ app.include_router(social.router)  # public: reactions and comments
 app.include_router(social.admin_router, dependencies=[require_admin()])
 app.include_router(research.router, dependencies=[require_admin()])
 app.include_router(matches.router)  # public: live match centre + scorer insights
+app.include_router(insights.router)  # public: self-publishing match previews/impacts
 
 
 @app.get("/health")

@@ -164,14 +164,38 @@ def build_parlays(picks: list[dict]) -> list[dict]:
     return [p for p in parlays if p]
 
 
-async def _league(client: httpx.AsyncClient, league: str) -> list[dict]:
+async def _league(client: httpx.AsyncClient, league: str, day: str) -> list[dict]:
     try:
-        res = await client.get(_SCOREBOARD.format(league=league))
+        res = await client.get(_SCOREBOARD.format(league=league), params={"dates": day})
         if res.status_code != 200:
             return []
         return [m for m in (parse_match(e, league) for e in res.json().get("events") or []) if m]
     except (httpx.HTTPError, ValueError):
         return []
+
+
+_COL = timezone(timedelta(hours=-5))  # Colombia: no DST
+
+
+def day_label(iso: str, now: datetime) -> str:
+    """'hoy' / 'mañana' / weekday, in Colombian time."""
+    when = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(_COL).date()
+    today = now.astimezone(_COL).date()
+    if when == today:
+        return "hoy"
+    if when == today + timedelta(days=1):
+        return "mañana"
+    return ["lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo"][when.weekday()]
+
+
+def today_first_parlays(picks: list[dict], now: datetime) -> list[dict]:
+    """Parlays from TODAY's matches when there are enough; tomorrow only fills the gap."""
+    today = [p for p in picks if p.get("day") == "hoy"]
+    parlays = build_parlays(today)
+    if len(parlays) < 3:
+        names = {p["name"] for p in parlays}
+        parlays += [p for p in build_parlays(picks) if p["name"] not in names]
+    return parlays
 
 
 @router.get("")
@@ -181,14 +205,22 @@ async def get_picks(response: Response, hours: int = Query(48, ge=6, le=120)) ->
     if hit and time.monotonic() - hit[0] < _TTL:
         payload = hit[1]
     else:
+        now = datetime.now(timezone.utc)
+        local = now.astimezone(_COL)
+        days = [local.strftime("%Y%m%d"), (local + timedelta(days=1)).strftime("%Y%m%d")]
         async with httpx.AsyncClient(timeout=httpx.Timeout(8.0)) as client:
-            groups = await asyncio.gather(*(_league(client, lg) for lg in LEAGUES))
-        limit = datetime.now(timezone.utc) + timedelta(hours=hours)
-        matches = sorted((m for g in groups for m in g if m["date"] and datetime.fromisoformat(m["date"].replace("Z", "+00:00")) <= limit),
-                         key=lambda m: m["date"])
-        picks = [p for m in matches for p in candidate_picks(m)]
-        payload = {"generatedAt": datetime.now(timezone.utc).isoformat(), "matches": matches,
-                   "parlays": build_parlays(picks), "disclaimer": DISCLAIMER}
+            groups = await asyncio.gather(*(_league(client, lg, d) for lg in LEAGUES for d in days))
+        limit = now + timedelta(hours=hours)
+        seen: set[str] = set()
+        matches = []
+        for m in sorted((m for g in groups for m in g), key=lambda m: m["date"] or ""):
+            if m["id"] in seen or not m["date"] or datetime.fromisoformat(m["date"].replace("Z", "+00:00")) > limit:
+                continue
+            seen.add(m["id"])
+            matches.append({**m, "day": day_label(m["date"], now)})
+        picks = [{**p, "day": m["day"]} for m in matches for p in candidate_picks(m)]
+        payload = {"generatedAt": now.isoformat(), "matches": matches,
+                   "parlays": today_first_parlays(picks, now), "disclaimer": DISCLAIMER}
         _cache[key] = (time.monotonic(), payload)
     response.headers["Cache-Control"] = "public, max-age=300"
     return payload
