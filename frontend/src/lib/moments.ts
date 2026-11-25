@@ -29,7 +29,7 @@ export interface Moment {
 
 /** Un ítem del feed: un gol, una roja, un final suelto o varios finales de la misma liga. */
 export type MomentItem =
-  | { type: 'goal' | 'red' | 'final'; key: string; moment: Moment }
+  | { type: 'goal' | 'red' | 'incident' | 'final'; key: string; moment: Moment }
   | { type: 'results'; key: string; league: string; leagueName: string; moments: Moment[] }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
