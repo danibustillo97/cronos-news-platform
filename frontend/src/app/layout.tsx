@@ -43,7 +43,8 @@ export async function generateMetadata(): Promise<Metadata> {
   const seo = await getSeoSettings()
   return {
   metadataBase: new URL('https://www.nexusnews.info'),
-  alternates: { canonical: '/' },
+  // Canonical URLs belong to their route. A root-level '/' canonical is inherited
+  // by child routes in Next.js and incorrectly tells Google every route is the homepage.
   title: {
     default: seo.title,
     template: '%s | Nexus News'
