@@ -1,3 +1,4 @@
+import type { Metadata } from 'next'
 import PortalHome from '@/components/portal/PortalHome'
 import { getHomeNews, getPortalLayoutServer } from '@/lib/homeData'
 import { applyLayout, defaultLayout } from '@/lib/portalLayout'
@@ -8,6 +9,10 @@ import { jsonLdScript } from '@/lib/jsonLd'
 export const revalidate = 60
 
 const SITE = 'https://www.nexusnews.info'
+
+export const metadata: Metadata = {
+  alternates: { canonical: SITE },
+}
 
 export default async function HomePage() {
   const [news, layout] = await Promise.all([getHomeNews(), getPortalLayoutServer()])
