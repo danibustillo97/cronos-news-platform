@@ -1,6 +1,7 @@
 // /app/api/news/route.ts
 import { NextResponse } from "next/server";
 import { createSupabaseServerClient } from "@/lib/supabaseServer";
+import { filterCurrentNews, newsQueryFloor } from "@/lib/newsFreshness";
 
 export async function GET() {
   const supabase = createSupabaseServerClient();
@@ -8,11 +9,13 @@ export async function GET() {
     .from("news")
     .select("id, title, slug, image_url, author, published_at") // quitamos summary
     .eq("status", "published")
-    .order("published_at", { ascending: false });
+    .gte("published_at", newsQueryFloor())
+    .order("published_at", { ascending: false })
+    .limit(500);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ news: data }, { status: 200 });
+  return NextResponse.json({ news: filterCurrentNews(data ?? []) }, { status: 200 });
 }
