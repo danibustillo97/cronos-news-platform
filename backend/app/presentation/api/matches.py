@@ -356,13 +356,11 @@ def build_moments(detail: dict) -> list[dict]:
                         "score": {"home": running[0], "away": running[1]}, "impact": None,
                         "text": e.get("text") or "",
                         "headline": f"Roja para {who or 'un jugador'} ({team_name}) al {minute}"})
-        elif kind in ("yellow", "penalty-miss", "var", "sub"):
+        elif kind in ("penalty-miss", "var"):
             who = (e.get("player") or {}).get("name", "")
             labels = {
-                "yellow": f"Amarilla para {who}" if who else "Tarjeta amarilla",
                 "penalty-miss": f"Penalti fallado por {who}" if who else "Penalti fallado",
                 "var": "Revisión VAR",
-                "sub": f"Cambio en {home_name if e.get('team') == 'home' else away_name}" if e.get("team") in ("home", "away") else "Cambio",
             }
             out.append({**base, "id": event_id, "kind": "incident", "eventType": kind, "minute": minute,
                         "minuteValue": minute_value(minute), "team": e.get("team"), "player": e.get("player"),
