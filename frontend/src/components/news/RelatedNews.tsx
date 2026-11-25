@@ -58,11 +58,12 @@ export default function RelatedNews({ currentNewsId, category, onNewsClick }: Re
             .from('news')
             .select('*')
             .eq('status', 'published')
+            .gte('published_at', newsQueryFloor())
             .neq('id', currentNewsId)
             .order('published_at', { ascending: false })
             .limit(4);
             
-        setRelatedNews(generalData || []);
+        setRelatedNews(filterCurrentNews(generalData || []));
 
       } catch (error) {
         console.error("Error fetching related news:", error);
