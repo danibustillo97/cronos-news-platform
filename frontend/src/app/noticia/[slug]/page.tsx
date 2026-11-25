@@ -82,7 +82,6 @@ export default async function Page({ params }: PageProps) {
     datePublished: news.published_at,
     dateModified,
     author: { '@type': 'Person', name: publicAuthorName(news.author) },
-    articleBody: undefined,
     publisher: {
       '@type': 'Organization',
       name: 'Nexus News',
