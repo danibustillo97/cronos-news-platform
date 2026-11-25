@@ -44,8 +44,6 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
   // Imágenes ya decodificadas (precargadas al hacerse visible la tarjeta).
   const [loaded, setLoaded] = useState<Set<string>>(() => new Set())
   const [waited, setWaited] = useState(false)
-  // Capa visible: se queda la anterior hasta que la nueva esté lista (sin parpadeo).
-  const [shown, setShown] = useState<string | null>(null)
 
   useEffect(() => {
     const el = ref.current
@@ -80,12 +78,6 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
     const t = window.setTimeout(() => setWaited(true), SLIDE_IMAGE_MAX_WAIT_MS)
     return () => window.clearTimeout(t)
   }, [index, slideImg])
-  useEffect(() => {
-    if (!slideImg) setShown(null)
-    else if (imgLoaded) setShown(slideImg)
-    else if (waited) setShown(null)
-  }, [slideImg, imgLoaded, waited])
-
   const ready = slideReady({ image: slideImg, loaded: imgLoaded, waitedMs: waited ? SLIDE_IMAGE_MAX_WAIT_MS : 0 })
   const auto = !reduce && total > 1
   const paused = !auto || !visible || hold || userPaused || !ready
@@ -93,7 +85,9 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
   const next = useCallback(() => setIndex((i) => Math.min(total - 1, i + 1)), [total])
   const prev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), [])
   const slide = index > 0 ? capsule.slides[index - 1] : null
-  const bgSource = imageSource(shown)
+  // Nunca conservar la foto anterior mientras llega la de la diapositiva actual:
+  // eso desincroniza visualmente la imagen del texto. Si aún carga, mostramos fondo.
+  const bgSource = imageSource(imgLoaded ? slideImg : null)
   const bg = bgSource?.src ?? null
   const name = capsule.subject ?? capsule.title
 
