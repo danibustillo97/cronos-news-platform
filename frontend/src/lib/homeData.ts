@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 import { apiUrl } from '@/studio/lab/api-client'
 import { normalizeLayout } from '@/lib/portalLayout'
 import { estimateReadMinutes } from '@/lib/readTime'
+import { filterCurrentNews, newsQueryFloor } from '@/lib/newsFreshness'
 import type { PortalLayout } from '@/types/portal'
 import type { NewsView } from '@/types/news'
 
@@ -25,10 +26,11 @@ export async function getHomeNews(): Promise<NewsView[] | null> {
       .from('news')
       .select('id,title,subtitle,slug,excerpt,summary,content,image_url,category,tags,author,published_at,views,source,source_url')
       .eq('status', 'published')
+      .gte('published_at', newsQueryFloor())
       .order('published_at', { ascending: false })
-      .range(0, HOME_PAGE_SIZE - 1)
+      .range(0, 99)
     if (error || !data) return null
-    return (data as NewsView[]).map((n) => ({
+    return filterCurrentNews(data as NewsView[]).slice(0, HOME_PAGE_SIZE).map((n) => ({
       ...n,
       read_minutes: estimateReadMinutes(n.content, n.excerpt),
       content: n.content ? n.content.slice(0, CONTENT_PREVIEW_CHARS) : n.content,
