@@ -46,7 +46,7 @@ export default function RelatedNews({ currentNewsId, category, onNewsClick }: Re
             
             // If we have enough category matches, use them
             if (categoryData && categoryData.length >= 3) {
-                setRelatedNews(categoryData);
+                setRelatedNews(filterCurrentNews(categoryData));
                 setLoading(false);
                 return;
             }
