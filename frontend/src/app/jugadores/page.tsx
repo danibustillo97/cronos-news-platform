@@ -3,8 +3,9 @@ import { Suspense } from 'react'
 import PlayersSearchClient from './PlayersSearchClient'
 
 export const metadata: Metadata = {
-  title: 'Jugadores',
-  description: 'Busca jugadores de fútbol, consulta sus estadísticas por temporada y compáralos cara a cara.',
+  title: 'Estadísticas y comparador de jugadores',
+  description: 'Busca futbolistas, consulta sus estadísticas por temporada y compara su rendimiento entre competiciones con las herramientas de NEXUS News.',
+  alternates: { canonical: '/jugadores' },
 }
 
 export default function PlayersPage() {
