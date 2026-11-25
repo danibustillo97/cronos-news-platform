@@ -275,7 +275,7 @@ MOMENT_LEAGUES = {
     "uefa.champions": "Champions League", "uefa.europa": "Europa League", "eng.1": "Premier League", "esp.1": "LaLiga",
     "ita.1": "Serie A", "ger.1": "Bundesliga", "fra.1": "Ligue 1",
 }
-_MAX_MATCHES = 18
+_MAX_MATCHES = 32
 
 
 def minute_value(minute: str) -> float:
@@ -295,41 +295,87 @@ def score_after(text: str, home: str, away: str) -> tuple[int, int] | None:
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
+def _goal_impact(before: list[int], after: list[int], side: str | None, home: str, away: str) -> str:
+    if side not in ("home", "away"):
+        return "El marcador cambió."
+    scorer = home if side == "home" else away
+    rival = away if side == "home" else home
+    before_diff = before[0] - before[1] if side == "home" else before[1] - before[0]
+    after_diff = after[0] - after[1] if side == "home" else after[1] - after[0]
+    if before_diff == 0 and after_diff > 0:
+        return f"Gol que puso a {scorer} en ventaja."
+    if before_diff < 0 and after_diff == 0:
+        return f"Gol del empate: {scorer} igualó ante {rival}."
+    if before_diff > 0 and after_diff > before_diff:
+        return f"Gol que amplió la ventaja de {scorer}."
+    if after_diff == 0:
+        return f"El partido quedó empatado entre {scorer} y {rival}."
+    if before_diff < 0 and after_diff > 0:
+        return f"Gol que completó la remontada de {scorer}."
+    return f"El gol modificó el marcador a {after[0]}-{after[1]}."
+
+
 def build_moments(detail: dict) -> list[dict]:
     home, away = detail.get("home") or {}, detail.get("away") or {}
     if not home or not away:
         return []
+    home_name, away_name = home.get("name", ""), away.get("name", "")
     kickoff = detail.get("date") or ""
     base = {"matchId": detail["id"], "league": detail["league"], "leagueName": MOMENT_LEAGUES.get(detail["league"], detail.get("leagueName")),
-            "home": {"name": home.get("name"), "short": home.get("short"), "logo": home.get("logo")},
-            "away": {"name": away.get("name"), "short": away.get("short"), "logo": away.get("logo")},
+            "home": {"name": home_name, "short": home.get("short"), "logo": home.get("logo")},
+            "away": {"name": away_name, "short": away.get("short"), "logo": away.get("logo")},
             "state": detail.get("state"), "kickoff": kickoff}
     out: list[dict] = []
     running = [0, 0]
     for e in detail.get("events") or []:
         kind = e["type"]
+        minute = e.get("minute") or ""
+        event_id = f"{detail['id']}:{e['id']}"
+        before = list(running)
         if kind in ("goal", "penalty-goal", "own-goal"):
-            parsed = score_after(e.get("text", ""), home.get("name", ""), away.get("name", ""))
+            parsed = score_after(e.get("text", ""), home_name, away_name)
             if parsed:
                 running = list(parsed)
             elif e.get("team") in ("home", "away"):
                 running[0 if e["team"] == "home" else 1] += 1
             who = _surname((e.get("player") or {}).get("name", ""))
             lead = {"own-goal": f"Autogol de {who}", "penalty-goal": f"¡Gol de penal de {who}!"}.get(kind, f"¡Gol de {who}!") if who else "¡Gol!"
-            out.append({**base, "id": f"{detail['id']}:{e['id']}", "kind": "goal", "minute": e.get("minute"), "minuteValue": minute_value(e.get("minute", "")),
-                        "team": e.get("team"), "player": e.get("player"), "assist": e.get("assist"), "score": {"home": running[0], "away": running[1]},
-                        "headline": f"{lead} {home.get('name')} {running[0]}-{running[1]} {away.get('name')} ({e.get('minute')})"})
+            out.append({**base, "id": event_id, "kind": "goal", "eventType": kind, "minute": minute,
+                        "minuteValue": minute_value(minute), "team": e.get("team"), "player": e.get("player"),
+                        "assist": e.get("assist"), "scoreBefore": {"home": before[0], "away": before[1]},
+                        "score": {"home": running[0], "away": running[1]},
+                        "impact": _goal_impact(before, running, e.get("team"), home_name, away_name),
+                        "text": e.get("text") or "",
+                        "headline": f"{lead} {home_name} {running[0]}-{running[1]} {away_name} ({minute})"})
         elif kind == "red":
             who = (e.get("player") or {}).get("name", "")
-            team = home.get("name") if e.get("team") == "home" else away.get("name")
-            out.append({**base, "id": f"{detail['id']}:{e['id']}", "kind": "red", "minute": e.get("minute"), "minuteValue": minute_value(e.get("minute", "")),
-                        "team": e.get("team"), "player": e.get("player"), "assist": None, "score": {"home": running[0], "away": running[1]},
-                        "headline": f"Roja para {who or 'un jugador'} ({team}) al {e.get('minute')}"})
-    if detail.get("state") == "post" and home.get("score") is not None:
+            team_name = home_name if e.get("team") == "home" else away_name if e.get("team") == "away" else "equipo no identificado"
+            out.append({**base, "id": event_id, "kind": "red", "eventType": kind, "minute": minute,
+                        "minuteValue": minute_value(minute), "team": e.get("team"), "player": e.get("player"),
+                        "assist": None, "scoreBefore": {"home": running[0], "away": running[1]},
+                        "score": {"home": running[0], "away": running[1]}, "impact": None,
+                        "text": e.get("text") or "",
+                        "headline": f"Roja para {who or 'un jugador'} ({team_name}) al {minute}"})
+        elif kind in ("yellow", "penalty-miss", "var", "sub"):
+            who = (e.get("player") or {}).get("name", "")
+            labels = {
+                "yellow": f"Amarilla para {who}" if who else "Tarjeta amarilla",
+                "penalty-miss": f"Penalti fallado por {who}" if who else "Penalti fallado",
+                "var": "Revisión VAR",
+                "sub": f"Cambio en {home_name if e.get('team') == 'home' else away_name}" if e.get("team") in ("home", "away") else "Cambio",
+            }
+            out.append({**base, "id": event_id, "kind": "incident", "eventType": kind, "minute": minute,
+                        "minuteValue": minute_value(minute), "team": e.get("team"), "player": e.get("player"),
+                        "assist": e.get("assist"), "scoreBefore": {"home": running[0], "away": running[1]},
+                        "score": {"home": running[0], "away": running[1]}, "impact": None,
+                        "text": e.get("text") or "", "headline": f"{labels[kind]} · {minute}"})
+    if detail.get("state") == "post" and home.get("score") is not None and away.get("score") is not None:
         hs, as_ = home.get("score") or 0, away.get("score") or 0
-        out.append({**base, "id": f"{detail['id']}:final", "kind": "final", "minute": "Final", "minuteValue": 200.0, "team": None,
-                    "player": None, "assist": None, "score": {"home": hs, "away": as_},
-                    "headline": f"Final: {home.get('name')} {hs}-{as_} {away.get('name')}"})
+        out.append({**base, "id": f"{detail['id']}:final", "kind": "final", "eventType": None,
+                    "minute": "Final", "minuteValue": 200.0, "team": None, "player": None,
+                    "assist": None, "scoreBefore": None, "score": {"home": hs, "away": as_},
+                    "impact": None, "text": "",
+                    "headline": f"Final: {home_name} {hs}-{as_} {away_name}"})
     return out
 
 
