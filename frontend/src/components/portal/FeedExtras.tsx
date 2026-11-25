@@ -10,7 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { CalendarDays, ChevronLeft, ChevronRight, Crown, Flame, Lightbulb, Pause, Play, Ticket } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { CAPSULE_ACCENT, CAPSULE_LABEL, SLIDE_IMAGE_MAX_WAIT_MS, capsuleDateLabel, capsuleImages, capsuleOgUrl, capsuleSlideImage, slideReady, type Capsule } from '@/lib/capsules'
+import { CAPSULE_ACCENT, CAPSULE_LABEL, SLIDE_IMAGE_MAX_WAIT_MS, capsuleDateLabel, capsuleOgUrl, capsuleSlideImage, slideReady, type Capsule } from '@/lib/capsules'
 import { formChips, formatOdds, formatProbability, safeText, type PicksData } from '@/lib/picks'
 import { slideDurationMs } from '@/lib/reels'
 import { monogram } from '@/lib/leagueLogos'
@@ -53,23 +53,28 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
     return () => io.disconnect()
   }, [])
 
-  // Precarga de TODAS las diapositivas en cuanto la tarjeta se ve.
-  const preloaded = useRef(false)
+  const slideImg = capsuleSlideImage(capsule, index)
+  // Prioriza la imagen actual y la siguiente; descargar todas a la vez compite
+  // con la diapositiva visible y hace que el carrusel se sienta lento.
+  const requested = useRef(new Set<string>())
   useEffect(() => {
-    if (!visible || preloaded.current) return
-    preloaded.current = true
-    for (const url of capsuleImages(capsule)) {
+    if (!visible) return
+    const urls = [slideImg, capsuleSlideImage(capsule, index + 1)]
+    for (const url of urls) {
+      if (!url || requested.current.has(url)) continue
+      requested.current.add(url)
       const src = imageSource(url)?.src
       if (!src) continue
       const img = new window.Image()
       img.decoding = 'async'
-      img.src = src
       const done = () => setLoaded((prev) => (prev.has(url) ? prev : new Set(prev).add(url)))
-      ;(img.decode ? img.decode() : Promise.reject()).then(done, () => { img.onload = done; if (img.complete && img.naturalWidth) done() })
+      img.onload = done
+      img.onerror = () => requested.current.delete(url)
+      img.src = src
+      if (img.complete && img.naturalWidth) done()
     }
-  }, [visible, capsule])
+  }, [visible, index, slideImg, capsule])
 
-  const slideImg = capsuleSlideImage(capsule, index)
   const imgLoaded = slideImg ? loaded.has(slideImg) : false
   // Máximo 1,5 s esperando la foto de esta diapositiva; luego sigue con fondo tipográfico.
   useEffect(() => {
