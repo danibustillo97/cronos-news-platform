@@ -1,27 +1,24 @@
-import { MetadataRoute } from 'next';
-import { supabase } from '@/lib/supabaseClient';
+import { MetadataRoute } from 'next'
+import { supabase } from '@/lib/supabaseClient'
 
-// Bug real corregido: apuntaba a /noticias/[slug] (plural) -- la ruta
-// real del portal es /noticia/[slug] (singular, ver src/app/noticia/).
-// Toda URL de historia en el sitemap era un 404. También sacado el
-// /noticias estático (esa página no existe).
+// The standard sitemap retains permanent published article URLs, including
+// older stories that have left the live-news feed. Expiration never deletes
+// an article or its canonical URL.
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = 'https://www.nexusnews.info';
-
+  const baseUrl = 'https://www.nexusnews.info'
   const { data: news } = await supabase
     .from('news')
     .select('slug, published_at, updated_at')
     .eq('status', 'published')
     .order('published_at', { ascending: false })
-    .limit(1000);
+    .limit(1000)
 
-  const newsUrls: MetadataRoute.Sitemap =
-    (news ?? []).filter(item => item.slug).map((item) => ({
-      url: `${baseUrl}/noticia/${item.slug}`,
-      lastModified: item.updated_at || item.published_at || new Date(),
-      changeFrequency: 'daily' as const,
-      priority: 0.8,
-    }));
+  const newsUrls: MetadataRoute.Sitemap = (news ?? []).filter(item => item.slug).map(item => ({
+    url: `${baseUrl}/noticia/${encodeURIComponent(item.slug)}`,
+    lastModified: item.updated_at || item.published_at || new Date(),
+    changeFrequency: 'weekly' as const,
+    priority: 0.7,
+  }))
 
   const staticUrls: MetadataRoute.Sitemap = [
     { url: baseUrl, lastModified: new Date(), changeFrequency: 'hourly', priority: 1 },
@@ -34,7 +31,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${baseUrl}/cookies`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${baseUrl}/about`, changeFrequency: 'monthly', priority: 0.4 },
     { url: `${baseUrl}/corrections`, changeFrequency: 'monthly', priority: 0.4 },
-  ];
+  ]
 
-  return [...staticUrls, ...newsUrls];
+  return [...staticUrls, ...newsUrls]
 }
