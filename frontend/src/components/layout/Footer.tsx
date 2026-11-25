@@ -1,8 +1,7 @@
 'use client'
 
-// Only links to pages that actually exist (/terms, /privacy) -- no
-// fabricated "Contacto"/"Sobre nosotros" pages or social profile URls
-// that don't exist yet.
+// Internal discovery links to editorial, participation, and policy pages
+// that exist and should remain reachable from every public route.
 
 import Link from 'next/link'
 import { Zap } from 'lucide-react'
@@ -25,11 +24,18 @@ export default function Footer() {
           </span>
         </Link>
 
-        <div className={`flex items-center gap-6 text-xs font-medium ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+        <nav aria-label="Enlaces del sitio" className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs font-medium ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
+          <Link href="/deportes/futbol" className="hover:text-[#FACC15] transition-colors">Fútbol</Link>
+          <Link href="/deportes/futbol/tabla" className="hover:text-[#FACC15] transition-colors">Tablas</Link>
+          <Link href="/jugadores" className="hover:text-[#FACC15] transition-colors">Jugadores</Link>
+          <Link href="/encuestas" className="hover:text-[#FACC15] transition-colors">Encuestas</Link>
+          <Link href="/about" className="hover:text-[#FACC15] transition-colors">Sobre NEXUS</Link>
+          <Link href="/corrections" className="hover:text-[#FACC15] transition-colors">Correcciones</Link>
+          <Link href="/cookies" className="hover:text-[#FACC15] transition-colors">Cookies</Link>
           <Link href="/terms" className="hover:text-[#FACC15] transition-colors">Términos</Link>
           <Link href="/privacy" className="hover:text-[#FACC15] transition-colors">Privacidad</Link>
           <span>© {new Date().getFullYear()} Nexus News</span>
-        </div>
+        </nav>
       </div>
     </footer>
   )
