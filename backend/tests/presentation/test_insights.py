@@ -56,3 +56,21 @@ def test_diverse_caps_each_league():
     ranked = [("uefa.champions", {"id": i}) for i in range(6)] + [("col.1", {"id": 10}), ("eng.1", {"id": 11})]
     picked = insights.diverse(ranked, 10, 3)
     assert [lg for lg, _ in picked] == ["uefa.champions"] * 3 + ["col.1", "eng.1"]
+
+
+def test_favorite_story_and_key_players():
+    assert insights.favorite_of({"home": 6, "draw": 9, "away": 85}) == {"side": "away", "label": "Favorito claro", "probability": 85}
+    assert insights.favorite_of({"home": 36, "draw": 30, "away": 34})["label"] == "Partido parejo"
+    home = {"name": "Millonarios", "position": 3}
+    away = {"name": "Santa Fe", "position": 9}
+    assert insights.story_of("col.1", home, away, {}, None) == "clasico"
+    assert insights.story_of("uefa.champions", {"name": "A", "position": 2}, {"name": "B", "position": 6}, {}, None) == "duelo-de-lideres"
+    assert insights.story_of("uefa.champions", {"name": "Sabah", "position": 30}, {"name": "Barça", "position": 8}, {}, {"home": 6, "draw": 9, "away": 85}) == "david-vs-goliat"
+    summary = {"leaders": [{"team": {"id": "2"}, "leaders": [
+        {"name": "goalsLeaders", "leaders": [{"displayValue": "Matches: 3, Goals: 4", "athlete": {"id": "231050", "displayName": "Raphinha"}}]},
+        {"name": "assistsLeaders", "leaders": [{"displayValue": "Matches: 4, Assists: 4", "athlete": {"id": "362150", "displayName": "Lamine Yamal"}}]},
+    ]}]}
+    kp = insights.key_players(summary, home_id="1")
+    assert kp == [{"id": "231050", "name": "Raphinha", "team": "away", "headshot": None, "stat": "4 goles en esta competición"},
+                  {"id": "362150", "name": "Lamine Yamal", "team": "away", "headshot": None, "stat": "4 asistencias en esta competición"}]
+    assert insights.kickoff_local("2026-11-25T17:45Z") == "12:45"

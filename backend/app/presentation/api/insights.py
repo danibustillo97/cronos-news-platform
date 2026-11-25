@@ -189,6 +189,93 @@ def _neighbors(rows: list[dict], ids: set[str]) -> list[dict]:
     return [{**rows[i], "highlight": rows[i]["teamId"] in ids} for i in sorted(keep)]
 
 
+CLASICOS = [
+    {"millonarios", "santa fe"}, {"atlético nacional", "independiente medellín"}, {"américa de cali", "deportivo cali"},
+    {"junior", "unión magdalena"}, {"real madrid", "barcelona"}, {"real madrid", "atlético madrid"}, {"barcelona", "espanyol"},
+    {"manchester united", "manchester city"}, {"liverpool", "everton"}, {"arsenal", "tottenham hotspur"}, {"liverpool", "manchester united"},
+    {"internazionale", "ac milan"}, {"juventus", "internazionale"}, {"as roma", "lazio"}, {"bayern munich", "borussia dortmund"},
+    {"boca juniors", "river plate"}, {"flamengo", "fluminense"}, {"paris saint-germain", "marseille"}, {"celtic", "rangers"},
+]
+
+
+def _key(name: str) -> str:
+    return (name or "").lower().replace("fc ", "").strip()
+
+
+def favorite_of(market: dict | None) -> dict:
+    if not market:
+        return {"side": None, "label": None, "probability": None}
+    side = max(("home", "away"), key=lambda k: market[k])
+    p_ = market[side]
+    if p_ >= 60:
+        return {"side": side, "label": "Favorito claro", "probability": p_}
+    if p_ >= 45:
+        return {"side": side, "label": "Ligero favorito", "probability": p_}
+    return {"side": None, "label": "Partido parejo", "probability": p_}
+
+
+def key_players(summary: dict, home_id: str) -> list[dict]:
+    """Top scorer (and top assister if different) of each team in this competition, from ESPN leaders."""
+    out = []
+    for block in summary.get("leaders") or []:
+        team_id = str((block.get("team") or {}).get("id") or "")
+        side = "home" if team_id == home_id else "away"
+        picked: set[str] = set()
+        for cat in block.get("leaders") or []:
+            name = cat.get("name")
+            if name not in ("goalsLeaders", "assistsLeaders"):
+                continue
+            top = (cat.get("leaders") or [None])[0]
+            if not top:
+                continue
+            athlete = top.get("athlete") or {}
+            aid = str(athlete.get("id") or "")
+            value = top.get("displayValue") or ""
+            num = value.split(":")[-1].strip() if ":" in value else value
+            if not aid or aid in picked or not num or num == "0":
+                continue
+            picked.add(aid)
+            unit = "goles" if name == "goalsLeaders" else "asistencias"
+            if num == "1":
+                unit = unit[:-2] if unit == "goles" else unit[:-1]
+            out.append({"id": aid, "name": athlete.get("displayName") or "", "team": side,
+                        "headshot": (athlete.get("headshot") or {}).get("href"),
+                        "stat": f"{num} {unit} en esta competición"})
+    return out[:4]
+
+
+def story_of(league: str, home: dict, away: dict, forms: dict, market: dict | None) -> str | None:
+    if {_key(home["name"]), _key(away["name"])} in CLASICOS:
+        return "clasico"
+    hp, ap = home.get("position"), away.get("position")
+    fmt = format_for(league)
+    top = 8 if fmt and fmt.kind == "fase-de-liga" else 4
+    if hp and ap and hp <= top and ap <= top:
+        return "duelo-de-lideres"
+    if market and max(market["home"], market["away"]) >= 75:
+        return "david-vs-goliat"
+    if hp and ap and abs(hp - ap) >= 15:
+        return "david-vs-goliat"
+    if any(f["w"] >= 4 for f in forms.values()):
+        return "en-racha"
+    if hp and ap:
+        bottom = (fmt.teams or 20) - 3 if fmt and fmt.teams else 17
+        low = 24 if fmt and fmt.kind == "fase-de-liga" else bottom
+        if hp > low and ap > low:
+            return "necesitados"
+    return None
+
+
+def kickoff_local(iso: str | None) -> str | None:
+    if not iso:
+        return None
+    try:
+        when = datetime.fromisoformat(iso.replace("Z", "+00:00")).astimezone(timezone(timedelta(hours=-5)))
+    except ValueError:
+        return None
+    return when.strftime("%H:%M")
+
+
 def build_preview(summary: dict, league: str) -> dict | None:
     parts = _teams(summary)
     if not parts:
@@ -213,7 +300,7 @@ def build_preview(summary: dict, league: str) -> dict | None:
     if not facts:
         return None
     fmt = format_for(league)
-    return {
+    out_base = {
         "id": f"preview:{comp.get('id')}", "kind": "preview", "league": league, "leagueName": LEAGUE_NAMES.get(league, league),
         "matchId": str(comp.get("id")), "kickoff": comp.get("date"), "state": "pre",
         "headline": f"Antesala: {hn} vs {an}", "facts": facts,
@@ -221,6 +308,10 @@ def build_preview(summary: dict, league: str) -> dict | None:
         "market": market, "h2h": h2h, "standings": _neighbors(rows, {hid, aid}),
         "format": fmt.summary if fmt else None,
     }
+    out = {**out_base, "phase": "previa", "kickoffLocal": kickoff_local(comp.get("date")), "favorite": favorite_of(market),
+           "keyPlayers": key_players(summary, hid)}
+    out["story"] = story_of(league, out["home"], out["away"], forms, market)
+    return out
 
 
 def build_impact(summary: dict, league: str) -> dict | None:
@@ -245,6 +336,7 @@ def build_impact(summary: dict, league: str) -> dict | None:
         "headline": f"{verdict}: así queda la tabla", "facts": facts,
         "home": _team_out(home, None, rows), "away": _team_out(away, None, rows),
         "market": None, "h2h": [], "standings": _neighbors(rows, {hid, aid}), "format": None,
+        "phase": "final", "kickoffLocal": kickoff_local(comp.get("date")), "favorite": favorite_of(None), "keyPlayers": [], "story": None,
     }
 
 
