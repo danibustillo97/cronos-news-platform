@@ -9,6 +9,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { Loader2, Newspaper, Search, User, X } from 'lucide-react'
 import { supabase } from '@/lib/supabaseClient'
+import { filterCurrentNews, newsQueryFloor } from '@/lib/newsFreshness'
 import { usePlayerSearch } from '@/lib/usePlayers'
 import { proxiedImage } from '@/lib/media'
 import { POPULAR_PLAYERS } from '@/lib/players'
@@ -27,11 +28,11 @@ function useNewsSearch(query: string) {
     setLoading(true)
     const timer = window.setTimeout(() => {
       const safe = q.replace(/[%_,()]/g, ' ')
-      supabase.from('news').select('id,title,slug,published_at,category').eq('status', 'published')
+      supabase.from('news').select('id,title,slug,published_at,category').eq('status', 'published').gte('published_at', newsQueryFloor())
         .ilike('title', `%${safe}%`).order('published_at', { ascending: false }).limit(6)
         .then(({ data, error }) => {
           if (cancelled) return
-          setHits(error ? [] : ((data ?? []) as NewsHit[]))
+          setHits(error ? [] : filterCurrentNews((data ?? []) as NewsHit[]))
           setLoading(false)
         })
     }, 250)
