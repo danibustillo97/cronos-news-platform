@@ -6,12 +6,12 @@
 // aparece un creativo real y, si a los 3,5 s no hay ninguno, se retira.
 
 import { useEffect, useRef, useState } from 'react'
-import AdSlot from '@/components/ads/AdSlot'
+import AdSlot, { type AdPosition } from '@/components/ads/AdSlot'
 
 const SETTLE_MS = 3_500
 type State = 'pending' | 'shown' | 'empty'
 
-export default function FeedAd({ position = 'HOME_FEED' }: { position?: 'HOME_TOP' | 'HOME_FEED' }) {
+export default function FeedAd({ position = 'HOME_FEED' }: { position?: AdPosition }) {
   const ref = useRef<HTMLElement>(null)
   const [state, setState] = useState<State>('pending')
 

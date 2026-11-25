@@ -15,6 +15,8 @@ export interface PickMatch {
     doubleChance: { home?: number; away?: number }
   }
   provider: string
+  /** "hoy" | "mañana" | día de la semana (lo decide el backend). */
+  day: string
 }
 export interface ParlayPick { matchId: string; label: string; match: string; leagueName: string; date: string; odds: number; probability: number; reason: string; market: string }
 export interface Parlay { name: string; description: string; odds: number; probability: number; picks: ParlayPick[] }
@@ -52,6 +54,7 @@ export function normalizePicks(raw: unknown): PicksData | null {
         doubleChance: { ...(odd(dc.home) ? { home: odd(dc.home)! } : {}), ...(odd(dc.away) ? { away: odd(dc.away)! } : {}) },
       },
       provider: str(m.provider, 40) || 'proveedor',
+      day: str(m.day, 20).toLowerCase(),
     }
   }).filter((m) => m.id)
   const parlays: Parlay[] = (Array.isArray(raw.parlays) ? raw.parlays : []).filter(isRecord).map((p) => ({
@@ -102,4 +105,40 @@ export function formChips(form: string): { letter: 'G' | 'E' | 'P'; label: strin
 const FORBIDDEN = /\b(apuesta segura|fijo|fija|garantizad[oa]s?|segur[oa] gana|no falla)\b/i
 export function safeText(text: string): string {
   return FORBIDDEN.test(text) ? '' : text
+}
+
+/** Agrupa partidos por día en el orden de llegada ("Hoy", "Mañana", …). */
+export function groupByDay(matches: PickMatch[]): { day: string; label: string; matches: PickMatch[] }[] {
+  const groups: { day: string; label: string; matches: PickMatch[] }[] = []
+  for (const m of matches) {
+    const day = m.day || 'próximos'
+    let g = groups.find((x) => x.day === day)
+    if (!g) { g = { day, label: day.charAt(0).toUpperCase() + day.slice(1), matches: [] }; groups.push(g) }
+    g.matches.push(m)
+  }
+  const rank = (d: string) => (d === 'hoy' ? 0 : d === 'mañana' ? 1 : 2)
+  return groups.sort((a, b) => rank(a.day) - rank(b.day))
+}
+
+export interface MatchSelection { pick: 'home' | 'draw' | 'away' | 'over' | 'under'; market: '1X2' | 'Goles'; label: string; short: string; odds: number; probability: number }
+
+/** Selecciones posibles de un partido con su probabilidad implícita sin margen. */
+export function selectionsForMatch(m: PickMatch): MatchSelection[] {
+  const out: MatchSelection[] = []
+  const x = m.odds.x12
+  if (x) {
+    const imp = impliedX12(x)
+    out.push({ pick: 'home', market: '1X2', label: `Gana ${m.home.name}`, short: 'Local', odds: x.home, probability: imp.home / 100 })
+    out.push({ pick: 'draw', market: '1X2', label: 'Empate', short: 'Empate', odds: x.draw, probability: imp.draw / 100 })
+    out.push({ pick: 'away', market: '1X2', label: `Gana ${m.away.name}`, short: 'Visitante', odds: x.away, probability: imp.away / 100 })
+  }
+  const ou = m.odds.overUnder
+  if (ou) {
+    const po = 1 / ou.over
+    const pu = 1 / ou.under
+    const line = String(ou.line).replace('.', ',')
+    out.push({ pick: 'over', market: 'Goles', label: `Más de ${line} goles`, short: `Más de ${line}`, odds: ou.over, probability: po / (po + pu) })
+    out.push({ pick: 'under', market: 'Goles', label: `Menos de ${line} goles`, short: `Menos de ${line}`, odds: ou.under, probability: pu / (po + pu) })
+  }
+  return out
 }

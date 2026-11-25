@@ -7,8 +7,9 @@
 // recortados igual, números tabulares, franjas de zona reales + leyenda,
 // el líder resaltado y el rótulo del grupo cuando la tabla es corta.
 
+import { useState } from 'react'
 import { usePortalTheme } from '@/context/ThemeContext'
-import { formatGoalDiff, noteLabelEs, safeNoteColor, sortStandings, standingsLegend, tableGroupLabel, type StandingsRowData } from '@/lib/standings'
+import { formatGoalDiff, noteLabelEs, safeNoteColor, sortStandings, standingsLegend, tableGroupLabel, type StandingsGroup, type StandingsRowData } from '@/lib/standings'
 import { TeamCrest } from '@/components/portal/Crest'
 
 export type StandingsRow = StandingsRowData
@@ -17,11 +18,13 @@ const th = 'px-1.5 py-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text
 const td = 'h-11 border-t border-[var(--nx-line)] px-1.5 text-right text-[13px] tabular-nums text-[var(--nx-ink-2)] sm:px-2'
 
 export default function StandingsTable({
-  table, limit, league, showLegend = true, stickyHeader = false, onRowsClick, caption,
+  table, limit, league, showLegend = true, stickyHeader = false, onRowsClick, caption, groupName,
 }: {
   table: StandingsRowData[]
   limit?: number
   league?: string | null
+  /** Nombre real del grupo ("Cuadrangular A"); si no viene, se nombra la fase cuando la tabla es corta. */
+  groupName?: string | null
   showLegend?: boolean
   stickyHeader?: boolean
   /** Toda la tabla es clicable (p. ej. abre la ventana con la tabla completa). */
@@ -35,7 +38,7 @@ export default function StandingsTable({
   const sorted = sortStandings(table)
   const rows = limit ? sorted.slice(0, limit) : sorted
   const legend = showLegend ? standingsLegend(rows) : []
-  const group = tableGroupLabel(league, sorted.length)
+  const group = groupName ?? tableGroupLabel(league, sorted.length)
   const stick = stickyHeader ? 'sticky top-0 z-10 bg-[var(--nx-surface)]' : ''
   const headers: [string, string, string][] = [
     ['PJ', 'Partidos jugados', ''],
@@ -105,6 +108,42 @@ export default function StandingsTable({
           ))}
         </ul>
       )}
+    </div>
+  )
+}
+
+/**
+ * Varios grupos (cuadrangulares, fase de grupos): pestañas con el nombre de
+ * cada grupo y la misma tabla. Con un solo grupo es igual a StandingsTable.
+ */
+export function StandingsGroups({
+  groups, league, limit, stickyHeader, onRowsClick, showLegend,
+}: {
+  groups: StandingsGroup[]
+  league?: string | null
+  limit?: number
+  stickyHeader?: boolean
+  onRowsClick?: () => void
+  showLegend?: boolean
+}) {
+  const [active, setActive] = useState(0)
+  if (groups.length === 0) return null
+  const g = groups[Math.min(active, groups.length - 1)]
+  if (groups.length === 1) {
+    return <StandingsTable table={g.table} groupName={g.name} league={league} limit={limit} stickyHeader={stickyHeader} onRowsClick={onRowsClick} showLegend={showLegend} />
+  }
+  return (
+    <div className="min-w-0">
+      <div role="tablist" aria-label="Grupos" className="nx-snap-x mb-2 flex gap-1.5 overflow-x-auto">
+        {groups.map((x, i) => (
+          <button key={x.name ?? i} type="button" role="tab" aria-selected={i === active} onClick={(e) => { e.stopPropagation(); setActive(i) }}
+            className={`inline-flex min-h-[36px] shrink-0 items-center rounded-full px-3 text-[12px] font-bold transition-colors ${i === active ? 'bg-[var(--nx-ink)] text-[var(--nx-bg)]' : 'border border-[var(--nx-line)] text-[var(--nx-ink-2)]'}`}>
+            {x.name ?? `Grupo ${i + 1}`}
+          </button>
+        ))}
+      </div>
+      {/* Con pestañas, el nombre del grupo ya está arriba: sin rótulo genérico. */}
+      <StandingsTable table={g.table} groupName="" league={null} limit={limit} stickyHeader={stickyHeader} onRowsClick={onRowsClick} showLegend={showLegend} caption={g.name ?? undefined} />
     </div>
   )
 }

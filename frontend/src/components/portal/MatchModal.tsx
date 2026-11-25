@@ -20,6 +20,7 @@ import { usePortalTheme } from '@/context/ThemeContext'
 import { LeagueBadge, TeamCrest } from './Crest'
 import { PlayerAvatar } from './PlayerBits'
 import { FormChips } from './FeedExtras'
+import PlacementAd from './PlacementAd'
 
 type Tab = 'resumen' | 'stats' | 'lineups' | 'relato'
 const TABS: { id: Tab; label: string }[] = [
@@ -340,6 +341,7 @@ function MatchModal({ request, onClose }: { request: OpenMatchDetail | null; onC
                 : tab === 'stats' ? <Stats detail={detail} />
                 : tab === 'lineups' ? <Lineups detail={detail} />
                 : <Relato detail={detail} />}
+              <PlacementAd placement="match-modal" className="mt-6" />
             </div>
           </motion.div>
         </motion.div>

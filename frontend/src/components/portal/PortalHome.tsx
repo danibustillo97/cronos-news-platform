@@ -36,6 +36,7 @@ import StageSkeleton from './StageSkeleton'
 import { RadioMiniPlayer, RadioProvider, StageRadio, type RadioStation } from './Radio'
 import ReelsFeed from './ReelsFeed'
 import PwaClient from './PwaClient'
+import PlacementAd from './PlacementAd'
 import { PollBlock } from './PollCard'
 import { usePolls } from '@/lib/usePolls'
 import { inPlacement, sortPolls, type Poll } from '@/lib/polls'
@@ -149,6 +150,8 @@ export default function PortalHome({ initialNews, initialLayout }: { initialNews
             <section id="portal-stage" aria-label="Portada" className={`nx-section nx-snap-item min-w-0 ${shell} pt-4 lg:pt-6`}>
               {renderStage()}
             </section>
+
+            <div className={`${shell} mt-6 empty:hidden`}><PlacementAd placement="home-top" /></div>
 
             {featuredPoll && (
               <section aria-label={featuredPoll.kind === 'debate' ? 'El debate del día' : 'La pregunta del día'} className={`nx-snap-item ${shell} mt-8`}>

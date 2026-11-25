@@ -15,7 +15,7 @@ import { LEAGUE_LABELS } from '@/lib/leagueLogos'
 import { FOOTBALL_LEAGUES } from '@/lib/sportsLeagues'
 import { usePortalTheme } from '@/context/ThemeContext'
 import { LeagueBadge } from './Crest'
-import StandingsTable from '@/components/news/StandingsTable'
+import { StandingsGroups } from '@/components/news/StandingsTable'
 
 const ORDER = ['col.1', 'conmebol.libertadores', 'conmebol.sudamericana', 'uefa.champions', 'esp.1', 'eng.1', 'ita.1', 'ger.1']
 const LEAGUES = [...ORDER.filter((id) => FOOTBALL_LEAGUES.some((l) => l.id === id)), ...FOOTBALL_LEAGUES.map((l) => l.id).filter((id) => !ORDER.includes(id))]
@@ -32,7 +32,7 @@ export default function TableModal({ open, initialLeague, onClose }: { open: boo
   useEffect(() => { setMounted(true) }, [])
   const startY = useRef<number | null>(null)
   const closeRef = useRef<HTMLButtonElement>(null)
-  const { table, loading } = useStandings(open ? league : null)
+  const { table, groups, format, loading } = useStandings(open ? league : null)
   const label = LEAGUES.find((l) => l.id === league)?.label ?? league
 
   useEffect(() => { if (open) setLeague(initialLeague) }, [open, initialLeague])
@@ -110,8 +110,15 @@ export default function TableModal({ open, initialLeague, onClose }: { open: boo
               ) : table.length === 0 ? (
                 <p className="px-6 py-14 text-center text-sm text-[var(--nx-muted)]">La tabla de {label} no está disponible ahora (fase de eliminación o entre temporadas).</p>
               ) : (
-                <div className="px-2 pb-2 sm:px-3">
-                  <StandingsTable table={table} league={league} stickyHeader caption={`Tabla de posiciones de ${label}`} />
+                <div className="space-y-3 px-2 pb-3 sm:px-3">
+                  <StandingsGroups groups={groups} league={league} stickyHeader />
+                  {format && (
+                    <section aria-label="¿Cómo se juega?" className="rounded-xl bg-[var(--nx-surface-2)] p-3">
+                      <h3 className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--nx-muted)]">¿Cómo se juega?</h3>
+                      <p className="mt-1 text-[13px] leading-relaxed text-[var(--nx-ink-2)]">{format.summary}</p>
+                      {format.stages.length > 0 && <p className="mt-1.5 text-[12px] text-[var(--nx-muted)]">{format.stages.join(' → ')}</p>}
+                    </section>
+                  )}
                 </div>
               )}
             </div>

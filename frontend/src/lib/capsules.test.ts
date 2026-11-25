@@ -58,3 +58,14 @@ describe('capsule slides (imagen y texto juntos)', () => {
     expect(slideReady({ image: 'u', loaded: false, waitedMs: 1500 })).toBe(true)
   })
 })
+
+describe('capsuleSlideMs', () => {
+  it('times slides by text length within 3.5-6.5 s; cover 3 s', async () => {
+    const { capsuleSlideMs } = await import('./capsules')
+    expect(capsuleSlideMs('x', true)).toBe(3000)
+    expect(capsuleSlideMs('corto', false)).toBe(3500)
+    expect(capsuleSlideMs('a'.repeat(72), false)).toBe(5200)
+    expect(capsuleSlideMs('a'.repeat(400), false)).toBe(6500)
+    expect(capsuleSlideMs(null, false)).toBe(3500)
+  })
+})

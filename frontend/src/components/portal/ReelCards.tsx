@@ -24,7 +24,7 @@ import { PollBlock } from './PollCard'
 import { Skeleton } from './PortalBits'
 import FeedAd from './FeedAd'
 import TableModal from './TableModal'
-import StandingsTable from '@/components/news/StandingsTable'
+import { StandingsGroups } from '@/components/news/StandingsTable'
 
 export const reelLi = 'nx-snap-item w-full min-w-0 max-w-full'
 
@@ -70,7 +70,7 @@ export function NewsReel({ story, onOpen, eager = false }: { story: NewsView; on
 }
 
 export function TableReel({ league, dark }: { league: string; dark: boolean }) {
-  const { table, leagueName, loading } = useStandings(league)
+  const { table, groups, leagueName, loading } = useStandings(league)
   const [open, setOpen] = useState(false)
   const close = useCallback(() => setOpen(false), [])
   const label = LEAGUE_LABELS[league] ?? leagueName ?? league
@@ -90,7 +90,7 @@ export function TableReel({ league, dark }: { league: string; dark: boolean }) {
           </h3>
         }
         body={loading ? <Skeleton className="h-[264px]" /> : (
-          <StandingsTable table={table} limit={6} league={league} showLegend={false} onRowsClick={() => setOpen(true)} caption={`Primeros puestos de ${label}`} />
+          <StandingsGroups groups={groups} limit={6} league={league} showLegend={false} onRowsClick={() => setOpen(true)} />
         )}
         meta={!loading && table.length > rows.length ? `${table.length} equipos · Fuente: ESPN` : 'Fuente: ESPN'}
         share={{ url: href, title: `Tabla de ${label}` }}

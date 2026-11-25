@@ -19,6 +19,16 @@ import { proxiedImage } from '@/lib/media'
 import RelatedNews from './RelatedNews'
 import ArticlePolls from '@/components/portal/ArticlePolls'
 import SocialActions from '@/components/portal/SocialActions'
+import PlacementAd from '@/components/portal/PlacementAd'
+
+/** Posición justo después del n-ésimo </p> (o -1 si hay menos párrafos). */
+function nthParagraphEnd(html: string, n: number): number {
+  const re = /<\/p>/gi
+  let m: RegExpExecArray | null
+  let count = 0
+  while ((m = re.exec(html))) { count += 1; if (count === n) return m.index + m[0].length }
+  return -1
+}
 import AdSlot from '@/components/ads/AdSlot'
 import DOMPurify from 'isomorphic-dompurify'
 import parse from 'html-react-parser'
@@ -266,7 +276,19 @@ export default function ArticleContent({
           <div className="article-content max-w-none
             [&>p:first-of-type]:first-letter:text-7xl [&>p:first-of-type]:first-letter:font-black [&>p:first-of-type]:first-letter:text-yellow-400 [&>p:first-of-type]:first-letter:mr-4 [&>p:first-of-type]:first-letter:float-left [&>p:first-of-type]:first-letter:leading-[0.8]
           ">
-            {parse(safeArticleContent || `<p>${news.excerpt || 'Sin contenido disponible.'}</p>`)}
+            {(() => {
+              // Ubicación "article-inline": después del tercer párrafo.
+              const html = safeArticleContent || `<p>${news.excerpt || 'Sin contenido disponible.'}</p>`
+              const at = nthParagraphEnd(html, 3)
+              if (at < 0) return parse(html)
+              return (
+                <>
+                  {parse(html.slice(0, at))}
+                  <div className="not-prose my-8 empty:hidden"><PlacementAd placement="article-inline" /></div>
+                  {parse(html.slice(at))}
+                </>
+              )
+            })()}
           </div>
 
           <section id="comentarios" aria-label="Reacciones y comentarios" className="nx-portal my-8 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-neutral-200 px-4 py-3" data-theme="light" style={{ background: 'transparent' }}>
@@ -276,7 +298,7 @@ export default function ArticleContent({
 
           <ArticlePolls newsId={news.id} />
 
-          <AdSlot position="ARTICLE_END" className="my-10" />
+          <div className="my-10 empty:hidden"><PlacementAd placement="article-bottom" legacy="ARTICLE_END" /></div>
 
           <RelatedNews currentNewsId={news.id} category={news.category} onNewsClick={onRelatedClick} />
         </div>

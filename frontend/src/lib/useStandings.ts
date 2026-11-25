@@ -5,9 +5,10 @@
 
 import { useEffect, useState } from 'react'
 import { apiUrl } from '@/studio/lab/api-client'
-import { sortStandings, type StandingsRowData } from '@/lib/standings'
+import { normalizeStandingsResponse, type CompetitionFormat, type StandingsGroup, type StandingsRowData } from '@/lib/standings'
 
-interface StandingsResult { leagueName: string; table: StandingsRowData[] }
+/** `table` = primer grupo (compatibilidad); `groups` = todos los grupos ("Cuadrangular A", "Fase de liga"…). */
+interface StandingsResult { leagueName: string; table: StandingsRowData[]; groups: StandingsGroup[]; format: CompetitionFormat | null }
 
 const TTL_MS = 5 * 60_000
 const cache = new Map<string, { at: number; promise: Promise<StandingsResult> }>()
@@ -17,13 +18,13 @@ export function fetchStandings(league: string): Promise<StandingsResult> {
   if (hit && Date.now() - hit.at < TTL_MS) return hit.promise
   const promise = fetch(apiUrl(`/api/sports/standings?league=${encodeURIComponent(league)}`))
     .then((res) => (res.ok ? res.json() : { table: [] }))
-    .then((data: { leagueName?: string; table?: StandingsRowData[] }) => ({
-      leagueName: data.leagueName ?? '',
-      table: sortStandings(Array.isArray(data.table) ? data.table : []),
-    }))
+    .then((data: unknown) => {
+      const n = normalizeStandingsResponse(data)
+      return { leagueName: n.leagueName, table: n.groups[0]?.table ?? [], groups: n.groups, format: n.format }
+    })
     .catch(() => {
       cache.delete(league)
-      return { leagueName: '', table: [] }
+      return { leagueName: '', table: [], groups: [], format: null }
     })
   cache.set(league, { at: Date.now(), promise })
   return promise
@@ -40,7 +41,13 @@ export function useStandings(league: string | null) {
   }, [league])
 
   const current = state.league === league ? state.data : null
-  return { table: current?.table ?? [], leagueName: current?.leagueName ?? '', loading: Boolean(league) && current === null }
+  return {
+    table: current?.table ?? [],
+    groups: current?.groups ?? [],
+    format: current?.format ?? null,
+    leagueName: current?.leagueName ?? '',
+    loading: Boolean(league) && current === null,
+  }
 }
 
 /** Varias ligas a la vez (para los datos automáticos). Devuelve solo las que ya cargaron. */

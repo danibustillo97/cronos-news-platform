@@ -7,12 +7,11 @@
 //   "+18" y "Juega con responsabilidad". Sin enlaces a casas de apuestas.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
+import Image, { getImageProps } from 'next/image'
 import { CalendarDays, ChevronLeft, ChevronRight, Crown, Flame, Lightbulb, Pause, Play, Ticket } from 'lucide-react'
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
-import { CAPSULE_ACCENT, CAPSULE_LABEL, SLIDE_IMAGE_MAX_WAIT_MS, capsuleDateLabel, capsuleImages, capsuleOgUrl, capsuleSlideImage, slideReady, type Capsule } from '@/lib/capsules'
+import { CAPSULE_ACCENT, CAPSULE_LABEL, SLIDE_IMAGE_MAX_WAIT_MS, capsuleSlideMs, capsuleDateLabel, capsuleImages, capsuleOgUrl, capsuleSlideImage, slideReady, type Capsule } from '@/lib/capsules'
 import { formChips, formatOdds, formatProbability, safeText, type PicksData } from '@/lib/picks'
-import { slideDurationMs } from '@/lib/reels'
 import { monogram } from '@/lib/leagueLogos'
 import { imageSource } from '@/lib/media'
 import { kickoffLabel } from '@/lib/feedComposer'
@@ -21,6 +20,9 @@ import { TeamCrest } from './Crest'
 
 // ---------------------------------------------------------------- cápsulas
 
+// Las fotos de Supabase pasan por el optimizador (WebP de ~100-200 KB en vez de PNG de 3 MB).
+const SIZES = '(max-width: 640px) 100vw, 600px'
+
 const KIND_ICON = {
   efemeride: CalendarDays,
   sabias_que: Lightbulb,
@@ -28,12 +30,16 @@ const KIND_ICON = {
   momento: Flame,
 } as const
 
-export function CapsuleCard({ capsule }: { capsule: Capsule }) {
+/**
+ * `preview`: vista previa del editor del admin (cápsula aún sin guardar,
+ * id "preview"): sin reacciones/comentarios, compartir ni guardar, y sin
+ * llamadas de red sociales.
+ */
+export function CapsuleCard({ capsule, preview = false }: { capsule: Capsule; preview?: boolean }) {
   const reduce = useReducedMotion() ?? false
   const accent = CAPSULE_ACCENT[capsule.kind]
   const Icon = KIND_ICON[capsule.kind]
   const total = capsule.slides.length + 1 // portada + diapositivas
-  const duration = slideDurationMs(total)
   const [index, setIndex] = useState(0)
   const [visible, setVisible] = useState(false)
   const [hold, setHold] = useState(false)
@@ -63,9 +69,13 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
     for (const url of capsuleImages(capsule)) {
       const src = imageSource(url)?.src
       if (!src) continue
+      // Precarga la MISMA variante optimizada que elegirá <Image> (srcset + sizes).
+      const { props } = getImageProps({ src, alt: '', fill: true, sizes: SIZES })
       const img = new window.Image()
       img.decoding = 'async'
-      img.src = src
+      if (props.sizes) img.sizes = props.sizes
+      if (props.srcSet) img.srcset = props.srcSet
+      img.src = props.src
       const done = () => setLoaded((prev) => (prev.has(url) ? prev : new Set(prev).add(url)))
       ;(img.decode ? img.decode() : Promise.reject()).then(done, () => { img.onload = done; if (img.complete && img.naturalWidth) done() })
     }
@@ -120,7 +130,7 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
           <AnimatePresence initial={false}>
             {bg && (
               <motion.div key={bg} className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: index === 0 ? 0.6 : 0.35 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.35 }}>
-                <Image src={bg} alt="" fill sizes="(max-width: 640px) 100vw, 600px" unoptimized={bgSource?.direct} className="object-cover" />
+                <Image src={bg} alt="" fill sizes={SIZES} className="object-cover" />
               </motion.div>
             )}
           </AnimatePresence>
@@ -132,7 +142,7 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
               <span key={i} className="h-[3px] flex-1 overflow-hidden rounded-full bg-white/25">
                 {i < index && <span className="block h-full w-full bg-white" />}
                 {i === index && (auto ? (
-                  <span key={`${index}-run`} className="block h-full w-full origin-left bg-white" style={{ animation: `nx-progress ${duration}ms linear forwards`, animationPlayState: paused ? 'paused' : 'running' }} onAnimationEnd={() => { if (!last) next() }} />
+                  <span key={`${index}-run`} className="block h-full w-full origin-left bg-white" style={{ animation: `nx-progress ${capsuleSlideMs(slide?.text, index === 0)}ms linear forwards`, animationPlayState: paused ? 'paused' : 'running' }} onAnimationEnd={() => { if (!last) next() }} />
                 ) : <span className="block h-full w-full bg-white" />)}
               </span>
             ))}
@@ -185,10 +195,10 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
       }
       title={<h3 id={titleId} className={reelTitle}>{capsule.title}</h3>}
       meta={[capsule.subject && capsule.subject !== capsule.title ? capsule.subject : null, dateLabel].filter(Boolean).join(' · ') || undefined}
-      share={{ url: capsuleOgUrl(capsule, 1), title: capsule.title }}
-      saveId={`cap-${capsule.id}`}
-      social={{ type: 'capsule', id: capsule.id }}
-      more={capsule.kind === 'leyenda' ? { href: '/leyendas', label: 'Más leyendas' } : undefined}
+      share={preview ? undefined : { url: capsuleOgUrl(capsule, 1), title: capsule.title }}
+      saveId={preview ? undefined : `cap-${capsule.id}`}
+      social={preview ? undefined : { type: 'capsule', id: capsule.id }}
+      more={!preview && capsule.kind === 'leyenda' ? { href: '/leyendas', label: 'Más leyendas' } : undefined}
     />
   )
 }

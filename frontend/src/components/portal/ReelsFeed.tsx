@@ -13,6 +13,11 @@ import { Loader2, RefreshCw } from 'lucide-react'
 import LiveStrip from './LiveStrip'
 import MomentCard from './MomentCard'
 import { useMoments } from '@/lib/useMoments'
+import { useInsightsFeed } from '@/lib/useInsightsFeed'
+import { mergeDynamic } from '@/lib/insightsFeed'
+import { InsightCard } from './InsightCards'
+import PlacementAd from './PlacementAd'
+import { FEED_AD_AFTER } from '@/lib/adSlots'
 import { composeReels, interleavePolls, autoFacts, TABLE_ROTATION } from '@/lib/reels'
 import { useManyStandings } from '@/lib/useStandings'
 import { LEAGUE_LABELS } from '@/lib/leagueLogos'
@@ -20,7 +25,7 @@ import type { Poll } from '@/lib/polls'
 import type { NewsView } from '@/types/news'
 import type { Match } from '@/types/sports'
 import BriefReel from './BriefReel'
-import { AdReel, FactReel, LiveMini, MatchReel, NewsReel, PollReel, TableReel, reelLi } from './ReelCards'
+import { FactReel, LiveMini, MatchReel, NewsReel, PollReel, TableReel, reelLi } from './ReelCards'
 import { useNow } from './useNow'
 import { CapsuleCard, PicksCard } from './FeedExtras'
 import { useCapsules } from '@/lib/useCapsules'
@@ -54,13 +59,17 @@ export default function ReelsFeed({
       matchSlots: 3,
       capsuleSlots: 3,
       picks: true,
-      momentSlots: 6,
+      momentSlots: 8,
     })
-    return interleavePolls(base, polls.length)
+    // La publicidad del feed ahora va en ubicaciones con nombre (feed-1/2/3), no en el compositor.
+    return interleavePolls(base, polls.length).filter((i) => i.type !== 'ad')
   }, [stories, stageStories, polls])
   const { capsules } = useCapsules('limit=12')
   const { data: picks } = usePicks()
   const moments = useMoments()
+  const insights = useInsightsFeed()
+  // Lugares dinámicos: alterna lo que pasó (momentos) con lo que viene (antesalas).
+  const dynamic = useMemo(() => mergeDynamic(moments.items, insights), [moments.items, insights])
   // Lo que se juega ahora vive en la franja fija "Se juega ahora"; las tarjetas de partidos muestran el resto.
   const notLive = useMemo(() => matches.filter((m) => m.status !== 'live'), [matches])
 
@@ -101,6 +110,41 @@ export default function ReelsFeed({
   }
 
   let newsSeen = 0
+  const renderItem = (item: (typeof items)[number]) => {
+    switch (item.type) {
+
+              case 'news':
+                newsSeen += 1
+                return <li key={item.key} className={reelLi}><NewsReel story={item.story} onOpen={onOpen} eager={newsSeen === 1} /></li>
+              case 'brief':
+                return <li key={item.key} className={reelLi}><BriefReel story={item.story} onOpen={onOpen} /></li>
+              case 'table':
+                return <TableReel key={item.key} league={item.league} dark={dark} />
+              case 'match':
+                return <MatchReel key={item.key} matches={notLive} slot={item.slot} now={now} />
+              case 'moment': {
+                const dyn = dynamic[item.slot]
+                if (!dyn) return null
+                return (
+                  <li key={`${item.key}-${dyn.key}`} className={reelLi}>
+                    {dyn.type === 'moment' ? <MomentCard item={dyn.item} fresh={moments.fresh} /> : <InsightCard insight={dyn.insight} />}
+                  </li>
+                )
+              }
+              case 'poll':
+                return <PollReel key={item.key} poll={polls[item.slot]} />
+              case 'fact':
+                return <FactReel key={item.key} fact={facts[item.slot]} dark={dark} />
+              case 'capsule': {
+                const cap = capsules[item.slot]
+                return cap ? <li key={item.key} className={reelLi}><CapsuleCard capsule={cap} /></li> : null
+              }
+              case 'picks':
+                return <PicksCard key={item.key} data={picks} />
+              default:
+                return null
+            }
+  }
 
   return (
     <div className="grid w-full min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,640px)_minmax(0,1fr)]">
@@ -122,36 +166,11 @@ export default function ReelsFeed({
         <LiveStrip matches={matches} />
 
         <ol className="nx-reels flex w-full min-w-0 flex-col gap-5" aria-labelledby="feed-heading">
-          {items.map((item) => {
-            switch (item.type) {
-              case 'news':
-                newsSeen += 1
-                return <li key={item.key} className={reelLi}><NewsReel story={item.story} onOpen={onOpen} eager={newsSeen === 1} /></li>
-              case 'brief':
-                return <li key={item.key} className={reelLi}><BriefReel story={item.story} onOpen={onOpen} /></li>
-              case 'table':
-                return <TableReel key={item.key} league={item.league} dark={dark} />
-              case 'match':
-                return <MatchReel key={item.key} matches={notLive} slot={item.slot} now={now} />
-              case 'moment': {
-                const mo = moments.items[item.slot]
-                return mo ? <li key={`${item.key}-${mo.key}`} className={reelLi}><MomentCard item={mo} fresh={moments.fresh} /></li> : null
-              }
-              case 'poll':
-                return <PollReel key={item.key} poll={polls[item.slot]} />
-              case 'fact':
-                return <FactReel key={item.key} fact={facts[item.slot]} dark={dark} />
-              case 'capsule': {
-                const cap = capsules[item.slot]
-                return cap ? <li key={item.key} className={reelLi}><CapsuleCard capsule={cap} /></li> : null
-              }
-              case 'picks':
-                return <PicksCard key={item.key} data={picks} />
-              case 'ad':
-                return <AdReel key={item.key} position={item.position} />
-              default:
-                return null
-            }
+          {items.map((item, index) => {
+            const adAfter = (Object.entries(FEED_AD_AFTER) as ['feed-1' | 'feed-2' | 'feed-3', number][]).find(([, n]) => n === index)
+            const ad = adAfter ? <li key={`ad-${adAfter[0]}`} className={`${reelLi} empty:hidden`}><PlacementAd placement={adAfter[0]} legacy={adAfter[0] === 'feed-1' ? 'HOME_TOP' : 'HOME_FEED'} /></li> : null
+            const node = renderItem(item)
+            return ad ? [ad, node] : node
           })}
           {loadingMore && (
             <li className="flex justify-center py-6" aria-label="Cargando más">
@@ -188,7 +207,8 @@ export default function ReelsFeed({
         </div>
       </div>
       <div className="hidden xl:block">
-        <div className="sticky" style={{ top: 'calc(var(--nx-header-h) + 16px)' }}>
+        <div className="sticky flex flex-col gap-4" style={{ top: 'calc(var(--nx-header-h) + 16px)' }}>
+          <PlacementAd placement="sidebar" />
           <LiveMini matches={matches} />
         </div>
       </div>

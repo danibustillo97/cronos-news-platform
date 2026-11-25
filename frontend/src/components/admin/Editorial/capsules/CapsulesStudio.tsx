@@ -14,9 +14,11 @@ import {
 import { toast } from "sonner";
 import { apiFetch } from "@/studio/lab/api-client";
 import { supabase } from "@/lib/supabaseClient";
+import { compressImage } from "@/lib/compressImage";
 import { getTikTokAccount, uploadToTikTok } from "@/components/admin/SocialMedia/services/tiktok";
 import { KIND_LABEL, buildCapsulePrompt, parseCapsuleAnswer, tiktokCaption, type CapsuleKind, type CapsuleProposal, type ResearchMaterial } from "./capsulePrompt";
 import { downloadBlob, renderCapsuleVideo, slideImageUrl, slugify, type CapsuleRender } from "./reelVideo";
+import { CapsuleCard } from "@/components/portal/FeedExtras";
 
 interface Capsule extends CapsuleRender {
   id: string;
@@ -141,8 +143,9 @@ export default function CapsulesStudio() {
     await load();
   };
 
-  const uploadImage = async (index: number, file: File) => {
+  const uploadImage = async (index: number, original: File) => {
     try {
+      const file = await compressImage(original);
       const response = await apiFetch("/api/admin/capsules/upload-url", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ filename: file.name, contentType: file.type }),
       });
@@ -198,7 +201,7 @@ export default function CapsulesStudio() {
                 <button key={c.id} type="button" onClick={() => open(c)} aria-current={draft.id === c.id ? "true" : undefined}
                   className={`group relative w-[118px] flex-shrink-0 snap-start overflow-hidden rounded-xl border text-left ${draft.id === c.id ? "border-yellow-400/80" : "border-white/[0.08] hover:border-white/25"}`}>
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={slideImageUrl(c, 0)} alt="" loading="lazy" className="aspect-[9/16] w-full bg-[#111] object-cover" />
+                  <Thumb c={c} />
                   <span className={`absolute left-1.5 top-1.5 rounded-full px-1.5 py-px text-[9.5px] font-bold ${c.status === "published" ? "bg-emerald-400 text-black" : "bg-black/70 text-neutral-300"}`}>
                     {c.status === "published" ? "En el feed" : "Borrador"}
                   </span>
@@ -313,16 +316,46 @@ export default function CapsulesStudio() {
 }
 
 function Preview({ draft, slide, onSlide }: { draft: Draft; slide: number; onSlide: (i: number) => void }) {
+  // "Portal" = the exact card readers get (instant, no server render).
+  // "TikTok" = the 1080x1920 render, only requested when this tab is open.
+  const [mode, setMode] = useState<"portal" | "tiktok">("portal");
   const ready = draft.title.trim().length >= 3 && draft.slides.length > 0;
   const index = Math.min(slide, Math.max(0, draft.slides.length - 1));
   const [url, setUrl] = useState("");
   useEffect(() => { // debounce: re-render the slide 600 ms after the last keystroke
-    if (!ready) { setUrl(""); return; }
+    if (!ready || mode !== "tiktok") { setUrl(""); return; }
     const t = setTimeout(() => setUrl(slideImageUrl(draft, index)), 600);
     return () => clearTimeout(t);
-  }, [draft, index, ready]);
+  }, [draft, index, ready, mode]);
+  const tabs = (
+    <div className="mb-2 flex rounded-lg bg-black/40 p-0.5 text-[11px]">
+      {([["portal", "Así se ve en el portal"], ["tiktok", "Versión TikTok 9:16"]] as const).map(([id, label]) => (
+        <button key={id} type="button" onClick={() => setMode(id)}
+          className={`flex-1 rounded-md px-2 py-1.5 ${mode === id ? "bg-white/10 font-semibold text-white" : "text-neutral-500 hover:text-neutral-200"}`}>{label}</button>
+      ))}
+    </div>
+  );
+  if (mode === "portal") {
+    return (
+      <div>
+        {tabs}
+        {ready ? (
+          <div className="mx-auto max-w-[340px]">
+            <CapsuleCard preview capsule={{
+              id: "preview", kind: draft.kind, title: draft.title.trim(), subject: draft.subject.trim() || null, year: draft.year,
+              date: draft.day || null, tags: draft.tags, createdAt: new Date().toISOString(),
+              slides: draft.slides.filter((s) => s.text.trim()).map((s) => ({ text: s.text.trim(), image: s.image })),
+            }} />
+          </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-white/10 p-6 text-center text-[12px] text-neutral-500">Escribe el título y las diapositivas para verla como la verán tus lectores.</p>
+        )}
+      </div>
+    );
+  }
   return (
     <div>
+      {tabs}
       <div className="relative mx-auto aspect-[9/16] w-full max-w-[300px] overflow-hidden rounded-[22px] border border-white/10 bg-[#0d0d0d] shadow-2xl">
         {url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -583,7 +616,7 @@ function CapsuleGenerator({ onUse, onClose, onSavedMany }: { onUse: (p: CapsuleP
             {proposals.map((p, i) => (
               <li key={`${p.title}-${i}`} className="flex flex-col overflow-hidden rounded-lg border border-white/10 bg-[#111]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={slideImageUrl(p, 0)} alt="" loading="lazy" className="aspect-[9/16] max-h-56 w-full object-cover object-bottom" />
+                <Thumb c={p} short />
                 <div className="flex flex-1 flex-col p-2.5">
                   <p className="text-[12px] font-semibold leading-snug text-white">{p.title}</p>
                   <p className="mt-1 text-[10.5px] text-neutral-500">{p.slides.length} diapositivas{p.sources ? ` · ${p.sources}` : " · sin fuentes"}</p>
@@ -594,6 +627,24 @@ function CapsuleGenerator({ onUse, onClose, onSavedMany }: { onUse: (p: CapsuleP
           </ul>
         </>
       )}
+    </div>
+  );
+}
+
+const THUMB_TONE: Record<CapsuleKind, string> = { efemeride: "#facc15", sabias_que: "#38bdf8", leyenda: "#eab308", momento: "#f97316" };
+
+/** Light thumbnail: the first slide photo (small) or a typographic tile. Never the 1080x1920 render. */
+function Thumb({ c, short = false }: { c: CapsuleRender; short?: boolean }) {
+  const image = c.slides.find((s) => s.image)?.image ?? null;
+  return (
+    <div className={`relative w-full overflow-hidden bg-[#111] ${short ? "aspect-[4/5] max-h-56" : "aspect-[9/16]"}`}
+      style={{ backgroundImage: `radial-gradient(120% 70% at 20% 0%, ${THUMB_TONE[c.kind]}40 0%, #0d0d0d 65%)` }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {image && <img src={image} alt="" loading="lazy" decoding="async" className="absolute inset-0 h-full w-full object-cover opacity-60" />}
+      <div className="absolute inset-x-2 bottom-2">
+        <span className="text-[9px] font-bold uppercase tracking-widest" style={{ color: THUMB_TONE[c.kind] }}>{KIND_LABEL[c.kind]}{c.year ? ` · ${c.year}` : ""}</span>
+        <p className="mt-0.5 line-clamp-3 text-[11px] font-bold leading-tight text-white">{c.title}</p>
+      </div>
     </div>
   );
 }
