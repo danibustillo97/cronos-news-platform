@@ -42,6 +42,11 @@ export default function PortalHeader({ matches, onHeight }: { matches: Match[]; 
     return () => { window.removeEventListener('scroll', onScroll); cancelAnimationFrame(frame) }
   }, [])
 
+  // Desplazamiento real de la cabecera (0 cuando está escondida): lo usan elementos fijos debajo.
+  useEffect(() => {
+    document.documentElement.style.setProperty('--nx-header-offset', `${hidden ? 0 : height}px`)
+  }, [hidden, height])
+
   return (
     <div
       ref={ref}

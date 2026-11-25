@@ -9,12 +9,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import { CalendarDays, ChevronLeft, ChevronRight, Crown, Flame, Lightbulb, Pause, Play, Ticket } from 'lucide-react'
-import { useReducedMotion } from 'framer-motion'
-import { CAPSULE_ACCENT, CAPSULE_LABEL, capsuleDateLabel, capsuleOgUrl, type Capsule } from '@/lib/capsules'
+import { AnimatePresence, motion, useReducedMotion } from 'framer-motion'
+import { CAPSULE_ACCENT, CAPSULE_LABEL, SLIDE_IMAGE_MAX_WAIT_MS, capsuleDateLabel, capsuleImages, capsuleOgUrl, capsuleSlideImage, slideReady, type Capsule } from '@/lib/capsules'
 import { formChips, formatOdds, formatProbability, safeText, type PicksData } from '@/lib/picks'
 import { slideDurationMs } from '@/lib/reels'
 import { monogram } from '@/lib/leagueLogos'
-import { proxiedImage } from '@/lib/media'
+import { imageSource } from '@/lib/media'
 import { kickoffLabel } from '@/lib/feedComposer'
 import ReelFrame, { reelTitle } from './ReelFrame'
 import { TeamCrest } from './Crest'
@@ -41,6 +41,11 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
   const ref = useRef<HTMLDivElement>(null)
   const titleId = `cap-${capsule.id}`
   const dateLabel = capsuleDateLabel(capsule, new Date())
+  // Imágenes ya decodificadas (precargadas al hacerse visible la tarjeta).
+  const [loaded, setLoaded] = useState<Set<string>>(() => new Set())
+  const [waited, setWaited] = useState(false)
+  // Capa visible: se queda la anterior hasta que la nueva esté lista (sin parpadeo).
+  const [shown, setShown] = useState<string | null>(null)
 
   useEffect(() => {
     const el = ref.current
@@ -50,13 +55,46 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
     return () => io.disconnect()
   }, [])
 
+  // Precarga de TODAS las diapositivas en cuanto la tarjeta se ve.
+  const preloaded = useRef(false)
+  useEffect(() => {
+    if (!visible || preloaded.current) return
+    preloaded.current = true
+    for (const url of capsuleImages(capsule)) {
+      const src = imageSource(url)?.src
+      if (!src) continue
+      const img = new window.Image()
+      img.decoding = 'async'
+      img.src = src
+      const done = () => setLoaded((prev) => (prev.has(url) ? prev : new Set(prev).add(url)))
+      ;(img.decode ? img.decode() : Promise.reject()).then(done, () => { img.onload = done; if (img.complete && img.naturalWidth) done() })
+    }
+  }, [visible, capsule])
+
+  const slideImg = capsuleSlideImage(capsule, index)
+  const imgLoaded = slideImg ? loaded.has(slideImg) : false
+  // Máximo 1,5 s esperando la foto de esta diapositiva; luego sigue con fondo tipográfico.
+  useEffect(() => {
+    setWaited(false)
+    if (!slideImg) return
+    const t = window.setTimeout(() => setWaited(true), SLIDE_IMAGE_MAX_WAIT_MS)
+    return () => window.clearTimeout(t)
+  }, [index, slideImg])
+  useEffect(() => {
+    if (!slideImg) setShown(null)
+    else if (imgLoaded) setShown(slideImg)
+    else if (waited) setShown(null)
+  }, [slideImg, imgLoaded, waited])
+
+  const ready = slideReady({ image: slideImg, loaded: imgLoaded, waitedMs: waited ? SLIDE_IMAGE_MAX_WAIT_MS : 0 })
   const auto = !reduce && total > 1
-  const paused = !auto || !visible || hold || userPaused
+  const paused = !auto || !visible || hold || userPaused || !ready
   const last = index >= total - 1
   const next = useCallback(() => setIndex((i) => Math.min(total - 1, i + 1)), [total])
   const prev = useCallback(() => setIndex((i) => Math.max(0, i - 1)), [])
   const slide = index > 0 ? capsule.slides[index - 1] : null
-  const bg = proxiedImage(slide?.image ?? capsule.slides.find((s) => s.image)?.image ?? null)
+  const bgSource = imageSource(shown)
+  const bg = bgSource?.src ?? null
   const name = capsule.subject ?? capsule.title
 
   return (
@@ -79,7 +117,13 @@ export function CapsuleCard({ capsule }: { capsule: Capsule }) {
           onPointerUp={() => setHold(false)}
           onPointerCancel={() => setHold(false)}
         >
-          {bg && <Image src={bg} alt="" fill sizes="(max-width: 640px) 100vw, 600px" className={`object-cover ${index === 0 ? 'opacity-55' : 'opacity-30'}`} />}
+          <AnimatePresence initial={false}>
+            {bg && (
+              <motion.div key={bg} className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: index === 0 ? 0.6 : 0.35 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.35 }}>
+                <Image src={bg} alt="" fill sizes="(max-width: 640px) 100vw, 600px" unoptimized={bgSource?.direct} className="object-cover" />
+              </motion.div>
+            )}
+          </AnimatePresence>
           {bg && <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/85" />}
           {capsule.kind === 'leyenda' && <div aria-hidden className="absolute inset-0 shadow-[inset_0_0_0_2px_rgba(212,175,55,0.4)]" />}
 

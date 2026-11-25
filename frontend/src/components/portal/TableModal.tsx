@@ -13,22 +13,15 @@ import { ArrowUpRight, X } from 'lucide-react'
 import { useStandings } from '@/lib/useStandings'
 import { LEAGUE_LABELS } from '@/lib/leagueLogos'
 import { FOOTBALL_LEAGUES } from '@/lib/sportsLeagues'
-import { formatGoalDiff, safeNoteColor, standingsLegend } from '@/lib/standings'
 import { usePortalTheme } from '@/context/ThemeContext'
-import { LeagueBadge, TeamCrest } from './Crest'
+import { LeagueBadge } from './Crest'
+import StandingsTable from '@/components/news/StandingsTable'
 
 const ORDER = ['col.1', 'conmebol.libertadores', 'conmebol.sudamericana', 'uefa.champions', 'esp.1', 'eng.1', 'ita.1', 'ger.1']
 const LEAGUES = [...ORDER.filter((id) => FOOTBALL_LEAGUES.some((l) => l.id === id)), ...FOOTBALL_LEAGUES.map((l) => l.id).filter((id) => !ORDER.includes(id))]
   .map((id) => ({ id, label: LEAGUE_LABELS[id] ?? FOOTBALL_LEAGUES.find((l) => l.id === id)?.label ?? id }))
 
-const NOTE_ES: Record<string, string> = {
-  'Champions League qualifiers': 'Previa de Champions', 'Conference League qualifiers': 'Previa de Conference',
-  Relegation: 'Descenso', 'Relegation playoff': 'Repechaje de descenso', Promotion: 'Ascenso', 'Next round': 'Siguiente fase',
-  'Knockout round playoffs': 'Playoffs', 'Round of 16': 'Octavos de final', Quarterfinals: 'Cuartos de final', Playoffs: 'Cuadrangulares',
-}
 
-const th = 'sticky top-0 z-10 bg-[var(--nx-surface)] px-2 py-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--nx-muted)]'
-const td = 'border-t border-[var(--nx-line)] px-2 py-2 text-right text-[13px] tabular-nums text-[var(--nx-ink-2)]'
 
 export default function TableModal({ open, initialLeague, onClose }: { open: boolean; initialLeague: string; onClose: () => void }) {
   const { theme } = usePortalTheme()
@@ -41,7 +34,6 @@ export default function TableModal({ open, initialLeague, onClose }: { open: boo
   const closeRef = useRef<HTMLButtonElement>(null)
   const { table, loading } = useStandings(open ? league : null)
   const label = LEAGUES.find((l) => l.id === league)?.label ?? league
-  const legend = standingsLegend(table)
 
   useEffect(() => { if (open) setLeague(initialLeague) }, [open, initialLeague])
   useEffect(() => {
@@ -118,53 +110,14 @@ export default function TableModal({ open, initialLeague, onClose }: { open: boo
               ) : table.length === 0 ? (
                 <p className="px-6 py-14 text-center text-sm text-[var(--nx-muted)]">La tabla de {label} no está disponible ahora (fase de eliminación o entre temporadas).</p>
               ) : (
-                <table className="w-full min-w-[560px] border-separate border-spacing-0">
-                  <caption className="sr-only">Tabla de posiciones de {label}</caption>
-                  <thead>
-                    <tr>
-                      <th scope="col" className={`${th} left-0 z-20 w-10 text-center`}>#</th>
-                      <th scope="col" className={`${th} left-10 z-20 min-w-[150px] text-left`}>Equipo</th>
-                      {[['PJ', 'Partidos jugados'], ['G', 'Ganados'], ['E', 'Empatados'], ['P', 'Perdidos'], ['GF', 'Goles a favor'], ['GC', 'Goles en contra'], ['DG', 'Diferencia de gol'], ['PTS', 'Puntos']].map(([a, t]) => (
-                        <th key={a} scope="col" className={`${th} text-right ${a === 'PTS' ? 'pr-4' : ''}`}><abbr title={t} className="no-underline">{a}</abbr></th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {table.map((r) => {
-                      const zone = safeNoteColor(r.noteColor)
-                      return (
-                        <tr key={`${r.rank}-${r.team}`} title={r.noteDescription ? NOTE_ES[r.noteDescription] ?? r.noteDescription : undefined}>
-                          <td className="sticky left-0 border-t border-[var(--nx-line)] bg-[var(--nx-surface)] py-2 text-center text-[13px] font-bold tabular-nums text-[var(--nx-ink-2)]">
-                            {zone && <span aria-hidden className="absolute inset-y-1.5 left-0 w-1 rounded-r-full" style={{ background: zone }} />}
-                            {r.rank}
-                          </td>
-                          <th scope="row" className="sticky left-10 border-t border-[var(--nx-line)] bg-[var(--nx-surface)] py-2 pr-2 text-left font-normal">
-                            <span className="flex min-w-0 items-center gap-2.5"><TeamCrest src={r.logo} name={r.team} size={22} /><span className="truncate text-[13px] font-semibold text-[var(--nx-ink)]">{r.team}</span></span>
-                          </th>
-                          <td className={td}>{r.played}</td>
-                          <td className={td}>{r.won}</td>
-                          <td className={td}>{r.drawn}</td>
-                          <td className={td}>{r.lost}</td>
-                          <td className={td}>{r.goalsFor ?? '—'}</td>
-                          <td className={td}>{r.goalsAgainst ?? '—'}</td>
-                          <td className={td}>{formatGoalDiff(r.goalDifference)}</td>
-                          <td className={`${td} pr-4 font-bold text-[var(--nx-ink)]`}>{r.points}</td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
+                <div className="px-2 pb-2 sm:px-3">
+                  <StandingsTable table={table} league={league} stickyHeader caption={`Tabla de posiciones de ${label}`} />
+                </div>
               )}
             </div>
 
             <footer className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-t border-[var(--nx-line)] px-4 py-2.5 pb-[calc(env(safe-area-inset-bottom,0px)+10px)]">
-              {legend.length > 0 ? (
-                <ul className="flex flex-wrap gap-x-3 gap-y-1">
-                  {legend.map((e) => (
-                    <li key={`${e.color}-${e.label}`} className="flex items-center gap-1.5 text-[11px] font-semibold text-[var(--nx-muted)]"><span aria-hidden className="h-2.5 w-2.5 rounded-full" style={{ background: e.color }} />{NOTE_ES[e.label] ?? e.label}</li>
-                  ))}
-                </ul>
-              ) : <span className="text-[11px] text-[var(--nx-muted)]">Fuente: ESPN</span>}
+              <span className="text-[11px] text-[var(--nx-muted)]">Fuente: ESPN</span>
               <Link href={`/deportes/futbol/tabla?league=${league}`} className="inline-flex min-h-[40px] items-center gap-1 text-xs font-semibold text-[var(--nx-accent-text)] hover:underline">Abrir en Deportes <ArrowUpRight size={13} aria-hidden="true" /></Link>
             </footer>
           </motion.div>

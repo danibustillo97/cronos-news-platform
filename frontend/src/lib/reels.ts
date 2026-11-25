@@ -24,6 +24,7 @@ export type ReelItem<S extends FeedStory = FeedStory> =
   | { type: 'fact'; key: string; slot: number }
   | { type: 'capsule'; key: string; slot: number }
   | { type: 'picks'; key: string }
+  | { type: 'moment'; key: string; slot: number }
   | { type: 'ad'; key: string; position: 'HOME_TOP' | 'HOME_FEED' }
 
 export type ReelType = ReelItem['type']
@@ -44,6 +45,8 @@ export interface ReelsInput<S extends FeedStory> {
   capsuleSlots?: number
   /** Una tarjeta "Parley del día" (como mucho una vez cada ~10 ítems). */
   picks?: boolean
+  /** Momentos de partido (goles, finales): uno arriba y luego como mucho uno cada 3 noticias. */
+  momentSlots?: number
   /** Una tabla cada N ítems (6-8). */
   tableEvery?: number
   adEvery?: number
@@ -137,6 +140,35 @@ export function composeReels<S extends FeedStory>(input: ReelsInput<S>): ReelIte
     break
   }
 
+  // Momentos: el primero arriba del todo (lo más reciente), luego tras cada 3.ª noticia
+  // siempre que lo siguiente sea otra noticia (nunca dos bloques que no son noticia juntos).
+  const momentCap = input.momentSlots ?? 0
+  if (momentCap > 0) {
+    let slot = 0
+    const withMoments: ReelItem<S>[] = [{ type: 'moment', key: 'moment-0', slot: slot++ }]
+    let news = 0
+    let pending = false
+    out.forEach((item, i) => {
+      withMoments.push(item)
+      if (item.type === 'news') { news += 1; if (news % 3 === 0) pending = true }
+      const next = out[i + 1]
+      if (pending && slot < momentCap && item.type === 'news' && (!next || next.type === 'news')) {
+        withMoments.push({ type: 'moment', key: `moment-${slot}`, slot: slot++ })
+        pending = false
+      }
+    })
+    // Feed corto: el resto de momentos se reparte en la cola de relleno, espaciados (nunca dos juntos).
+    if (input.stories.length < 8 && slot < momentCap) {
+      const lastNews = withMoments.map((it) => it.type).lastIndexOf('news')
+      for (let i = Math.max(lastNews + 2, 2); i < withMoments.length && slot < momentCap; i += 3) {
+        if (withMoments[i - 1]?.type === 'moment' || withMoments[i]?.type === 'moment') continue
+        withMoments.splice(i, 0, { type: 'moment', key: `moment-${slot}`, slot: slot++ })
+      }
+    }
+    out.length = 0
+    out.push(...withMoments)
+  }
+
   // Parley del día: una sola vez, después de una noticia a partir del ~8.º ítem.
   if (input.picks && out.length > 0) {
     let at = out.findIndex((it, i) => i >= 7 && it.type === 'news' && out[i + 1]?.type !== 'picks')
@@ -153,7 +185,7 @@ export function composeReels<S extends FeedStory>(input: ReelsInput<S>): ReelIte
   out.forEach((item, i) => {
     withAds.push(item)
     const nextType = out[i + 1]?.type
-    if (i + 1 >= nextAdAt && (item.type === 'news' || i === out.length - 1 || !out.some((o, j) => j > i && o.type === 'news')) && nextType !== 'ad') {
+    if (i + 1 >= nextAdAt && (item.type === 'news' || i === out.length - 1 || !out.some((o, j) => j > i && o.type === 'news')) && nextType !== 'ad' && nextType !== 'moment') {
       withAds.push({ type: 'ad', key: `ad-${adCount}`, position: adCount === 0 ? 'HOME_TOP' : 'HOME_FEED' })
       adCount += 1
       nextAdAt = i + 1 + adEvery

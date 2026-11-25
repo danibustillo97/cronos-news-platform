@@ -36,3 +36,15 @@ describe('standings helpers', () => {
     expect(formatGoalDiff(null)).toBe('—')
   })
 })
+
+describe('standings labels', () => {
+  it('names short tables (cuadrangulares / groups) and translates zone notes', async () => {
+    const { tableGroupLabel, noteLabelEs } = await import('./standings')
+    expect(tableGroupLabel('col.1', 4)).toBe('Cuadrangulares · 4 equipos')
+    expect(tableGroupLabel('uefa.champions', 4)).toBe('Fase de grupos · 4 equipos')
+    expect(tableGroupLabel('eng.1', 20)).toBeNull()
+    expect(tableGroupLabel('col.1', 0)).toBeNull()
+    expect(noteLabelEs('Relegation')).toBe('Descenso')
+    expect(noteLabelEs('Algo nuevo')).toBe('Algo nuevo')
+  })
+})

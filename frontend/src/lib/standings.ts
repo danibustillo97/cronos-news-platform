@@ -61,3 +61,36 @@ export function formatGoalDiff(value: string | null | undefined): string {
   if (!Number.isFinite(n)) return value
   return n > 0 ? `+${n}` : String(n)
 }
+
+// Traducción de las notas de zona más comunes de ESPN.
+const NOTE_ES: Record<string, string> = {
+  'Champions League': 'Champions League',
+  'Champions League qualifiers': 'Previa de Champions',
+  'Europa League': 'Europa League',
+  'Conference League': 'Conference League',
+  'Conference League qualifiers': 'Previa de Conference',
+  Relegation: 'Descenso',
+  'Relegation playoff': 'Repechaje de descenso',
+  Promotion: 'Ascenso',
+  'Copa Libertadores': 'Copa Libertadores',
+  'Copa Sudamericana': 'Copa Sudamericana',
+  'Next round': 'Siguiente fase',
+  'Knockout round playoffs': 'Playoffs',
+  'Round of 16': 'Octavos de final',
+  Quarterfinals: 'Cuartos de final',
+  Playoffs: 'Cuadrangulares',
+}
+
+export function noteLabelEs(note: string): string {
+  return NOTE_ES[note.trim()] ?? note.trim()
+}
+
+/**
+ * Rótulo de grupo cuando la tabla es corta (fase de grupos o
+ * cuadrangulares). ESPN no manda el nombre del grupo: se nombra la fase.
+ */
+export function tableGroupLabel(league: string | null | undefined, rows: number): string | null {
+  if (rows === 0 || rows >= 8) return null
+  if (league === 'col.1') return `Cuadrangulares · ${rows} equipos`
+  return `Fase de grupos · ${rows} equipos`
+}

@@ -12,19 +12,19 @@ import { proxiedImage } from '@/lib/media'
 import { estimateReadMinutes } from '@/lib/readTime'
 import { useStandings } from '@/lib/useStandings'
 import { LEAGUE_LABELS } from '@/lib/leagueLogos'
-import { formatGoalDiff } from '@/lib/standings'
 import { matchesForSlot, type AutoFact } from '@/lib/reels'
 import type { Poll } from '@/lib/polls'
 import type { NewsView } from '@/types/news'
 import type { Match } from '@/types/sports'
 import ReelFrame, { reelTitle } from './ReelFrame'
 import { StoryLink } from './StoryLink'
-import { LeagueBadge, TeamCrest } from './Crest'
+import { LeagueBadge } from './Crest'
 import { MatchLine } from './MatchCard'
 import { PollBlock } from './PollCard'
 import { Skeleton } from './PortalBits'
 import FeedAd from './FeedAd'
 import TableModal from './TableModal'
+import StandingsTable from '@/components/news/StandingsTable'
 
 export const reelLi = 'nx-snap-item w-full min-w-0 max-w-full'
 
@@ -90,37 +90,7 @@ export function TableReel({ league, dark }: { league: string; dark: boolean }) {
           </h3>
         }
         body={loading ? <Skeleton className="h-[264px]" /> : (
-          <table className="w-full cursor-pointer border-separate border-spacing-0 text-[13px]" onClick={() => setOpen(true)}>
-            <caption className="sr-only">Primeros puestos de {label}</caption>
-            <thead>
-              <tr className="text-[10px] font-bold uppercase tracking-[0.12em] text-[var(--nx-muted)]">
-                <th scope="col" className="w-7 pb-2 text-left">#</th>
-                <th scope="col" className="pb-2 text-left">Equipo</th>
-                <th scope="col" className="w-10 pb-2 text-right"><abbr title="Partidos jugados" className="no-underline">PJ</abbr></th>
-                <th scope="col" className="w-10 pb-2 text-right"><abbr title="Diferencia de gol" className="no-underline">DG</abbr></th>
-                <th scope="col" className="w-10 pb-2 text-right"><abbr title="Puntos" className="no-underline">PTS</abbr></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((r) => (
-                <tr key={`${r.rank}-${r.team}`}>
-                  <td className="relative h-11 border-t border-[var(--nx-line)] font-bold tabular-nums text-[var(--nx-muted)]">
-                    {r.noteColor && /^#[0-9a-f]{3,6}$/i.test(r.noteColor) && <span aria-hidden className="absolute inset-y-2.5 -left-4 w-1 rounded-r-full" style={{ background: r.noteColor }} />}
-                    {r.rank}
-                  </td>
-                  <th scope="row" className="border-t border-[var(--nx-line)] text-left font-normal">
-                    <span className="flex min-w-0 items-center gap-2.5">
-                      <TeamCrest src={r.logo} name={r.team} size={22} />
-                      <span className="truncate font-semibold text-[var(--nx-ink)]">{r.team}</span>
-                    </span>
-                  </th>
-                  <td className="border-t border-[var(--nx-line)] text-right tabular-nums text-[var(--nx-ink-2)]">{r.played}</td>
-                  <td className="border-t border-[var(--nx-line)] text-right tabular-nums text-[var(--nx-ink-2)]">{formatGoalDiff(r.goalDifference)}</td>
-                  <td className="border-t border-[var(--nx-line)] text-right font-bold tabular-nums text-[var(--nx-ink)]">{r.points}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <StandingsTable table={table} limit={6} league={league} showLegend={false} onRowsClick={() => setOpen(true)} caption={`Primeros puestos de ${label}`} />
         )}
         meta={!loading && table.length > rows.length ? `${table.length} equipos · Fuente: ESPN` : 'Fuente: ESPN'}
         share={{ url: href, title: `Tabla de ${label}` }}
