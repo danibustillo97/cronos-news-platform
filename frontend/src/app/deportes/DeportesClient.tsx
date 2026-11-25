@@ -44,7 +44,7 @@ function EmptyState({ isDark, label }: { isDark: boolean; label: string }) {
   )
 }
 
-function DeportesContent({ seoIntro }: { seoIntro: ReactNode }) {
+function DeportesContent() {
   const { theme } = usePortalTheme()
   const isDark = theme === 'dark'
   const router = useRouter()
@@ -90,18 +90,14 @@ function DeportesContent({ seoIntro }: { seoIntro: ReactNode }) {
 
   return (
     <div className={`min-h-screen transition-colors duration-200 ${isDark ? 'bg-[#0B0B0B] text-white' : 'bg-[#F7F7F5] text-[#161616]'}`}>
-      <ModernNavbar />
-
-      <div className="max-w-7xl mx-auto px-4 pt-8">
-        <div className="mb-6">
-          {seoIntro}
-          {live.length > 0 && (
+      <div className="max-w-7xl mx-auto px-4 pt-4">
+        {live.length > 0 && (
+          <div className="mb-2">
             <span className="inline-flex items-center gap-1.5 bg-[#FACC15] text-black text-[10px] font-bold uppercase tracking-[0.1em] px-2 py-1 rounded-sm">
               <Radio size={11} /> {live.length} en vivo
             </span>
-          )}
-        </div>
-
+          </div>
+        )}
         <div className="flex items-center gap-2 mb-2 overflow-x-auto scrollbar-hide">
           <Link
             href="/deportes/futbol"
@@ -216,9 +212,18 @@ function DeportesContent({ seoIntro }: { seoIntro: ReactNode }) {
 }
 
 export default function DeportesPage({ seoIntro }: { seoIntro: ReactNode }) {
+  const { theme } = usePortalTheme()
+  const isDark = theme === 'dark'
+
   return (
-    <Suspense fallback={null}>
-      <DeportesContent seoIntro={seoIntro} />
-    </Suspense>
+    <div className={`min-h-screen transition-colors duration-200 ${isDark ? 'bg-[#0B0B0B] text-white' : 'bg-[#F7F7F5] text-[#161616]'}`}>
+      <ModernNavbar />
+      <div className="max-w-7xl mx-auto px-4 pt-8 pb-2 text-[var(--nx-ink)]">
+        {seoIntro}
+      </div>
+      <Suspense fallback={null}>
+        <DeportesContent />
+      </Suspense>
+    </div>
   )
 }

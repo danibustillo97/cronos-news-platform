@@ -41,7 +41,7 @@ function EmptyState({ isDark, label }: { isDark: boolean; label: string }) {
   )
 }
 
-function FutbolContent({ seoIntro }: { seoIntro: ReactNode }) {
+function FutbolContent() {
   const { theme } = usePortalTheme()
   const isDark = theme === 'dark'
   const router = useRouter()
@@ -94,12 +94,8 @@ function FutbolContent({ seoIntro }: { seoIntro: ReactNode }) {
 
   return (
     <div className={`min-h-screen transition-colors duration-200 ${isDark ? 'bg-[#0B0B0B] text-white' : 'bg-[#F7F7F5] text-[#161616]'}`}>
-      <ModernNavbar />
-
-      <div className="max-w-7xl mx-auto px-4 pt-8">
+      <div className="max-w-7xl mx-auto px-4 pt-4">
         <Link href="/deportes" className={`text-xs font-bold ${isDark ? 'text-neutral-400' : 'text-[#666]'} hover:text-[#FACC15]`}>← Deportes</Link>
-        {seoIntro}
-
         <div className="flex gap-1 mb-2 overflow-x-auto scrollbar-hide">
           {FOOTBALL_LEAGUES.map((l) => (
             <button
@@ -178,9 +174,18 @@ function FutbolContent({ seoIntro }: { seoIntro: ReactNode }) {
 }
 
 export default function FutbolPage({ seoIntro }: { seoIntro: ReactNode }) {
+  const { theme } = usePortalTheme()
+  const isDark = theme === 'dark'
+
   return (
-    <Suspense fallback={null}>
-      <FutbolContent seoIntro={seoIntro} />
-    </Suspense>
+    <div className={`min-h-screen transition-colors duration-200 ${isDark ? 'bg-[#0B0B0B] text-white' : 'bg-[#F7F7F5] text-[#161616]'}`}>
+      <ModernNavbar />
+      <div className="max-w-7xl mx-auto px-4 pt-8 pb-2 text-[var(--nx-ink)]">
+        {seoIntro}
+      </div>
+      <Suspense fallback={null}>
+        <FutbolContent />
+      </Suspense>
+    </div>
   )
 }

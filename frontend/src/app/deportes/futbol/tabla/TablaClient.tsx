@@ -17,7 +17,7 @@ import { apiUrl } from '@/studio/lab/api-client'
 import { usePortalTheme } from '@/context/ThemeContext'
 import { FOOTBALL_LEAGUES, DEFAULT_LEAGUE } from '@/lib/sportsLeagues'
 
-function TablaContent({ seoIntro }: { seoIntro: ReactNode }) {
+function TablaContent() {
   const { theme } = usePortalTheme()
   const isDark = theme === 'dark'
   const router = useRouter()
@@ -48,11 +48,8 @@ function TablaContent({ seoIntro }: { seoIntro: ReactNode }) {
 
   return (
     <div className={`min-h-screen transition-colors duration-200 ${isDark ? 'bg-[#0B0B0B] text-white' : 'bg-[#F7F7F5] text-[#161616]'}`}>
-      <ModernNavbar />
-
-      <main className="max-w-3xl mx-auto px-4 pt-8 pb-16">
+      <main className="max-w-3xl mx-auto px-4 pt-4 pb-16">
         <Link href="/deportes/futbol" className={`text-xs font-bold ${isDark ? 'text-neutral-400' : 'text-[#666]'} hover:text-[#FACC15]`}>← Fútbol</Link>
-        {seoIntro}
         <h2 className="text-xl font-bold mt-4 mb-6">Competición: {leagueLabel}</h2>
 
         <div className="flex gap-1 mb-6 overflow-x-auto scrollbar-hide">
@@ -93,9 +90,18 @@ function TablaContent({ seoIntro }: { seoIntro: ReactNode }) {
 }
 
 export default function TablaPage({ seoIntro }: { seoIntro: ReactNode }) {
+  const { theme } = usePortalTheme()
+  const isDark = theme === 'dark'
+
   return (
-    <Suspense fallback={null}>
-      <TablaContent seoIntro={seoIntro} />
-    </Suspense>
+    <div className={`min-h-screen transition-colors duration-200 ${isDark ? 'bg-[#0B0B0B] text-white' : 'bg-[#F7F7F5] text-[#161616]'}`}>
+      <ModernNavbar />
+      <div className="max-w-3xl mx-auto px-4 pt-8 pb-2 text-[var(--nx-ink)]">
+        {seoIntro}
+      </div>
+      <Suspense fallback={null}>
+        <TablaContent />
+      </Suspense>
+    </div>
   )
 }
