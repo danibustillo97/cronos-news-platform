@@ -1,22 +1,21 @@
 'use client'
 
-// Historias publicadas para el home -- mismo camino de siempre (Supabase
-// en el navegador, tabla `news`, status='published', por recencia), con
-// paginación real para el feed infinito, refresco periódico de lo nuevo
-// (para el riel "Ahora") y carga aparte de las fijadas que no estén en la
-// primera página.
+// Historias actuales para el home. La vigencia editorial termina a las
+// 06:00 de Bogotá del día siguiente; el artículo permanente no se elimina.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '@/lib/supabaseClient'
 import { missingPinned } from '@/lib/portalLayout'
+import { filterCurrentNews, newsQueryFloor } from '@/lib/newsFreshness'
 import type { PortalLayout } from '@/types/portal'
 import type { NewsView } from '@/types/news'
 
-const PAGE_SIZE = 24 // = HOME_PAGE_SIZE (lib/homeData.ts)
+const PAGE_SIZE = 24
 const REFRESH_MS = 90_000
 
 function baseQuery() {
-  return supabase.from('news').select('*').eq('status', 'published').order('published_at', { ascending: false })
+  return supabase.from('news').select('*').eq('status', 'published')
+    .gte('published_at', newsQueryFloor()).order('published_at', { ascending: false })
 }
 
 function mergeById(current: NewsView[], incoming: NewsView[]): NewsView[] {
@@ -25,7 +24,6 @@ function mergeById(current: NewsView[], incoming: NewsView[]): NewsView[] {
   return [...byId.values()]
 }
 
-/** `initial`: primera página leída en el servidor (null = falló; undefined = no se intentó). */
 export function usePortalNews(layout: PortalLayout, initial?: NewsView[] | null) {
   const seeded = Array.isArray(initial)
   const [items, setItems] = useState<NewsView[]>(() => initial ?? [])
@@ -43,17 +41,17 @@ export function usePortalNews(layout: PortalLayout, initial?: NewsView[] | null)
     if (!seededRef.current) baseQuery().range(0, PAGE_SIZE - 1).then(({ data, error }) => {
       if (cancelled) return
       if (error) { console.error('[portal] news', error); setFailed(true); setLoading(false); setHasMore(false); return }
-      const rows = (data ?? []) as NewsView[]
-      offset.current = rows.length
-      setHasMore(rows.length === PAGE_SIZE)
+      const rows = filterCurrentNews((data ?? []) as NewsView[])
+      offset.current = data?.length ?? 0
+      setHasMore((data?.length ?? 0) === PAGE_SIZE)
       setItems((prev) => mergeById(prev, rows))
       setLoading(false)
     })
 
     const id = window.setInterval(() => {
       if (document.visibilityState !== 'visible') return
-      baseQuery().range(0, 9).then(({ data, error }) => {
-        if (!cancelled && !error && data) setItems((prev) => mergeById(prev, (data as NewsView[]).map((n) => ({ ...n, content_truncated: false }))))
+      baseQuery().range(0, 99).then(({ data, error }) => {
+        if (!cancelled && !error && data) setItems((prev) => mergeById(prev, filterCurrentNews(data as NewsView[]).map((n) => ({ ...n, content_truncated: false }))))
       })
     }, REFRESH_MS)
     return () => { cancelled = true; window.clearInterval(id) }
@@ -65,7 +63,7 @@ export function usePortalNews(layout: PortalLayout, initial?: NewsView[] | null)
     if (missing.length === 0) return
     missing.forEach((id) => requestedPinned.current.add(id))
     supabase.from('news').select('*').eq('status', 'published').in('id', missing).then(({ data, error }) => {
-      if (!error && data && data.length > 0) setItems((prev) => mergeById(prev, data as NewsView[]))
+      if (!error && data && data.length > 0) setItems((prev) => mergeById(prev, filterCurrentNews(data as NewsView[])))
     })
   }, [items, layout, loading])
 
@@ -78,27 +76,27 @@ export function usePortalNews(layout: PortalLayout, initial?: NewsView[] | null)
       busy.current = false
       setLoadingMore(false)
       if (error) { setHasMore(false); return }
-      const rows = (data ?? []) as NewsView[]
+      const rows = data ?? []
       offset.current = from + rows.length
       setHasMore(rows.length === PAGE_SIZE)
-      setItems((prev) => mergeById(prev, rows))
+      setItems((prev) => mergeById(prev, filterCurrentNews(rows as NewsView[])))
     })
   }, [hasMore, loading])
 
-  /** Refresco manual ("Actualizar"): trae lo último publicado. Devuelve cuántas historias nuevas hay. */
   const refresh = useCallback(async (): Promise<number> => {
-    const { data, error } = await baseQuery().range(0, 9)
+    const { data, error } = await baseQuery().range(0, 99)
     if (error || !data) return 0
+    const rows = filterCurrentNews(data as NewsView[])
     let added = 0
     setItems((prev) => {
-      const have = new Set(prev.map((n) => n.id))
-      added = (data as NewsView[]).filter((n) => !have.has(n.id)).length
-      return mergeById(prev, (data as NewsView[]).map((n) => ({ ...n, content_truncated: false })))
+      const current = filterCurrentNews(prev)
+      const have = new Set(current.map((n) => n.id))
+      added = rows.filter((n) => !have.has(n.id)).length
+      return mergeById(current, rows.map((n) => ({ ...n, content_truncated: false })))
     })
     return added
   }, [])
 
-  /** Para el modal: si la historia vino recortada del servidor, trae el cuerpo completo. */
   const fullStory = useCallback(async (item: NewsView): Promise<NewsView> => {
     if (!item.content_truncated) return item
     const { data, error } = await supabase.from('news').select('*').eq('id', item.id).maybeSingle()
@@ -108,5 +106,7 @@ export function usePortalNews(layout: PortalLayout, initial?: NewsView[] | null)
     return full
   }, [])
 
-  return { items, loading, loadingMore, hasMore, failed, loadMore, fullStory, refresh }
+  // Derived filtering also removes a story at the exact cutoff, without
+  // waiting for the next network refresh or deleting its canonical URL.
+  return { items: filterCurrentNews(items), loading, loadingMore, hasMore, failed, loadMore, fullStory, refresh }
 }
