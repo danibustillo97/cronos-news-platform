@@ -7,7 +7,19 @@ export interface DesignOutput {
   height: number;
 }
 
-export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats"];
+export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert"];
+
+/** Other matches shown at once by the "multi" panel (fed by useLiveBoard). */
+export interface MultiScore { id: string; league: string; home: string; away: string; homeScore: number | null; awayScore: number | null; status: "live" | "halftime" | "finished" | "scheduled"; detail: string }
+let multiScores: MultiScore[] = [];
+let multiVersion = 0;
+export function setMultiScores(list: MultiScore[]) {
+  const next = JSON.stringify(list);
+  if (next === JSON.stringify(multiScores)) return;
+  multiScores = list;
+  multiVersion += 1;
+}
+export const getMultiVersion = () => multiVersion;
 
 const esc = (value: string | number | undefined): string =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
@@ -259,6 +271,42 @@ function lower(p: Palette, title: string, subtitle: string): DesignOutput {
   </div>
 </div>`;
   return { html, width: 700, height: 96 };
+}
+
+function multi(p: Palette, title: string): DesignOutput {
+  const rows = multiScores.slice(0, 7);
+  const rowH = 54;
+  const height = 64 + Math.max(1, rows.length) * rowH + 12;
+  const body = rows.length ? rows.map((m) => {
+    const live = m.status === "live" || m.status === "halftime";
+    const score = m.homeScore === null ? "vs" : `${m.homeScore}-${m.awayScore}`;
+    return `<div style="display:flex;align-items:center;height:${rowH}px;padding:0 20px;border-top:1px solid ${HAIR}">
+  <div style="width:150px;font:600 12px 'Segoe UI',Arial;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.league)}</div>
+  <div style="flex:1;text-align:right;${NUM};font-size:22px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.home)}</div>
+  <div style="width:92px;text-align:center;${NUM};font-size:26px;font-weight:800;color:${live ? "#fff" : "rgba(255,255,255,.75)"}">${esc(score)}</div>
+  <div style="flex:1;${NUM};font-size:22px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.away)}</div>
+  <div style="width:84px;text-align:right;font:700 14px 'Segoe UI',Arial;color:${live ? "#ff4d4d" : "rgba(255,255,255,.55)"}">${live ? "● " : ""}${esc(m.detail)}</div>
+</div>`;
+  }).join("") : `<div style="padding:16px 20px;border-top:1px solid ${HAIR};color:rgba(255,255,255,.6);font:500 18px 'Segoe UI',Arial">Sin partidos en vivo ahora</div>`;
+  const html = `<div class="nx" style="width:860px;height:${height}px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:4px;box-shadow:0 14px 36px rgba(0,0,0,.5),inset 0 0 0 1px ${HAIR};overflow:hidden">
+  <div style="height:64px;display:flex;align-items:center;gap:12px;padding:0 20px;background:linear-gradient(90deg,${p.accent}33,transparent)">
+    <span style="width:10px;height:10px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 12px #ff3b3b"></span>
+    <span style="${NUM};font-size:24px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">${esc(title || "Resultados en vivo")}</span>
+  </div>${body}
+</div>`;
+  return { html, width: 860, height };
+}
+
+function goalAlert(p: Palette, title: string, subtitle: string): DesignOutput {
+  const html = `<div class="nx" style="width:900px;height:120px;display:flex;align-items:stretch;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:4px;box-shadow:0 16px 40px rgba(0,0,0,.55),inset 0 0 0 1px ${p.accent}88;overflow:hidden">
+  <div style="width:170px;display:grid;place-items:center;background:${p.accent};color:${onColor(p.accent)};${NUM};font-size:46px;font-weight:900;letter-spacing:.02em">¡GOL!</div>
+  <div style="flex:1;padding:16px 26px;min-width:0;display:flex;flex-direction:column;justify-content:center">
+    <div style="font:700 13px 'Segoe UI',Arial;letter-spacing:.2em;text-transform:uppercase;color:${p.accent}">En otro partido</div>
+    <div style="${NUM};font-size:32px;font-weight:800;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(title)}</div>
+    <div style="font:500 18px 'Segoe UI',Arial;color:rgba(255,255,255,.8);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(subtitle)}</div>
+  </div>
+</div>`;
+  return { html, width: 900, height: 120 };
 }
 
 function varCheck(m: FootballScoreboard, title: string, subtitle: string): DesignOutput {
@@ -528,6 +576,8 @@ function renderBase(variant: GraphicVariant, match: FootballScoreboard, title: s
     case "lineup-home": return lineup(match, p, "home");
     case "lineup-away": return lineup(match, p, "away");
     case "stats": return stats(match, p);
+    case "multi": return multi(p, title);
+    case "goal-alert": return goalAlert(p, title, subtitle);
     default: return elite(match, p);
   }
 }
@@ -545,6 +595,8 @@ export const FOOTBALL_VARIANT_LABEL: Record<string, string> = {
   "lineup-home": "Alineación local",
   "lineup-away": "Alineación visitante",
   stats: "Estadísticas",
+  multi: "Resultados en vivo (multipantalla)",
+  "goal-alert": "Alerta de gol (otros partidos)",
 };
 
 export function footballDesignDocument(design: DesignOutput, position: { x: number; y: number }, scale: number): string {

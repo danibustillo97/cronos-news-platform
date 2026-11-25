@@ -21,6 +21,7 @@ import { createRoomCode, guestUrl, hostPeerId, peerOptions } from "./guestLink";
 import { FootballConsole } from "./football/FootballConsole";
 import { gatewayEndpoint } from "./live/whip";
 import { kickPlayerUrl, portalEndLive, portalGoLive } from "./live/portalOnAir";
+import { goalAlertText, useGoalAlertsPref, useLiveBoard } from "./football/liveBoard";
 import { EXIT_MS } from "./football/motion";
 import { FootballDeck } from "./football/FootballDeck";
 import { AudioBar } from "./football/AudioBar";
@@ -866,11 +867,13 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     elite: { x: 3, y: 4 }, compact: { x: 3, y: 4 }, editorial: { x: 3, y: 4 }, live: { x: 19, y: 86 },
     goal: { x: 21.5, y: 66 }, lower: { x: 4, y: 78 }, var: { x: 3, y: 18 }, events: { x: 4, y: 82 },
     prematch: { x: 23, y: 26 }, "lineup-home": { x: 3, y: 17 }, "lineup-away": { x: 74, y: 17 }, stats: { x: 3, y: 17 },
+    multi: { x: 27.5, y: 18 }, "goal-alert": { x: 26.5, y: 74 },
   };
   const FOOTBALL_NAMES: Record<string, string> = {
     elite: "NEXUS Elite", compact: "NEXUS Compact", editorial: "NEXUS Editorial", live: "NEXUS Live", goal: "NEXUS Goal",
     lower: "NEXUS Lower Third", var: "NEXUS VAR", events: "NEXUS Match Events", prematch: "NEXUS Previa",
     "lineup-home": "Alineación local", "lineup-away": "Alineación visitante", stats: "NEXUS Estadísticas",
+    multi: "Resultados en vivo", "goal-alert": "Alerta de gol",
   };
 
   const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string; title?: string; subtitle?: string }) => {
@@ -962,6 +965,15 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   };
   const airTempRef = useRef(airTemp);
   airTempRef.current = airTemp;
+
+  // Every followed match at once: feeds "Resultados en vivo" and airs goals scored in OTHER matches.
+  const goalAlertsOn = useGoalAlertsPref();
+  const goalAlertsRef = useRef(goalAlertsOn);
+  goalAlertsRef.current = goalAlertsOn;
+  useLiveBoard(studioMode === "football", fm.fixture?.id ?? null, (goal) => {
+    if (!goalAlertsRef.current) return;
+    airTempRef.current("goal-alert", goalAlertText(goal), 8);
+  });
 
   const toggleAir = (variant: GraphicVariant) => {
     const onAir = programGraphicsSnapshot.some((item) => item.variant === variant && !item.leavingAt);

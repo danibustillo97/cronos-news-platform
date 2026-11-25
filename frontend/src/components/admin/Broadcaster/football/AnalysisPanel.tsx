@@ -12,6 +12,7 @@ import type { GraphicVariant } from "../graphicExport";
 import type { AddOptions } from "./WidgetBuilder";
 import type { FootballMatchController } from "./useFootballMatch";
 import { GOAL_TYPES, insightLowerThird, talkingPoints, type MatchDetail, type PlayerInsights } from "./analysis";
+import { useGoalAlertsPref, writeGoalAlertsPref } from "./liveBoard";
 
 const card = "rounded-xl border border-white/[0.08] bg-[#141a22] p-2.5";
 const title = "mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500";
@@ -23,6 +24,7 @@ interface Props {
 
 export function AnalysisPanel({ fm, onAddWidget }: Props) {
   const fixture = fm.fixture;
+  const goalAlerts = useGoalAlertsPref();
   const [detail, setDetail] = useState<MatchDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [insights, setInsights] = useState<Record<string, PlayerInsights | "loading" | "error">>({});
@@ -73,8 +75,27 @@ export function AnalysisPanel({ fm, onAddWidget }: Props) {
     onAddWidget("lower", { name: "Análisis", title: `${detail.home.short || detail.home.name} ${detail.home.score ?? 0}-${detail.away.score ?? 0} ${detail.away.short || detail.away.name}`, subtitle: text.length > 90 ? `${text.slice(0, 89)}…` : text });
   };
 
+  const multiCard = (
+    <div className={card}>
+      <p className={title}><Tv2 size={11} /> Multipantalla</p>
+      <button type="button" onClick={() => onAddWidget("multi", { name: "Resultados en vivo", title: "Resultados en vivo" })}
+        className="w-full rounded-lg border border-white/10 bg-white/[0.05] px-2 py-2 text-[11px] font-semibold text-neutral-100 hover:bg-white/[0.1]">
+        Añadir «Resultados en vivo» (todos los partidos, se actualiza solo)
+      </button>
+      <label className="mt-2 flex items-center justify-between gap-2 text-[11px] text-neutral-300">
+        <span>Alerta automática al aire cuando hay gol en otro partido</span>
+        <input type="checkbox" className="accent-emerald-400" checked={goalAlerts} onChange={(e) => writeGoalAlertsPref(e.target.checked)} />
+      </label>
+    </div>
+  );
+
   if (!fixture) {
-    return <p className={`${card} text-[11px] text-neutral-400`}>Elige un partido en la pestaña «Partido» y aquí aparecerán el análisis en vivo y los datos de cada goleador.</p>;
+    return (
+      <div className="space-y-2">
+        {multiCard}
+        <p className={`${card} text-[11px] text-neutral-400`}>Elige un partido en la pestaña «Partido» y aquí aparecerán el análisis en vivo y los datos de cada goleador.</p>
+      </div>
+    );
   }
 
   const goals = (detail?.events ?? []).filter((e) => GOAL_TYPES.has(e.type)).reverse();
@@ -82,6 +103,7 @@ export function AnalysisPanel({ fm, onAddWidget }: Props) {
 
   return (
     <div className="space-y-2">
+      {multiCard}
       <div className={card}>
         <p className={title}><Bot size={11} /> Piloto automático</p>
         <label className="flex items-center justify-between gap-2 text-[11px] text-neutral-300">

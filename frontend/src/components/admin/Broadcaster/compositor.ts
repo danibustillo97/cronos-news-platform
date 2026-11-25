@@ -1,7 +1,7 @@
 import type { BroadcastGraphic, BroadcastMode, FootballScoreboard, GraphicVariant } from "./graphicExport";
 import type { CropRect } from "./CropEditor";
 import { drawMotion, entryElapsed, motionFor } from "./football/motion";
-import { renderFootballDesign, type DesignOutput } from "./football/designs";
+import { getMultiVersion, renderFootballDesign, type DesignOutput } from "./football/designs";
 import { getDesignImage } from "./football/raster";
 
 // Draws Preview and Program: sources, layouts, graphics and transitions on a 1920×1080 canvas.
@@ -50,6 +50,7 @@ interface CachedDesign {
   subtitle: string;
   style: BroadcastGraphic["style"];
   design: DesignOutput;
+  multi: number;
 }
 const designCache = new Map<string, CachedDesign>();
 const MAX_CACHED_DESIGNS = 200;
@@ -64,7 +65,8 @@ export function footballDesignFor(graphic: BroadcastGraphic): DesignOutput {
   const seconds = liveFootballMatch ? liveClock() : source.clockSeconds;
   const variant = footballDefaultVariant(graphic);
   const cached = designCache.get(graphic.id);
-  if (cached && cached.source === source && cached.seconds === seconds && cached.variant === variant
+  const multi = variant === "multi" ? getMultiVersion() : 0;
+  if (cached && cached.source === source && cached.seconds === seconds && cached.variant === variant && cached.multi === multi
     && cached.title === graphic.title && cached.subtitle === graphic.subtitle && cached.style === graphic.style) {
     return cached.design;
   }
@@ -72,7 +74,7 @@ export function footballDesignFor(graphic: BroadcastGraphic): DesignOutput {
   const design = renderFootballDesign(variant, match, graphic.title, graphic.subtitle, graphic.style);
   designCache.delete(graphic.id);
   if (designCache.size >= MAX_CACHED_DESIGNS) designCache.delete(designCache.keys().next().value as string);
-  designCache.set(graphic.id, { source, seconds, variant, title: graphic.title, subtitle: graphic.subtitle, style: graphic.style, design });
+  designCache.set(graphic.id, { source, seconds, variant, multi, title: graphic.title, subtitle: graphic.subtitle, style: graphic.style, design });
   return design;
 }
 
