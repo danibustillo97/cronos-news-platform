@@ -1,5 +1,5 @@
 export type GraphicKind = "lower-third" | "scoreboard" | "ticker";
-export type GraphicVariant = "elite" | "compact" | "editorial" | "live" | "goal" | "lower" | "var" | "events" | "prematch" | "lineup-home" | "lineup-away" | "stats" | "multi" | "goal-alert";
+export type GraphicVariant = "elite" | "compact" | "editorial" | "live" | "goal" | "lower" | "var" | "events" | "prematch" | "lineup-home" | "lineup-away" | "stats" | "multi" | "goal-alert" | "poll" | "dato";
 export type BroadcastMode = "normal" | "football";
 
 export interface FootballTeamPlayer {

@@ -13,6 +13,7 @@ import type { AddOptions } from "./WidgetBuilder";
 import type { FootballMatchController } from "./useFootballMatch";
 import { GOAL_TYPES, insightLowerThird, talkingPoints, type MatchDetail, type PlayerInsights } from "./analysis";
 import { useGoalAlertsPref, writeGoalAlertsPref } from "./liveBoard";
+import { MatchBriefing, MultiPicker, PollPicker } from "./BroadcastExtras";
 
 const card = "rounded-xl border border-white/[0.08] bg-[#141a22] p-2.5";
 const title = "mb-1.5 flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-neutral-500";
@@ -86,6 +87,7 @@ export function AnalysisPanel({ fm, onAddWidget }: Props) {
         <span>Alerta automática al aire cuando hay gol en otro partido</span>
         <input type="checkbox" className="accent-emerald-400" checked={goalAlerts} onChange={(e) => writeGoalAlertsPref(e.target.checked)} />
       </label>
+      <MultiPicker />
     </div>
   );
 
@@ -93,6 +95,7 @@ export function AnalysisPanel({ fm, onAddWidget }: Props) {
     return (
       <div className="space-y-2">
         {multiCard}
+        <PollPicker fixture={null} onAddWidget={onAddWidget} />
         <p className={`${card} text-[11px] text-neutral-400`}>Elige un partido en la pestaña «Partido» y aquí aparecerán el análisis en vivo y los datos de cada goleador.</p>
       </div>
     );
@@ -104,6 +107,8 @@ export function AnalysisPanel({ fm, onAddWidget }: Props) {
   return (
     <div className="space-y-2">
       {multiCard}
+      <MatchBriefing fixture={fixture} onAddWidget={onAddWidget} />
+      <PollPicker fixture={fixture} onAddWidget={onAddWidget} />
       <div className={card}>
         <p className={title}><Bot size={11} /> Piloto automático</p>
         <label className="flex items-center justify-between gap-2 text-[11px] text-neutral-300">
@@ -127,6 +132,7 @@ export function AnalysisPanel({ fm, onAddWidget }: Props) {
               <span className="mt-1 h-1.5 w-1.5 flex-shrink-0 rounded-full bg-emerald-400" />
               <span className="flex-1">{p}</span>
               <button type="button" title="Poner en pantalla" onClick={() => pointOnAir(p)} className="flex-shrink-0 rounded p-0.5 text-neutral-500 opacity-0 hover:text-white group-hover:opacity-100"><Tv2 size={12} /></button>
+              <button type="button" title="Tarjeta grande" onClick={() => onAddWidget("dato", { name: "Dato grande", title: "Análisis NEXUS", subtitle: p })} className="flex-shrink-0 rounded border border-white/10 px-1 text-[9px] font-bold uppercase text-neutral-500 opacity-0 hover:text-white group-hover:opacity-100">Grande</button>
             </li>
           ))}
         </ul>

@@ -1,5 +1,5 @@
 import type { DesignStyle, FootballScoreboard, FootballTeamPlayer, GraphicVariant } from "../graphicExport";
-import { getCompetition } from "./competitions";
+import { COMPETITIONS, getCompetition } from "./competitions";
 
 export interface DesignOutput {
   html: string;
@@ -7,10 +7,16 @@ export interface DesignOutput {
   height: number;
 }
 
-export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert"];
+export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato"];
 
 /** Other matches shown at once by the "multi" panel (fed by useLiveBoard). */
-export interface MultiScore { id: string; league: string; home: string; away: string; homeScore: number | null; awayScore: number | null; status: "live" | "halftime" | "finished" | "scheduled"; detail: string }
+export interface MultiScore {
+  id: string; league: string; leagueSlug?: string; home: string; away: string; homeShort?: string; awayShort?: string;
+  homeLogo?: string; awayLogo?: string; homeScore: number | null; awayScore: number | null;
+  status: "live" | "halftime" | "finished" | "scheduled"; detail: string;
+  /** Something just happened here (shown for ~60 s). */
+  flash?: { kind: "goal" | "red"; text: string; side: "home" | "away" | null } | null;
+}
 let multiScores: MultiScore[] = [];
 let multiVersion = 0;
 export function setMultiScores(list: MultiScore[]) {
@@ -20,6 +26,16 @@ export function setMultiScores(list: MultiScore[]) {
   multiVersion += 1;
 }
 export const getMultiVersion = () => multiVersion;
+
+/** Poll shown on air (one at a time), refreshed while viewers vote on the portal. */
+export interface PollBoard { kind: "poll" | "debate"; question: string; options: { label: string; votes: number }[]; total: number }
+let pollBoard: PollBoard | null = null;
+export function setPollBoard(board: PollBoard | null) {
+  const next = JSON.stringify(board);
+  if (next === JSON.stringify(pollBoard)) return;
+  pollBoard = board;
+  multiVersion += 1;
+}
 
 const esc = (value: string | number | undefined): string =>
   String(value ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c);
@@ -273,28 +289,148 @@ function lower(p: Palette, title: string, subtitle: string): DesignOutput {
   return { html, width: 700, height: 96 };
 }
 
-function multi(p: Palette, title: string): DesignOutput {
-  const rows = multiScores.slice(0, 7);
-  const rowH = 54;
-  const height = 64 + Math.max(1, rows.length) * rowH + 12;
-  const body = rows.length ? rows.map((m) => {
-    const live = m.status === "live" || m.status === "halftime";
-    const score = m.homeScore === null ? "vs" : `${m.homeScore}-${m.awayScore}`;
-    return `<div style="display:flex;align-items:center;height:${rowH}px;padding:0 20px;border-top:1px solid ${HAIR}">
-  <div style="width:150px;font:600 12px 'Segoe UI',Arial;letter-spacing:.12em;text-transform:uppercase;color:rgba(255,255,255,.55);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.league)}</div>
-  <div style="flex:1;text-align:right;${NUM};font-size:22px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.home)}</div>
-  <div style="width:92px;text-align:center;${NUM};font-size:26px;font-weight:800;color:${live ? "#fff" : "rgba(255,255,255,.75)"}">${esc(score)}</div>
-  <div style="flex:1;${NUM};font-size:22px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.away)}</div>
-  <div style="width:84px;text-align:right;font:700 14px 'Segoe UI',Arial;color:${live ? "#ff4d4d" : "rgba(255,255,255,.55)"}">${live ? "● " : ""}${esc(m.detail)}</div>
-</div>`;
-  }).join("") : `<div style="padding:16px 20px;border-top:1px solid ${HAIR};color:rgba(255,255,255,.6);font:500 18px 'Segoe UI',Arial">Sin partidos en vivo ahora</div>`;
-  const html = `<div class="nx" style="width:860px;height:${height}px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:4px;box-shadow:0 14px 36px rgba(0,0,0,.5),inset 0 0 0 1px ${HAIR};overflow:hidden">
-  <div style="height:64px;display:flex;align-items:center;gap:12px;padding:0 20px;background:linear-gradient(90deg,${p.accent}33,transparent)">
-    <span style="width:10px;height:10px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 12px #ff3b3b"></span>
-    <span style="${NUM};font-size:24px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">${esc(title || "Resultados en vivo")}</span>
-  </div>${body}
-</div>`;
+const UCL_STARS = "radial-gradient(circle at 12% 30%,rgba(255,255,255,.55) 0 1.5px,transparent 2px),radial-gradient(circle at 34% 70%,rgba(255,255,255,.35) 0 1px,transparent 1.5px),radial-gradient(circle at 62% 25%,rgba(255,255,255,.45) 0 1.5px,transparent 2px),radial-gradient(circle at 86% 65%,rgba(255,255,255,.35) 0 1px,transparent 1.5px)";
+
+function multiTheme(rows: MultiScore[]): { name: string; bg: string; accent: string; text: string } {
+  const slugs = new Set(rows.map((r) => r.leagueSlug).filter(Boolean));
+  if (slugs.size === 1) {
+    const theme = COMPETITIONS.find((c) => c.espn === [...slugs][0]);
+    if (theme?.id === "champions") return { name: "UEFA CHAMPIONS LEAGUE", bg: `${UCL_STARS},linear-gradient(100deg,#040a22 0%,#0b1f63 55%,#132f8f 100%)`, accent: "#9fc0ff", text: "#e8eeff" };
+    if (theme) return { name: theme.name.toUpperCase(), bg: `linear-gradient(100deg,${theme.bg} 0%,${theme.accent}33 100%)`, accent: theme.accent, text: "#ffffff" };
+  }
+  return { name: "NEXUS · JORNADA", bg: "linear-gradient(100deg,#0b0d12 0%,#facc1526 100%)", accent: "#facc15", text: "#ffffff" };
+}
+
+function multiCrest(src: string | undefined, label: string, size: number): string {
+  return src
+    ? `<img src="${esc(src)}" alt="" style="width:${size}px;height:${size}px;object-fit:contain;filter:drop-shadow(0 3px 5px rgba(0,0,0,.6))" />`
+    : `<span style="width:${size}px;height:${size}px;border-radius:50%;display:inline-grid;place-items:center;background:rgba(255,255,255,.12);${NUM};font-size:${Math.round(size * 0.36)}px;font-weight:800">${esc(label.slice(0, 2).toUpperCase())}</span>`;
+}
+
+function statusPill(m: MultiScore, big: boolean): string {
+  const live = m.status === "live" || m.status === "halftime";
+  const color = live ? "#ff3b3b" : "rgba(255,255,255,.18)";
+  return `<span style="display:inline-flex;align-items:center;gap:6px;padding:${big ? "5px 12px" : "3px 9px"};border-radius:999px;background:${live ? "rgba(255,59,59,.16)" : "rgba(255,255,255,.08)"};box-shadow:inset 0 0 0 1px ${color};font:800 ${big ? 16 : 13}px 'Segoe UI',Arial;color:${live ? "#ff6b6b" : "rgba(255,255,255,.7)"}">${live ? `<i style="width:8px;height:8px;border-radius:50%;background:#ff3b3b;display:inline-block"></i>` : ""}${esc(m.detail)}</span>`;
+}
+
+function flashStrip(m: MultiScore, accent: string, big: boolean): string {
+  if (!m.flash) return "";
+  const bg = m.flash.kind === "red" ? "#e11d2e" : accent;
+  return `<div style="display:flex;align-items:center;gap:10px;padding:${big ? "8px 18px" : "5px 12px"};background:${bg};color:${onColor(bg)};${NUM};font-size:${big ? 20 : 15}px;font-weight:800;letter-spacing:.04em;text-transform:uppercase;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.flash.kind === "red" ? "🟥 ROJA" : "⚽ GOL"} · ${esc(m.flash.text)}</div>`;
+}
+
+function multi(_p: Palette, title: string): DesignOutput {
+  const rows = multiScores.slice(0, 10);
+  const theme = multiTheme(rows);
+  const mixed = new Set(rows.map((r) => r.leagueSlug)).size > 1;
+  const header = `<div style="height:70px;display:flex;align-items:center;gap:14px;padding:0 26px;background:${theme.bg};border-bottom:2px solid ${theme.accent}">
+    <span style="width:12px;height:12px;border-radius:50%;background:#ff3b3b;box-shadow:0 0 14px #ff3b3b"></span>
+    <span style="${NUM};font-size:26px;font-weight:800;letter-spacing:.08em;color:${theme.text}">${esc(title && title !== "Resultados en vivo" ? title.toUpperCase() : theme.name)}</span>
+    <span style="margin-left:auto;font:700 14px 'Segoe UI',Arial;letter-spacing:.2em;color:${theme.accent}">EN VIVO</span>
+  </div>`;
+  if (!rows.length) {
+    const html = `<div class="nx" style="width:900px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:6px;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.55)">${header}<div style="padding:22px 26px;font:500 20px 'Segoe UI',Arial;color:rgba(255,255,255,.7)">Sin partidos en vivo en este momento</div></div>`;
+    return { html, width: 900, height: 140 };
+  }
+  if (rows.length <= 2) {
+    const tile = (m: MultiScore) => {
+      const glow = m.flash ? `box-shadow:0 0 0 3px ${m.flash.kind === "red" ? "#e11d2e" : theme.accent},0 0 36px ${m.flash.kind === "red" ? "#e11d2e" : theme.accent}88;` : `box-shadow:inset 0 0 0 1px ${HAIR};`;
+      const side = (name: string, logo: string | undefined, scored: boolean, align: "left" | "right") => `<div style="flex:1;display:flex;align-items:center;gap:16px;${align === "right" ? "flex-direction:row-reverse;text-align:right" : ""}">
+        ${multiCrest(logo, name, 70)}<span style="${NUM};font-size:32px;font-weight:800;line-height:1.05;${scored ? `color:${theme.accent}` : ""}">${esc(name)}</span></div>`;
+      return `<div style="border-radius:6px;overflow:hidden;background:rgba(255,255,255,.04);${glow}">
+        <div style="display:flex;align-items:center;gap:20px;padding:20px 26px">
+          ${side(m.home, m.homeLogo, m.flash?.side === "home", "left")}
+          <div style="display:flex;flex-direction:column;align-items:center;gap:8px;min-width:200px">
+            <span style="${NUM};font-size:64px;font-weight:900;line-height:1;letter-spacing:.02em">${m.homeScore === null ? "vs" : `${m.homeScore}<span style="opacity:.4;margin:0 12px">-</span>${m.awayScore}`}</span>
+            ${statusPill(m, true)}
+          </div>
+          ${side(m.away, m.awayLogo, m.flash?.side === "away", "right")}
+        </div>
+        ${mixed ? `<div style="padding:0 26px 12px;font:600 13px 'Segoe UI',Arial;letter-spacing:.18em;text-transform:uppercase;color:rgba(255,255,255,.5)">${esc(m.league)}</div>` : ""}
+        ${flashStrip(m, theme.accent, true)}
+      </div>`;
+    };
+    const height = 70 + rows.length * 150 + (rows.length + 1) * 16 + (rows.some((r) => r.flash) ? 40 : 0) + (mixed ? rows.length * 24 : 0);
+    const html = `<div class="nx" style="width:1240px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:8px;overflow:hidden;box-shadow:0 18px 46px rgba(0,0,0,.6),inset 0 0 0 1px ${HAIR}">${header}
+      <div style="display:flex;flex-direction:column;gap:16px;padding:16px">${rows.map(tile).join("")}</div></div>`;
+    return { html, width: 1240, height };
+  }
+  const tile = (m: MultiScore) => {
+    const accent = m.flash?.kind === "red" ? "#e11d2e" : theme.accent;
+    const glow = m.flash ? `box-shadow:0 0 0 2px ${accent},0 0 26px ${accent}77;background:${accent}14;` : `box-shadow:inset 0 0 0 1px ${HAIR};background:rgba(255,255,255,.035);`;
+    const name = (full: string, short?: string) => esc((short || full).slice(0, 14));
+    return `<div style="border-radius:6px;overflow:hidden;${glow}">
+      <div style="display:flex;align-items:center;gap:10px;height:84px;padding:0 14px">
+        ${multiCrest(m.homeLogo, m.home, 40)}
+        <span style="flex:1;${NUM};font-size:22px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${m.flash?.side === "home" ? `color:${accent}` : ""}">${name(m.home, m.homeShort)}</span>
+        <div style="display:flex;flex-direction:column;align-items:center;gap:4px;min-width:104px">
+          <span style="${NUM};font-size:36px;font-weight:900;line-height:1">${m.homeScore === null ? "vs" : `${m.homeScore}-${m.awayScore}`}</span>
+          ${statusPill(m, false)}
+        </div>
+        <span style="flex:1;text-align:right;${NUM};font-size:22px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${m.flash?.side === "away" ? `color:${accent}` : ""}">${name(m.away, m.awayShort)}</span>
+        ${multiCrest(m.awayLogo, m.away, 40)}
+      </div>
+      ${mixed ? `<div style="padding:0 14px 8px;font:600 11px 'Segoe UI',Arial;letter-spacing:.16em;text-transform:uppercase;color:rgba(255,255,255,.45)">${esc(m.league)}</div>` : ""}
+      ${flashStrip(m, theme.accent, false)}
+    </div>`;
+  };
+  const lines = Math.ceil(rows.length / 2);
+  const tileH = 84 + (mixed ? 24 : 0);
+  const flashLines = Array.from({ length: lines }, (_, i) => rows.slice(i * 2, i * 2 + 2).some((r) => r.flash)).filter(Boolean).length;
+  const height = 70 + 16 + lines * tileH + (lines - 1) * 12 + 16 + flashLines * 30;
+  const html = `<div class="nx" style="width:1240px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:8px;overflow:hidden;box-shadow:0 18px 46px rgba(0,0,0,.6),inset 0 0 0 1px ${HAIR}">${header}
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px">${rows.map(tile).join("")}</div></div>`;
+  return { html, width: 1240, height };
+}
+
+function pollDesign(p: Palette, footer: string): DesignOutput {
+  const board = pollBoard;
+  if (!board) {
+    return { html: `<div class="nx" style="width:760px;height:90px;display:grid;place-items:center;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:6px">Elige una encuesta en Análisis</div>`, width: 760, height: 90 };
+  }
+  const pct = (v: number) => (board.total ? Math.round((v / board.total) * 100) : 0);
+  const head = `<div style="padding:18px 26px 6px">
+    <div style="display:flex;align-items:center;gap:10px;font:800 13px 'Segoe UI',Arial;letter-spacing:.22em;color:${p.accent}"><i style="width:9px;height:9px;border-radius:50%;background:#ff3b3b;display:inline-block"></i>${board.kind === "debate" ? "DEBATE EN VIVO" : "VOTA EN VIVO"}</div>
+    <div style="${NUM};font-size:34px;font-weight:800;line-height:1.12;margin-top:8px">${esc(board.question)}</div>
+  </div>`;
+  const foot = `<div style="display:flex;justify-content:space-between;align-items:center;padding:12px 26px 16px;font:600 16px 'Segoe UI',Arial;color:rgba(255,255,255,.7)"><span>${board.total.toLocaleString("es")} votos</span><span style="color:${p.accent};font-weight:800">${esc(footer || "Vota en nuestro portal")}</span></div>`;
+  if (board.kind === "debate" && board.options.length === 2) {
+    const [a, b] = board.options;
+    const pa = pct(a.votes);
+    const body = `<div style="padding:10px 26px 4px">
+      <div style="display:flex;justify-content:space-between;${NUM};font-size:26px;font-weight:800"><span style="color:#5bb6ff">${esc(a.label)}</span><span style="color:#ff6b7d">${esc(b.label)}</span></div>
+      <div style="display:flex;height:26px;margin-top:10px;border-radius:999px;overflow:hidden;background:#ff6b7d"><div style="width:${pa}%;background:#5bb6ff"></div></div>
+      <div style="display:flex;justify-content:space-between;margin-top:8px;${NUM};font-size:44px;font-weight:900"><span>${pa}%</span><span>${100 - pa}%</span></div>
+    </div>`;
+    const html = `<div class="nx" style="width:920px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:8px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.6),inset 0 0 0 1px ${HAIR}">${head}${body}${foot}</div>`;
+    return { html, width: 920, height: 330 };
+  }
+  const leader = Math.max(...board.options.map((o) => o.votes));
+  const rows = board.options.slice(0, 5).map((o) => {
+    const v = pct(o.votes);
+    const lead = board.total > 0 && o.votes === leader;
+    return `<div style="position:relative;margin:8px 26px;height:54px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.06)">
+      <div style="position:absolute;inset:0;width:${v}%;background:${lead ? p.accent : "rgba(255,255,255,.18)"};opacity:${lead ? 0.9 : 1}"></div>
+      <div style="position:relative;display:flex;justify-content:space-between;align-items:center;height:100%;padding:0 18px;${NUM};font-size:24px;font-weight:800;color:${lead ? onColor(p.accent) : "#fff"}"><span>${esc(o.label)}</span><span>${v}%</span></div>
+    </div>`;
+  }).join("");
+  const height = 120 + Math.min(5, board.options.length) * 62 + 56;
+  const html = `<div class="nx" style="width:860px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:8px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.6),inset 0 0 0 1px ${HAIR}">${head}${rows}${foot}</div>`;
   return { html, width: 860, height };
+}
+
+function datoCard(p: Palette, title: string, subtitle: string): DesignOutput {
+  const html = `<div class="nx" style="width:980px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:8px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.6),inset 0 0 0 1px ${HAIR}">
+  <div style="display:flex;align-items:stretch">
+    <div style="width:14px;background:${p.accent}"></div>
+    <div style="flex:1;padding:22px 30px">
+      <div style="font:800 14px 'Segoe UI',Arial;letter-spacing:.24em;text-transform:uppercase;color:${p.accent}">${esc(title || "Dato NEXUS")}</div>
+      <div style="${NUM};font-size:36px;font-weight:800;line-height:1.18;margin-top:10px">${esc(subtitle)}</div>
+    </div>
+  </div>
+</div>`;
+  const lines = Math.max(1, Math.ceil((subtitle || "").length / 46));
+  return { html, width: 980, height: 70 + lines * 44 + 26 };
 }
 
 function goalAlert(p: Palette, title: string, subtitle: string): DesignOutput {
@@ -578,6 +714,8 @@ function renderBase(variant: GraphicVariant, match: FootballScoreboard, title: s
     case "stats": return stats(match, p);
     case "multi": return multi(p, title);
     case "goal-alert": return goalAlert(p, title, subtitle);
+    case "poll": return pollDesign(p, title);
+    case "dato": return datoCard(p, title, subtitle);
     default: return elite(match, p);
   }
 }
@@ -597,6 +735,8 @@ export const FOOTBALL_VARIANT_LABEL: Record<string, string> = {
   stats: "Estadísticas",
   multi: "Resultados en vivo (multipantalla)",
   "goal-alert": "Alerta de gol (otros partidos)",
+  poll: "Votación en vivo (encuesta / debate)",
+  dato: "Dato grande",
 };
 
 export function footballDesignDocument(design: DesignOutput, position: { x: number; y: number }, scale: number): string {

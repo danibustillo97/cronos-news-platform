@@ -867,13 +867,13 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     elite: { x: 3, y: 4 }, compact: { x: 3, y: 4 }, editorial: { x: 3, y: 4 }, live: { x: 19, y: 86 },
     goal: { x: 21.5, y: 66 }, lower: { x: 4, y: 78 }, var: { x: 3, y: 18 }, events: { x: 4, y: 82 },
     prematch: { x: 23, y: 26 }, "lineup-home": { x: 3, y: 17 }, "lineup-away": { x: 74, y: 17 }, stats: { x: 3, y: 17 },
-    multi: { x: 27.5, y: 18 }, "goal-alert": { x: 26.5, y: 74 },
+    multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
   };
   const FOOTBALL_NAMES: Record<string, string> = {
     elite: "NEXUS Elite", compact: "NEXUS Compact", editorial: "NEXUS Editorial", live: "NEXUS Live", goal: "NEXUS Goal",
     lower: "NEXUS Lower Third", var: "NEXUS VAR", events: "NEXUS Match Events", prematch: "NEXUS Previa",
     "lineup-home": "Alineación local", "lineup-away": "Alineación visitante", stats: "NEXUS Estadísticas",
-    multi: "Resultados en vivo", "goal-alert": "Alerta de gol",
+    multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
   };
 
   const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string; title?: string; subtitle?: string }) => {
