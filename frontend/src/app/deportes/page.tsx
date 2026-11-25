@@ -26,6 +26,7 @@ import { isSportsCategory } from '@/lib/newsCategory'
 import { FOOTBALL_LEAGUES, DEFAULT_LEAGUE, OTHER_SPORTS } from '@/lib/sportsLeagues'
 import type { NewsView } from '@/types/news'
 import type { Match } from '@/types/sports'
+import { filterCurrentNews, newsQueryFloor } from '@/lib/newsFreshness'
 
 const VIEWS = [
   { id: 'todo', label: 'Todo' },
@@ -61,10 +62,11 @@ function DeportesContent() {
       .from('news')
       .select('*')
       .eq('status', 'published')
+      .gte('published_at', newsQueryFloor())
       .order('published_at', { ascending: false })
       .limit(60)
       .then(({ data }) => {
-        setNews(((data || []) as NewsView[]).filter((n) => isSportsCategory(n.category)))
+        setNews(filterCurrentNews((data || []) as NewsView[]).filter((n) => isSportsCategory(n.category)))
       })
   }, [])
 
