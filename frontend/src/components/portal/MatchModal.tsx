@@ -125,11 +125,67 @@ function EventRow({ ev, detail }: { ev: MatchEvent; detail: MatchDetail }) {
   )
 }
 
+function MatchBalance({ detail }: { detail: MatchDetail }) {
+  const winner = detail.home.score > detail.away.score
+    ? detail.home.name
+    : detail.away.score > detail.home.score
+      ? detail.away.name
+      : null
+  const metricOrder = ['possessionPct', 'totalShots', 'shotsOnTarget', 'wonCorners', 'saves', 'foulsCommitted', 'yellowCards', 'redCards']
+  const metrics = metricOrder
+    .map((key) => detail.stats.find((stat) => stat.key === key))
+    .filter((stat): stat is MatchDetail['stats'][number] => Boolean(stat))
+
+  if (detail.state !== 'post') return null
+  return (
+    <section className="mb-4 rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface-2)] p-3.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-[11px] font-black uppercase tracking-[0.13em] text-[var(--nx-accent-text)]">Balance final</h3>
+        <span className="text-[11px] font-semibold text-[var(--nx-muted)]">
+          {winner ? `Ganador: ${winner}` : 'Partido empatado'}
+        </span>
+      </div>
+      <p className="mt-1 text-sm font-bold text-[var(--nx-ink)]">
+        {detail.home.name} {detail.home.score}-{detail.away.score} {detail.away.name}
+      </p>
+      {metrics.length > 0 ? (
+        <div className="mt-3 space-y-2.5">
+          {metrics.map((stat) => {
+            const max = Math.max(stat.home, stat.away, 1)
+            const fmt = (value: number) => stat.percent ? `${Math.round(value)}%` : String(Math.round(value * 10) / 10)
+            return (
+              <div key={stat.key}>
+                <div className="mb-1 grid grid-cols-[2.5rem_minmax(0,1fr)_2.5rem] items-center gap-2 text-[12px] tabular-nums">
+                  <span className={stat.home > stat.away ? 'font-black text-[var(--nx-ink)]' : 'text-[var(--nx-muted)]'}>{fmt(stat.home)}</span>
+                  <span className="text-center font-semibold text-[var(--nx-muted)]">{stat.label}</span>
+                  <span className={stat.away > stat.home ? 'text-right font-black text-[var(--nx-ink)]' : 'text-right text-[var(--nx-muted)]'}>{fmt(stat.away)}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1">
+                  <div className="flex h-1.5 justify-end overflow-hidden rounded-l-full bg-[var(--nx-surface-3)]">
+                    <span className="h-full rounded-l-full bg-[#FACC15]" style={{ width: `${(stat.home / max) * 100}%` }} />
+                  </div>
+                  <div className="flex h-1.5 overflow-hidden rounded-r-full bg-[var(--nx-surface-3)]">
+                    <span className="h-full rounded-r-full bg-[var(--nx-ink-2)]" style={{ width: `${(stat.away / max) * 100}%` }} />
+                  </div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      ) : (
+        <p className="mt-2 text-xs text-[var(--nx-muted)]">La fuente no publicó estadísticas comparativas para este encuentro.</p>
+      )}
+      <p className="mt-3 text-[10px] text-[var(--nx-muted)]">Comparación basada en las estadísticas registradas del partido; no representa por sí sola una valoración arbitral o de merecimiento.</p>
+    </section>
+  )
+}
+
 function Resumen({ detail }: { detail: MatchDetail }) {
   const pos = possession(detail.stats)
   const events = sortEvents(detail.events.filter((e) => e.type !== 'period'), detail.state === 'in')
   return (
     <div>
+      {detail.state === 'post' && <MatchBalance detail={detail} />}
       {pos && (
         <div className="mb-3">
           <div className="mb-1 flex justify-between text-[11px] font-semibold text-[var(--nx-muted)]"><span>{pos.home}%</span><span>Posesión</span><span>{pos.away}%</span></div>
