@@ -46,7 +46,7 @@ export function NewsReel({ story, onOpen, eager = false }: { story: NewsView; on
       time={story.published_at}
       labelledBy={titleId}
       media={
-        <StoryLink story={story} onOpen={onOpen} className="relative block aspect-[4/5] w-full overflow-hidden bg-[var(--nx-surface-2)] sm:aspect-video" ariaLabel={story.title}>
+        <StoryLink story={story} onOpen={onOpen} className="relative block aspect-video w-full overflow-hidden bg-[var(--nx-surface-2)]" ariaLabel={story.title}>
           {src ? (
             <Image src={src} alt={story.title} fill sizes="(max-width: 640px) 100vw, 600px" loading={eager ? 'eager' : 'lazy'} className="object-cover transition-transform duration-700 hover:scale-[1.02]" />
           ) : (
@@ -59,8 +59,8 @@ export function NewsReel({ story, onOpen, eager = false }: { story: NewsView; on
           <StoryLink story={story} onOpen={onOpen} className="hover:underline hover:decoration-2 hover:underline-offset-4">{story.title}</StoryLink>
         </h3>
       }
-      body={story.excerpt ? <p className="text-[15px] leading-relaxed text-[var(--nx-ink-2)] line-clamp-2">{story.excerpt}</p> : undefined}
-      meta={[source, minutes > 0 ? `${minutes} min de lectura` : null].filter(Boolean).join(' · ') || undefined}
+      body={story.excerpt ? <p className="text-[15px] leading-[1.5] text-[var(--nx-ink-2)] line-clamp-2">{story.excerpt}</p> : undefined}
+      meta={[source, minutes > 0 ? `${minutes} min de lectura` : null]}
       share={{ url: `/noticia/${story.slug}`, title: story.title }}
       saveId={story.id}
       social={{ type: 'news', id: story.id }}
@@ -188,7 +188,7 @@ export function LiveMini({ matches }: { matches: Match[] }) {
   ].slice(0, 7)
   if (list.length === 0) return null
   return (
-    <aside aria-label="Marcador de hoy" className="w-[280px] rounded-[20px] border border-[var(--nx-line)] bg-[var(--nx-surface)] p-3">
+    <aside aria-label="Marcador de hoy" className="w-[280px] rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] p-3">
       <h2 className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-muted)]">Marcador de hoy</h2>
       <div className="-mx-1 divide-y divide-[var(--nx-line)]">{list.map((m) => <MatchLine key={m.id} match={m} />)}</div>
       <Link href="/deportes/futbol" className="mt-1 flex min-h-[44px] items-center justify-center rounded-xl text-xs font-semibold text-[var(--nx-accent-text)] hover:bg-[var(--nx-surface-2)]">Todos los partidos</Link>

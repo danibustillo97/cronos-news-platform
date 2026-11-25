@@ -165,7 +165,7 @@ export default function ReelsFeed({
 
         <LiveStrip matches={matches} />
 
-        <ol className="nx-reels flex w-full min-w-0 flex-col gap-5" aria-labelledby="feed-heading">
+        <ol className="nx-reels flex w-full min-w-0 flex-col gap-5 lg:gap-6" aria-labelledby="feed-heading">
           {items.map((item, index) => {
             const adAfter = (Object.entries(FEED_AD_AFTER) as ['feed-1' | 'feed-2' | 'feed-3', number][]).find(([, n]) => n === index)
             const ad = adAfter ? <li key={`ad-${adAfter[0]}`} className={`${reelLi} empty:hidden`}><PlacementAd placement={adAfter[0]} legacy={adAfter[0] === 'feed-1' ? 'HOME_TOP' : 'HOME_FEED'} /></li> : null
@@ -181,7 +181,7 @@ export default function ReelsFeed({
 
         <div ref={sentinel} aria-hidden="true" className="h-px" />
 
-        <div className="nx-snap-item mt-8 rounded-[20px] border border-[var(--nx-line)] bg-[var(--nx-surface)] px-5 py-7 text-center">
+        <div className="nx-snap-item mt-8 rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)] px-5 py-7 text-center">
           {hasMore && autoLoads.current >= MAX_AUTO_LOADS ? (
             <button type="button" onClick={() => { autoLoads.current = 0; onLoadMore() }} disabled={loadingMore} className="inline-flex min-h-[48px] items-center gap-2 rounded-full bg-[var(--nx-ink)] px-6 text-sm font-bold text-[var(--nx-bg)] disabled:opacity-60">
               Cargar más historias

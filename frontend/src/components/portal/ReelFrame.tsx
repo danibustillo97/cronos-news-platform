@@ -38,6 +38,15 @@ export function TimeAgo({ iso, className = '' }: { iso: string | null | undefine
   return <time dateTime={iso} className={className} suppressHydrationWarning>{label}</time>
 }
 
+/** Botón de la fila de acciones: 44 px de alto, ícono de 18 px, mismo espaciado en todas las tarjetas. */
+export const actionBtn = 'inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-full px-2.5 text-[13px] font-semibold text-[var(--nx-muted)] transition-colors hover:bg-[var(--nx-surface-2)] hover:text-[var(--nx-ink)]'
+
+/** Chip de tipo: el mismo en todo el portal (11 px, 700, tracking .12em, píldora, texto de acento sobre fondo sutil). */
+export function chipClass(tone: ReelTone = 'default'): string {
+  const base = 'inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-bold uppercase tracking-[0.12em]'
+  return tone === 'live' ? `${base} bg-[var(--nx-live)]/[0.14] text-[var(--nx-live)]` : `${base} bg-[var(--nx-accent)]/[0.14] text-[var(--nx-accent-text)]`
+}
+
 function ShareAction({ url, title, compact = false }: { url: string; title: string; compact?: boolean }) {
   const [copied, setCopied] = useState(false)
   const share = async () => {
@@ -50,8 +59,8 @@ function ShareAction({ url, title, compact = false }: { url: string; title: stri
     } catch { /* cancelado */ }
   }
   return (
-    <button type="button" onClick={share} aria-label={`Compartir: ${title}`} className="inline-flex h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold text-[var(--nx-muted)] transition-colors hover:bg-[var(--nx-surface-2)] hover:text-[var(--nx-ink)]">
-      {copied ? <Check size={16} aria-hidden="true" /> : <Share2 size={16} aria-hidden="true" />}
+    <button type="button" onClick={share} aria-label={`Compartir: ${title}`} className={actionBtn}>
+      {copied ? <Check size={18} aria-hidden="true" /> : <Share2 size={18} aria-hidden="true" />}
       <span className={compact ? 'hidden sm:inline' : ''}>{copied ? 'Copiado' : 'Compartir'}</span>
     </button>
   )
@@ -67,8 +76,8 @@ function SaveAction({ id, title, compact = false }: { id: string; title: string;
     setSaved(next.includes(id))
   }
   return (
-    <button type="button" onClick={toggle} aria-pressed={saved} aria-label={`${saved ? 'Quitar de guardados' : 'Guardar'}: ${title}`} className={`inline-flex h-11 items-center gap-1.5 rounded-full px-3 text-[13px] font-semibold transition-colors hover:bg-[var(--nx-surface-2)] ${saved ? 'text-[var(--nx-accent-text)]' : 'text-[var(--nx-muted)] hover:text-[var(--nx-ink)]'}`}>
-      {saved ? <BookmarkCheck size={16} aria-hidden="true" /> : <Bookmark size={16} aria-hidden="true" />}
+    <button type="button" onClick={toggle} aria-pressed={saved} aria-label={`${saved ? 'Quitar de guardados' : 'Guardar'}: ${title}`} className={`${actionBtn} ${saved ? '!text-[var(--nx-accent-text)]' : ''}`}>
+      {saved ? <BookmarkCheck size={18} aria-hidden="true" /> : <Bookmark size={18} aria-hidden="true" />}
       <span className={compact ? 'hidden sm:inline' : ''}>{saved ? 'Guardado' : 'Guardar'}</span>
     </button>
   )
@@ -84,7 +93,8 @@ export interface ReelFrameProps {
   /** Contenido con padding (tablas, partidos, encuestas, datos). */
   body?: ReactNode
   title?: ReactNode
-  meta?: ReactNode
+  /** Partes de la línea de meta (fuente, lectura…): se unen con " · " y la hora va después de la primera. */
+  meta?: ReactNode | ReactNode[]
   share?: { url: string; title: string }
   saveId?: string
   more?: { href: string; label: string; onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void }
@@ -94,33 +104,34 @@ export interface ReelFrameProps {
 }
 
 export default function ReelFrame({ icon, kind, tone = 'default', time, media, body, title, meta, share, saveId, more, labelledBy, social }: ReelFrameProps) {
-  const chip = tone === 'live'
-    ? 'bg-[var(--nx-live)] text-white'
-    : tone === 'accent' ? 'bg-[#FACC15] text-black' : 'bg-[var(--nx-surface-2)] text-[var(--nx-ink-2)]'
+  // Línea de meta: fuente · hora · lectura (un solo separador).
+  const parts = (Array.isArray(meta) ? meta : meta ? [meta] : []).filter((p) => p !== null && p !== undefined && p !== false && p !== '')
+  if (time) parts.splice(Math.min(1, parts.length), 0, <TimeAgo key="time" iso={time} />)
   return (
-    <article aria-labelledby={labelledBy} className="relative box-border w-full min-w-0 max-w-full overflow-hidden rounded-[20px] border border-[var(--nx-line)] bg-[var(--nx-surface)]">
-      <header className="flex h-12 items-center justify-between gap-3 px-4">
-        <span className={`inline-flex h-6 items-center gap-1.5 rounded-full px-2.5 text-[11px] font-bold uppercase tracking-[0.1em] ${chip}`}>
-          {icon}{kind}
-        </span>
-        {time && <TimeAgo iso={time} className="text-xs font-medium text-[var(--nx-muted)]" />}
+    <article aria-labelledby={labelledBy} className="relative box-border w-full min-w-0 max-w-full overflow-hidden rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)]">
+      <header className="flex h-12 items-center justify-between gap-3 px-4 sm:px-5">
+        <span className={chipClass(tone)}>{icon}{kind}</span>
       </header>
       {media}
-      {(title || body || meta) && (
-        <div className="flex min-w-0 flex-col gap-2 px-3 pb-1 pt-3.5 sm:px-4">
+      {(title || body || parts.length > 0) && (
+        <div className="flex min-w-0 flex-col gap-2 px-4 pb-1 pt-4 sm:px-5">
           {title}
           {body}
-          {meta && <div className="text-xs text-[var(--nx-muted)]">{meta}</div>}
+          {parts.length > 0 && (
+            <p className="text-[12.5px] leading-snug text-[var(--nx-muted)]">
+              {parts.map((p, i) => <span key={i}>{i > 0 && <span aria-hidden="true" className="mx-1.5">·</span>}{p}</span>)}
+            </p>
+          )}
         </div>
       )}
       {(share || saveId || more || social) && (
-        <footer className="mt-1 flex items-center gap-0.5 border-t border-[var(--nx-line)] px-2 py-1">
+        <footer className="mt-2 flex h-14 items-center gap-1 border-t border-[var(--nx-line)] px-2 sm:px-3">
           {social && <SocialActions type={social.type} id={social.id} title={share?.title ?? kind} />}
           {share && <ShareAction url={share.url} title={share.title} compact={Boolean(social)} />}
           {saveId && share && <SaveAction id={saveId} title={share.title} compact={Boolean(social)} />}
           {more && (
             <Link href={more.href} onClick={more.onClick} className="ml-auto inline-flex h-11 items-center gap-1 rounded-full px-3 text-[13px] font-semibold text-[var(--nx-ink)] transition-colors hover:bg-[var(--nx-surface-2)]">
-              {more.label} <ArrowUpRight size={15} aria-hidden="true" />
+              {more.label} <ArrowUpRight size={18} aria-hidden="true" />
             </Link>
           )}
         </footer>
@@ -129,4 +140,4 @@ export default function ReelFrame({ icon, kind, tone = 'default', time, media, b
   )
 }
 
-export const reelTitle = 'text-[19px] font-bold leading-[1.25] tracking-[-0.01em] text-[var(--nx-ink)] sm:text-xl'
+export const reelTitle = 'text-[18px] font-bold leading-[1.2] tracking-[-0.01em] text-[var(--nx-ink)] line-clamp-3 sm:text-[20px]'

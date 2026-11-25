@@ -18,7 +18,7 @@ import { usePortalTheme } from '@/context/ThemeContext'
 const UNAVAILABLE = 'Las reacciones y comentarios estarán disponibles muy pronto'
 const emojiOf = (r: Reaction | null) => REACTIONS.find((x) => x.id === r)?.emoji ?? '🔥'
 
-const actionBtn = 'inline-flex h-11 items-center gap-1.5 rounded-full px-2.5 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50 sm:px-3'
+const actionBtn = 'inline-flex h-11 min-w-11 items-center justify-center gap-1.5 rounded-full px-2.5 text-[13px] font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-50'
 
 function useIsDesktop() {
   const [d, setD] = useState(false)
@@ -259,7 +259,7 @@ export default function SocialActions({ type, id, title, forceTheme }: { type: S
           }}
           className={`${actionBtn} select-none ${mine ? 'text-[var(--nx-accent-text)]' : 'text-[var(--nx-muted)] hover:bg-[var(--nx-surface-2)] hover:text-[var(--nx-ink)]'}`}
         >
-          <span key={mine ?? 'none'} className={`text-[17px] leading-none ${mine ? 'nx-pop' : 'opacity-70 grayscale'}`} aria-hidden="true">{emojiOf(mine)}</span>
+          <span key={mine ?? 'none'} className={`text-[18px] leading-none ${mine ? 'nx-pop' : 'opacity-70 grayscale'}`} aria-hidden="true">{emojiOf(mine)}</span>
           {ready && summary.total > 0 && <span className="tabular-nums">{compactCount(summary.total)}</span>}
         </button>
         {burst && (
@@ -301,7 +301,7 @@ export default function SocialActions({ type, id, title, forceTheme }: { type: S
         aria-label={`Comentarios${ready ? ` (${summary.commentCount})` : ''}: ${title}`}
         className={`${actionBtn} text-[var(--nx-muted)] hover:bg-[var(--nx-surface-2)] hover:text-[var(--nx-ink)]`}
       >
-        <MessageCircle size={16} aria-hidden="true" />
+        <MessageCircle size={18} aria-hidden="true" />
         {ready && summary.commentCount > 0 ? <span className="tabular-nums">{compactCount(summary.commentCount)}</span> : <span className="hidden sm:inline">Comentar</span>}
       </button>
       <CommentsPanel title={title} open={panel} onClose={closePanel} social={social} forceTheme={forceTheme} />

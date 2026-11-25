@@ -129,12 +129,12 @@ export function CapsuleCard({ capsule, preview = false }: { capsule: Capsule; pr
         >
           <AnimatePresence initial={false}>
             {bg && (
-              <motion.div key={bg} className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: index === 0 ? 0.6 : 0.35 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.35 }}>
+              <motion.div key={bg} className="absolute inset-0" initial={{ opacity: 0 }} animate={{ opacity: index === 0 ? 0.9 : 0.6 }} exit={{ opacity: 0 }} transition={{ duration: reduce ? 0 : 0.35 }}>
                 <Image src={bg} alt="" fill sizes={SIZES} className="object-cover" />
               </motion.div>
             )}
           </AnimatePresence>
-          {bg && <div aria-hidden className="absolute inset-0 bg-gradient-to-b from-black/40 via-black/30 to-black/85" />}
+          {bg && <div aria-hidden className="absolute inset-0 bg-[linear-gradient(to_top,rgba(0,0,0,0.94)_0%,rgba(0,0,0,0.82)_35%,rgba(0,0,0,0.35)_65%,rgba(0,0,0,0.15)_100%)]" />}
           {capsule.kind === 'leyenda' && <div aria-hidden className="absolute inset-0 shadow-[inset_0_0_0_2px_rgba(212,175,55,0.4)]" />}
 
           <div className="absolute inset-x-3 top-3 z-20 flex gap-1" aria-hidden="true">
@@ -148,32 +148,24 @@ export function CapsuleCard({ capsule, preview = false }: { capsule: Capsule; pr
             ))}
           </div>
 
-          <div className="absolute inset-0 z-10 flex flex-col justify-center px-7 pb-14 pt-12 sm:px-10">
+          {/* Texto abajo, sobre un degradado fuerte: contraste AA aun con fotos claras. */}
+          <div className="absolute inset-0 z-10 flex flex-col justify-end px-5 pb-14 pt-12 sm:px-8">
             {index === 0 ? (
-              capsule.kind === 'efemeride' ? (
-                <>
-                  <span className="text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>{dateLabel?.startsWith('Un día') ? 'Un día como hoy' : dateLabel ?? 'Efeméride'}</span>
-                  {capsule.year && <span className="mt-1 text-[clamp(4.5rem,3.6rem+5vw,6.5rem)] font-bold leading-none tracking-[-0.04em] tabular-nums">{capsule.year}</span>}
-                  <p className="mt-3 text-balance text-[clamp(1.25rem,1.05rem+1vw,1.6rem)] font-bold leading-snug">{capsule.title}</p>
-                </>
-              ) : capsule.kind === 'leyenda' ? (
-                <div className="flex flex-col items-start">
-                  {!bg && <span className="mb-4 inline-flex h-20 w-20 items-center justify-center rounded-full text-2xl font-bold text-black" style={{ background: `linear-gradient(135deg, ${accent}, #8a6d1a)` }}>{monogram(name)}</span>}
-                  <span className="text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>Leyendas{capsule.year ? ` · ${capsule.year}` : ''}</span>
-                  <p className="mt-2 text-balance text-[clamp(1.7rem,1.3rem+2vw,2.4rem)] font-bold leading-[1.08] tracking-[-0.02em]">{name}</p>
-                  {capsule.subject && <p className="mt-2 text-base text-white/80">{capsule.title}</p>}
-                </div>
-              ) : (
-                <>
-                  <span className="text-[12px] font-bold uppercase tracking-[0.18em]" style={{ color: accent }}>{CAPSULE_LABEL[capsule.kind]}{capsule.year ? ` · ${capsule.year}` : ''}</span>
-                  <p className="mt-3 text-balance text-[clamp(1.6rem,1.25rem+1.8vw,2.3rem)] font-bold leading-[1.1] tracking-[-0.02em]">{capsule.title}</p>
-                </>
-              )
+              <div className="max-w-[38ch]">
+                {capsule.kind === 'leyenda' && !bg && (
+                  <span className="mb-4 inline-flex h-14 w-14 items-center justify-center rounded-full text-lg font-bold text-black" style={{ background: `linear-gradient(135deg, ${accent}, #8a6d1a)` }} aria-hidden="true">{monogram(name)}</span>
+                )}
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em]" style={{ color: accent }}>
+                  {capsule.kind === 'efemeride' && dateLabel?.startsWith('Un día') ? 'Un día como hoy' : CAPSULE_LABEL[capsule.kind]}{capsule.year ? ` · ${capsule.year}` : ''}
+                </p>
+                <p className="mt-2 text-balance text-[clamp(1.6rem,1.3rem+1.4vw,2.2rem)] font-extrabold leading-[1.08] tracking-[-0.02em]">{capsule.title}</p>
+                {capsule.subject && capsule.subject !== capsule.title && <p className="mt-2 text-[15px] font-medium text-white/80">{capsule.subject}</p>}
+              </div>
             ) : (
-              <>
-                <span className="text-5xl font-bold tabular-nums leading-none" style={{ color: accent }}>{index}</span>
-                <p className="mt-4 text-[clamp(1.1rem,1rem+0.6vw,1.4rem)] font-semibold leading-[1.4]">{slide?.text}</p>
-              </>
+              <div className="max-w-[38ch]">
+                <p className="text-[13px] font-bold tabular-nums" style={{ color: accent }}>{String(index).padStart(2, '0')} / {String(total - 1).padStart(2, '0')}</p>
+                <p className="mt-2 text-[18px] font-semibold leading-[1.45] sm:text-[20px]">{slide?.text}</p>
+              </div>
             )}
           </div>
 
@@ -194,7 +186,7 @@ export function CapsuleCard({ capsule, preview = false }: { capsule: Capsule; pr
         </div>
       }
       title={<h3 id={titleId} className={reelTitle}>{capsule.title}</h3>}
-      meta={[capsule.subject && capsule.subject !== capsule.title ? capsule.subject : null, dateLabel].filter(Boolean).join(' · ') || undefined}
+      meta={[capsule.subject && capsule.subject !== capsule.title ? capsule.subject : null, dateLabel]}
       share={preview ? undefined : { url: capsuleOgUrl(capsule, 1), title: capsule.title }}
       saveId={preview ? undefined : `cap-${capsule.id}`}
       social={preview ? undefined : { type: 'capsule', id: capsule.id }}

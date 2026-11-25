@@ -16,6 +16,7 @@ import type { Match } from '@/types/sports'
 import { LeagueBadge, TeamCrest } from './Crest'
 import { FormChips } from './FeedExtras'
 import { PollBlock } from './PollCard'
+import { chipClass } from './ReelFrame'
 
 export function MarketBar({ market, homeLabel, awayLabel, caption = 'Probabilidad según el mercado' }: { market: { home: number; draw: number; away: number }; homeLabel: string; awayLabel: string; caption?: string }) {
   return (
@@ -179,13 +180,13 @@ export function InsightCard({ insight }: { insight: Insight }) {
   const { home, away } = insight
   return (
     <>
-      <article className="overflow-hidden rounded-[20px] border border-[var(--nx-line)] bg-[var(--nx-surface)]">
+      <article className="overflow-hidden rounded-2xl border border-[var(--nx-line)] bg-[var(--nx-surface)]">
         <button type="button" onClick={() => setOpen(true)} className="block w-full text-left" aria-label={`${insight.headline}. Ver todos los datos`}>
-          <div className="flex h-11 items-center justify-between gap-2 px-4">
-            <span className="inline-flex h-6 items-center gap-1.5 rounded-full bg-[#FACC15] px-2.5 text-[11px] font-bold uppercase tracking-[0.1em] text-black"><Sparkles size={12} aria-hidden="true" />{insight.kind === 'preview' ? 'Antesala' : 'Así queda la tabla'}</span>
+          <div className="flex h-12 items-center justify-between gap-2 px-4 sm:px-5">
+            <span className={chipClass()}><Sparkles size={12} aria-hidden="true" />{insight.kind === 'preview' ? 'Antesala' : 'Así queda la tabla'}</span>
             <span className="flex min-w-0 items-center gap-1.5 text-[11px] font-semibold text-[var(--nx-muted)]"><LeagueBadge league={insight.league} name={insight.leagueName} size={14} /><span className="truncate">{insight.leagueName}</span></span>
           </div>
-          <div className="space-y-3 px-4 pb-4">
+          <div className="space-y-3 px-4 pb-4 sm:px-5">
             <div className="flex items-start gap-3">
               <TeamLine t={home} align="left" />
               <span className="pt-1.5 text-center text-[12px] font-bold text-[var(--nx-accent-text)]">{insight.state === 'pre' ? kickoffShort(insight.kickoff) : `${home.score ?? 0} - ${away.score ?? 0}`}</span>
