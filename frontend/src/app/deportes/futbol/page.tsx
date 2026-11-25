@@ -21,6 +21,7 @@ import { usePortalTheme } from '@/context/ThemeContext'
 import { isSportsCategory } from '@/lib/newsCategory'
 import { FOOTBALL_LEAGUES, DEFAULT_LEAGUE } from '@/lib/sportsLeagues'
 import type { NewsView } from '@/types/news'
+import { filterCurrentNews, newsQueryFloor } from '@/lib/newsFreshness'
 
 const VIEWS = [
   { id: 'live', label: 'En vivo' },
@@ -78,10 +79,11 @@ function FutbolContent() {
       .from('news')
       .select('*')
       .eq('status', 'published')
+      .gte('published_at', newsQueryFloor())
       .order('published_at', { ascending: false })
       .limit(60)
       .then(({ data }) => {
-        setNews(((data || []) as NewsView[]).filter((n) => isSportsCategory(n.category)))
+        setNews(filterCurrentNews((data || []) as NewsView[]).filter((n) => isSportsCategory(n.category)))
       })
   }, [view])
 
