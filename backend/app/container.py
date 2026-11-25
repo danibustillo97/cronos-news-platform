@@ -266,7 +266,8 @@ class Container:
         self.create_article = CreateArticle(self.story_repo, self.artifact_repo)
         self.upload_article_image = UploadArticleImage(self.artifact_repo, SupabaseArticleImageStorage(client))
         self.set_feature_image = SetFeatureImage(self.artifact_repo)
-        self.check_article_originality = CheckArticleOriginality(self.artifact_repo, self.discovery_repo)
+        from app.infrastructure.web.story_search import BingStorySearch
+        self.check_article_originality = CheckArticleOriginality(self.artifact_repo, self.discovery_repo, web=BingStorySearch())
         self.get_content_profile = GetContentProfile(self.content_profile_repo)
         self.update_content_profile = UpdateContentProfile(self.content_profile_repo)
         self.get_editorial_automation = GetEditorialAutomation(self.editorial_automation_repo)

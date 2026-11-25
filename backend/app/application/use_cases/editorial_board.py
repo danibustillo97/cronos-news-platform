@@ -394,16 +394,22 @@ class CheckArticleOriginality:
     by other outlets in the last 72 h (title-similarity clustering)."""
 
     MAX_SOURCES = 10
+    SCAN_DAYS = 7
+    SCAN_LIMIT = 2000
+    SCREEN_KEEP = 12
 
-    def __init__(self, artifacts: ArtifactRepository, items: DiscoveryRepository) -> None:
+    def __init__(self, artifacts: ArtifactRepository, items: DiscoveryRepository, web=None) -> None:
         self._artifacts = artifacts
         self._items = items
+        self._web = web  # optional web story search (BingStorySearch); None in tests
 
     def execute(self, artifact_id: str, text: str | None = None):
         from datetime import timedelta
 
         from app.domain.discovery.trends import SIMILARITY_THRESHOLD, similarity, title_tokens
-        from app.domain.editorial.originality import SourceText, check_originality
+        from urllib.parse import urlparse
+
+        from app.domain.editorial.originality import SourceText, check_originality, rank_by_overlap
 
         artifact = self._artifacts.find_by_id(artifact_id)
         if artifact is None:
@@ -435,4 +441,35 @@ class CheckArticleOriginality:
                 break
             add(item)
 
-        return check_originality(body, list(found.values()))
+        # 1) Screen thousands of stored articles (last week) by shingle overlap, keep the closest.
+        week = self._items.list(DiscoveryFilters(
+            since=datetime.now(timezone.utc) - timedelta(days=self.SCAN_DAYS), sort_by="discovered_at", sort_dir="desc",
+            limit=self.SCAN_LIMIT,
+        ))
+        pool = [SourceText(name=i.source_name or i.source_domain, url=i.source_url, text=f"{i.original_title}\n{i.raw_text or ''}")
+                for i in week if str(i.id) not in found and (i.raw_text or "")]
+        screened = rank_by_overlap(body, pool, self.SCREEN_KEEP)
+        for s in screened:
+            if len(found) >= self.MAX_SOURCES + self.SCREEN_KEEP:
+                break
+            found.setdefault(s.url or s.name, s)
+
+        # 2) The same story on the open web (other outlets' full text).
+        web_count = 0
+        web_seen = 0
+        if self._web is not None and artifact.title:
+            own_hosts = {urlparse(s.url).hostname or "" for s in found.values() if s.url}
+            try:
+                web_articles = self._web.search(artifact.title, exclude_hosts=own_hosts)
+            except Exception:  # noqa: BLE001 -- the web is a bonus; never fail the check
+                web_articles = []
+            web_seen = len(web_articles)
+            for a in web_articles:
+                if a.url not in found:
+                    found[a.url] = SourceText(name=a.source or a.title, url=a.url, text=f"{a.title}\n{a.text}")
+                    web_count += 1
+
+        report = check_originality(body, list(found.values()))
+        report.scanned = len(week) + web_seen
+        report.web_sources = web_count
+        return report

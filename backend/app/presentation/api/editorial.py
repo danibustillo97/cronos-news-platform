@@ -180,6 +180,8 @@ class OriginalityOut(CamelModel):
     originality: float
     article_words: int
     compared_sources: int
+    scanned: int = 0
+    web_sources: int = 0
     sources: list[SourceOverlapOut]
     copied: list[CopiedPassageOut]
 
@@ -194,6 +196,7 @@ def check_originality(
     report = container.check_article_originality.execute(artifact_id, body.text)
     return OriginalityOut(
         originality=report.originality, article_words=report.article_words, compared_sources=report.compared_sources,
+        scanned=getattr(report, "scanned", 0), web_sources=getattr(report, "web_sources", 0),
         sources=[SourceOverlapOut(name=s.name, url=s.url, overlap=s.overlap) for s in report.sources],
         copied=[CopiedPassageOut(text=c.text, source=c.source, ratio=c.ratio) for c in report.copied],
     )
