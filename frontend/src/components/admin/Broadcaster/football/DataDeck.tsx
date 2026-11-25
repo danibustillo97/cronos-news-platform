@@ -123,7 +123,7 @@ export function DataDeck({ fm, onAir }: { fm: FootballMatchController; onAir: Ai
   const onTarget = stat("shotsOnTarget");
 
   return (
-    <aside className="flex min-h-0 w-full flex-col border-t border-white/[0.08] bg-[#0b0f15] xl:w-[420px] xl:flex-shrink-0 xl:border-l xl:border-t-0">
+    <aside className="flex min-h-0 w-full flex-col border-t border-white/[0.08] bg-[#0b0f15] xl:h-full xl:w-[400px] xl:flex-shrink-0 xl:border-l xl:border-t-0">
       <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
         {/* Match header */}
         <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-transparent p-3">

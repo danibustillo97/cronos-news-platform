@@ -445,8 +445,8 @@ function proBoard(m: FootballScoreboard, p: Palette): DesignOutput {
   </div>
   <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:72px;background:${bg};border:1px solid ${accent}44;border-radius:0 10px 10px 10px;overflow:hidden">
     ${side(m.homeTeam, m.homeShort, m.homeLogo, isHex(m.homeColor) ? m.homeColor! : "#1f3a8a", "l")}
-    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 18px;height:100%;background:rgba(0,0,0,.35)">
-      <span style="${NUM};font-size:40px;font-weight:900;line-height:1;letter-spacing:.04em">${m.homeScore}<span style="opacity:.45;margin:0 8px">-</span>${m.awayScore}</span>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 18px;height:100%;background:${ucl ? "#ffffff" : p.accent};color:${ucl ? "#0b1a55" : onColor(p.accent)}">
+      <span style="${NUM};font-size:40px;font-weight:900;line-height:1;letter-spacing:.04em">${m.homeScore}<span style="opacity:.5;margin:0 8px">-</span>${m.awayScore}</span>
     </div>
     ${side(m.awayTeam, m.awayShort, m.awayLogo, isHex(m.awayColor) ? m.awayColor! : "#7f1d1d", "r")}
   </div>

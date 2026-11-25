@@ -191,38 +191,31 @@ export function drawScene(
     if (backdrop) {
       // el fondo ya cubre el lienzo
     } else {
-    const gradient = context.createLinearGradient(0, 0, width, height);
-    gradient.addColorStop(0, "#15212b");
-    gradient.addColorStop(0.55, "#0b1118");
-    gradient.addColorStop(1, "#080a0e");
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, width, height);
-    context.strokeStyle = "rgba(148,163,184,.07)";
-    context.lineWidth = 1;
-    for (let x = 0; x <= width; x += 160) {
-      context.beginPath();
-      context.moveTo(x, 0);
-      context.lineTo(x, height);
-      context.stroke();
-    }
-    for (let y = 0; y <= height; y += 160) {
-      context.beginPath();
-      context.moveTo(0, y);
-      context.lineTo(width, y);
-      context.stroke();
-    }
-    context.fillStyle = "#5eead4";
-    context.fillRect(width / 2 - 35, height / 2 - 142, 70, 5);
-    context.fillStyle = "#ffffff";
-    context.font = "600 62px Inter, Arial, sans-serif";
-    context.textAlign = "center";
-    context.fillText("SIN FUENTES", width / 2, height / 2 - 28);
-    context.fillStyle = "#9ca3af";
-    context.font = "30px Inter, Arial, sans-serif";
-    context.fillText(scene.name.toUpperCase(), width / 2, height / 2 + 28);
-    context.fillStyle = "#6b7280";
-    context.font = "25px Inter, Arial, sans-serif";
-    context.fillText("Conecta cámara · pantalla · media", width / 2, height / 2 + 84);
+      // Brand slate (never a technical "no source" message on air): black with yellow stripes and the logo.
+      context.fillStyle = "#0a0a0a";
+      context.fillRect(0, 0, width, height);
+      context.save();
+      context.fillStyle = "#facc15";
+      context.globalAlpha = 0.12;
+      for (let x = -height; x < width; x += 120) {
+        context.beginPath();
+        context.moveTo(x, height);
+        context.lineTo(x + 40, height);
+        context.lineTo(x + 40 + height, 0);
+        context.lineTo(x + height, 0);
+        context.fill();
+      }
+      context.restore();
+      context.fillStyle = "#facc15";
+      context.fillRect(0, height - Math.round(height * 0.012), width, Math.round(height * 0.012));
+      context.font = `900 ${Math.round(height * 0.11)}px 'Arial Black', Inter, Arial, sans-serif`;
+      context.textAlign = "center";
+      context.textBaseline = "middle";
+      context.fillText("⚡ NEXUS", width / 2, height / 2 - height * 0.03);
+      context.fillStyle = "#ffffff";
+      context.font = `700 ${Math.round(height * 0.03)}px Inter, Arial, sans-serif`;
+      context.fillText("F Ú T B O L   E N   V I V O", width / 2, height / 2 + height * 0.07);
+      context.textBaseline = "alphabetic";
     }
   } else if (scene.layout === "pip" && visibleInputs.length > 1) {
     drawInput(visibleInputs[0], 0, 0, width, height);

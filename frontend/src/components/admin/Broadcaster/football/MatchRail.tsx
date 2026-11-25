@@ -49,7 +49,7 @@ export function MatchRail({ fm }: { fm: FootballMatchController }) {
         return data.fixtures.map((f) => ({ ...f, competitionId: c.id, competition: c.short }));
       } catch { return []; }
     })).then((lists) => { if (alive) setFixtures(lists.flat()); });
-    const timer = window.setInterval(() => setReload((n) => n + 1), 60000);
+    const timer = window.setInterval(() => setReload((n) => n + 1), 30000);
     return () => { alive = false; window.clearInterval(timer); };
   }, [reload]);
 
@@ -71,14 +71,23 @@ export function MatchRail({ fm }: { fm: FootballMatchController }) {
     writeMultiSelection(next);
   };
   const mainId = fm.fixture?.id;
+  const selectMany = (ids: string[]) => { setSelected(ids); writeMultiSelection(ids); };
+  const liveIds = (fixtures ?? []).filter((f) => f.state === "in").map((f) => f.id);
+  const todayIds = (groups.find(([l]) => l === "Hoy")?.[1] ?? []).map((f) => f.id).concat(liveIds);
 
   return (
-    <aside className="flex min-h-0 w-full flex-col border-b border-white/[0.08] bg-[#0b0f15] xl:w-[340px] xl:flex-shrink-0 xl:border-b-0 xl:border-r">
+    <aside className="flex max-h-[60vh] min-h-0 w-full flex-col border-b border-white/[0.08] bg-[#0b0f15] xl:max-h-none xl:w-[340px] xl:flex-shrink-0 xl:border-b-0 xl:border-r">
       <div className="flex items-center gap-2 border-b border-white/[0.07] px-3 py-2.5">
         <Radio size={14} className="text-red-400" />
         <h3 className="text-[13px] font-bold text-white">Partidos</h3>
         <span className="text-[11px] text-neutral-500">{selected.length ? `${selected.length} en pantalla` : "en pantalla: todos los en vivo"}</span>
         <button type="button" onClick={() => setReload((n) => n + 1)} className="ml-auto rounded p-1 text-neutral-500 hover:text-white" aria-label="Actualizar"><RefreshCw size={13} /></button>
+      </div>
+      <div className="flex gap-1 border-b border-white/[0.05] px-2 py-1.5">
+        {([["Todos en vivo", liveIds], ["Todos de hoy", todayIds], ["Ninguno", []]] as const).map(([label, ids]) => (
+          <button key={label} type="button" onClick={() => selectMany([...new Set(ids)])} disabled={label !== "Ninguno" && ids.length === 0}
+            className="rounded-md border border-white/10 px-2 py-1 text-[10.5px] font-semibold text-neutral-300 hover:border-yellow-400/60 hover:text-yellow-200 disabled:opacity-30">{label}</button>
+        ))}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {fixtures === null && <p className="flex items-center gap-2 p-3 text-[12px] text-neutral-500"><Loader2 size={13} className="animate-spin" /> Buscando partidos…</p>}
