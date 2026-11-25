@@ -13,6 +13,7 @@ import { openMatch } from '@/lib/matchModalBus'
 import type { Match } from '@/types/sports'
 import { TeamCrest, LeagueBadge } from './Crest'
 import { InsightCard } from './MatchModal'
+import { ShareGoalButton } from './FanPlay'
 import { chipClass } from './ReelFrame'
 
 function preview(m: Moment): Match {
@@ -58,6 +59,7 @@ function GoalMoment({ m, fresh }: { m: Moment; fresh: boolean }) {
         </p>
         {m.assist && <p className="text-[12px] text-[var(--nx-muted)]">Asistencia: {m.assist.name}</p>}
       </button>
+      <div className="flex justify-end px-2 pb-1 sm:px-3"><ShareGoalButton moment={m} /></div>
       {m.player?.id && (
         <div className="border-t border-[var(--nx-line)] px-4 pb-3 sm:px-5">
           <button type="button" onClick={() => setMore((v) => !v)} aria-expanded={more} className="flex min-h-[44px] w-full items-center justify-between text-[13px] font-semibold text-[var(--nx-ink-2)]">

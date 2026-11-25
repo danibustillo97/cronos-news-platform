@@ -16,6 +16,7 @@ import { monogram } from '@/lib/leagueLogos'
 import { imageSource } from '@/lib/media'
 import { kickoffLabel } from '@/lib/feedComposer'
 import ReelFrame, { reelTitle } from './ReelFrame'
+import { openSheet } from '@/lib/sheetBus'
 import { TeamCrest } from './Crest'
 
 // ---------------------------------------------------------------- cápsulas
@@ -35,7 +36,7 @@ const KIND_ICON = {
  * id "preview"): sin reacciones/comentarios, compartir ni guardar, y sin
  * llamadas de red sociales.
  */
-export function CapsuleCard({ capsule, preview = false }: { capsule: Capsule; preview?: boolean }) {
+export function CapsuleCard({ capsule, preview = false, inSheet = false }: { capsule: Capsule; preview?: boolean; inSheet?: boolean }) {
   const reduce = useReducedMotion() ?? false
   const accent = CAPSULE_ACCENT[capsule.kind]
   const Icon = KIND_ICON[capsule.kind]
@@ -190,7 +191,11 @@ export function CapsuleCard({ capsule, preview = false }: { capsule: Capsule; pr
       share={preview ? undefined : { url: capsuleOgUrl(capsule, 1), title: capsule.title }}
       saveId={preview ? undefined : `cap-${capsule.id}`}
       social={preview ? undefined : { type: 'capsule', id: capsule.id }}
-      more={!preview && capsule.kind === 'leyenda' ? { href: '/leyendas', label: 'Más leyendas' } : undefined}
+      more={preview || inSheet ? undefined : {
+        href: capsule.kind === 'leyenda' ? '/leyendas' : '/',
+        label: 'Ver más',
+        onClick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); openSheet({ kind: 'capsule', payload: capsule }) },
+      }}
     />
   )
 }
@@ -280,7 +285,7 @@ export function PicksCard({ data }: { data: PicksData | null }) {
         meta={`Datos: cuotas ${provider} vía ESPN + racha últimos 5`}
         share={{ url: '/parleys', title: 'Parley del día · NEXUS' }}
         social={{ type: 'picks', id: 'today' }}
-        more={{ href: '/parleys', label: 'Ver todos' }}
+        more={{ href: '/parleys', label: 'Arma tu parley', onClick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); openSheet({ kind: 'parleys' }) } }}
       />
     </li>
   )

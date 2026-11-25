@@ -36,3 +36,17 @@ describe('insights feed', () => {
     expect(kickoffShort('x', now)).toBe('')
   })
 })
+
+describe('antesalas con vida', () => {
+  it('reads favorite, key players, phase and story', () => {
+    const [i] = normalizeFeedInsights({ insights: [{ id: 'p', kind: 'preview', matchId: '1',
+      favorite: { side: 'away', label: 'Favorito claro', probability: 0.86 }, keyPlayers: [{ id: '9', name: 'Lewandowski', team: 'away', headshot: null, stat: '6 goles en la Champions' }, { name: '' }],
+      phase: 'previa', kickoffLocal: '2026-11-25T12:45:00-05:00', story: 'david-vs-goliat' }] })
+    expect(i.favorite).toEqual({ side: 'away', label: 'Favorito claro', probability: 0.86 })
+    expect(i.keyPlayers).toEqual([{ id: '9', name: 'Lewandowski', team: 'away', headshot: null, stat: '6 goles en la Champions' }])
+    expect(i.phase).toBe('previa')
+    expect(i.story).toBe('david-vs-goliat')
+    const [j] = normalizeFeedInsights({ insights: [{ id: 'q', kind: 'preview', matchId: '2', story: 'otra', phase: 'x', favorite: { side: 'x' } }] })
+    expect(j).toMatchObject({ story: null, phase: null, favorite: null, keyPlayers: [] })
+  })
+})

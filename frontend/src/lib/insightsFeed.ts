@@ -21,6 +21,23 @@ export interface Insight {
   h2h: { date: string; result: 'W' | 'D' | 'L'; score: string; competition: string }[]
   standings: { pos: number; teamId: string; team: string; points: number; played: number; gd: number; highlight: boolean }[]
   format: string | null
+  favorite: { side: 'home' | 'away' | null; label: string; probability: number | null } | null
+  keyPlayers: { id: string; name: string; team: 'home' | 'away'; headshot: string | null; stat: string }[]
+  phase: 'previa' | 'en-vivo' | 'final' | null
+  kickoffLocal: string | null
+  story: InsightStory | null
+}
+
+export type InsightStory = 'duelo-de-lideres' | 'david-vs-goliat' | 'necesitados' | 'en-racha' | 'clasico'
+const STORIES: readonly InsightStory[] = ['duelo-de-lideres', 'david-vs-goliat', 'necesitados', 'en-racha', 'clasico']
+
+/** Insignia y acento de cada historia (tarjetas que no se ven todas iguales). */
+export const STORY_STYLE: Record<InsightStory, { label: string; accent: string }> = {
+  'duelo-de-lideres': { label: 'Duelo de líderes', accent: '#D4AF37' },
+  'david-vs-goliat': { label: 'David vs Goliat', accent: '#38BDF8' },
+  necesitados: { label: 'Partido de necesitados', accent: '#F87171' },
+  'en-racha': { label: 'Equipo en racha', accent: '#4ADE80' },
+  clasico: { label: 'Clásico', accent: '#C084FC' },
 }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -62,6 +79,17 @@ export function normalizeFeedInsights(raw: unknown): Insight[] {
         pos: int(s.pos), teamId: str(s.teamId, 64), team: str(s.team, 80), points: int(s.points), played: int(s.played), gd: int(s.gd), highlight: s.highlight === true,
       })).filter((s) => s.team).slice(0, 12),
       format: str(x.format, 600) || null,
+      favorite: isRecord(x.favorite) && str(x.favorite.label, 60) ? {
+        side: x.favorite.side === 'home' || x.favorite.side === 'away' ? x.favorite.side : null,
+        label: str(x.favorite.label, 60),
+        probability: typeof x.favorite.probability === 'number' && Number.isFinite(x.favorite.probability) ? x.favorite.probability : null,
+      } : null,
+      keyPlayers: (Array.isArray(x.keyPlayers) ? x.keyPlayers : []).filter(isRecord).map((k) => ({
+        id: str(k.id, 64), name: str(k.name, 120), team: (k.team === 'away' ? 'away' : 'home') as 'home' | 'away', headshot: str(k.headshot, 600) || null, stat: str(k.stat, 160),
+      })).filter((k) => k.name).slice(0, 4),
+      phase: x.phase === 'previa' || x.phase === 'en-vivo' || x.phase === 'final' ? x.phase : null,
+      kickoffLocal: str(x.kickoffLocal, 40) || null,
+      story: STORIES.includes(x.story as InsightStory) ? (x.story as InsightStory) : null,
     })
   }
   return out

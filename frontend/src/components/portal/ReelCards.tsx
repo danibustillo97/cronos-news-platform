@@ -4,7 +4,6 @@
 // de datos del navegador renderizan su propio <li> y devuelven null si no
 // hay datos: el feed nunca muestra huecos.
 
-import { useCallback, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { BarChart3, CircleDot, Newspaper, Sparkles, Swords, Table2, Vote } from 'lucide-react'
@@ -23,7 +22,7 @@ import { MatchLine } from './MatchCard'
 import { PollBlock } from './PollCard'
 import { Skeleton } from './PortalBits'
 import FeedAd from './FeedAd'
-import TableModal from './TableModal'
+import { openSheet } from '@/lib/sheetBus'
 import { StandingsGroups } from '@/components/news/StandingsTable'
 
 export const reelLi = 'nx-snap-item w-full min-w-0 max-w-full'
@@ -71,8 +70,7 @@ export function NewsReel({ story, onOpen, eager = false }: { story: NewsView; on
 
 export function TableReel({ league, dark }: { league: string; dark: boolean }) {
   const { table, groups, leagueName, loading } = useStandings(league)
-  const [open, setOpen] = useState(false)
-  const close = useCallback(() => setOpen(false), [])
+  const openTable = () => openSheet({ kind: 'table', league })
   const label = LEAGUE_LABELS[league] ?? leagueName ?? league
   if (!loading && table.length === 0) return null
   const rows = table.slice(0, 6)
@@ -84,19 +82,18 @@ export function TableReel({ league, dark }: { league: string; dark: boolean }) {
         kind="Tabla"
         title={
           <h3 className="text-lg font-bold text-[var(--nx-ink)]">
-            <button type="button" onClick={() => setOpen(true)} className="flex items-center gap-2.5 text-left hover:underline hover:decoration-2 hover:underline-offset-4">
+            <button type="button" onClick={() => openTable()} className="flex items-center gap-2.5 text-left hover:underline hover:decoration-2 hover:underline-offset-4">
               <LeagueBadge league={league} name={label} size={24} dark={dark} /> {label}
             </button>
           </h3>
         }
         body={loading ? <Skeleton className="h-[264px]" /> : (
-          <StandingsGroups groups={groups} limit={6} league={league} showLegend={false} onRowsClick={() => setOpen(true)} />
+          <StandingsGroups groups={groups} limit={6} league={league} showLegend={false} onRowsClick={() => openTable()} />
         )}
         meta={!loading && table.length > rows.length ? `${table.length} equipos · Fuente: ESPN` : 'Fuente: ESPN'}
         share={{ url: href, title: `Tabla de ${label}` }}
-        more={{ href, label: 'Ver tabla completa', onClick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); setOpen(true) } }}
+        more={{ href, label: 'Ver tabla completa', onClick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); openTable() } }}
       />
-      <TableModal open={open} initialLeague={league} onClose={close} />
     </li>
   )
 }
@@ -135,7 +132,7 @@ export function PollReel({ poll }: { poll: Poll | undefined }) {
         body={<PollBlock poll={poll} compact bare />}
         share={{ url: `/encuestas#encuesta-${encodeURIComponent(poll.id)}`, title: poll.question }}
         social={{ type: 'poll', id: poll.id }}
-        more={{ href: '/encuestas', label: 'Más encuestas' }}
+        more={{ href: '/encuestas', label: 'Más encuestas', onClick: (e) => { if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return; e.preventDefault(); openSheet({ kind: 'polls' }) } }}
       />
     </li>
   )

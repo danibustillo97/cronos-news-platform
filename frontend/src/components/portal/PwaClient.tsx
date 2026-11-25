@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { usePathname, useRouter } from 'next/navigation'
 import { Download, Home, Share, Table2, Trophy, User, Vote, X } from 'lucide-react'
 import { safeStorage } from '@/lib/players'
 
@@ -37,7 +37,18 @@ function isIosSafari(): boolean {
 
 export default function PwaClient() {
   const pathname = usePathname() ?? '/'
+  const router = useRouter()
   const [standalone, setStandalone] = useState(false)
+  // La barra de pestañas va siempre en teléfono (no solo con la app instalada).
+  const [phone, setPhone] = useState(false)
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 767px)')
+    const on = () => setPhone(mq.matches)
+    on()
+    mq.addEventListener('change', on)
+    return () => mq.removeEventListener('change', on)
+  }, [])
+  const tabs = standalone || phone
   const [installEvent, setInstallEvent] = useState<InstallEvent | null>(null)
   const [iosHint, setIosHint] = useState(false)
 
@@ -58,10 +69,22 @@ export default function PwaClient() {
 
   useEffect(() => {
     const root = document.documentElement
-    if (standalone) root.style.setProperty('--nx-tabbar-h', 'calc(60px + env(safe-area-inset-bottom, 0px))')
+    if (tabs) root.style.setProperty('--nx-tabbar-h', 'calc(60px + env(safe-area-inset-bottom, 0px))')
     else root.style.removeProperty('--nx-tabbar-h')
     root.classList.toggle('nx-standalone', standalone)
-  }, [standalone])
+    root.classList.toggle('nx-tabbar', tabs)
+  }, [standalone, tabs])
+
+  // Navegación con transición nativa (View Transitions) donde exista; respeta "menos movimiento".
+  const go = (e: React.MouseEvent<HTMLAnchorElement>, href: string) => {
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+    e.preventDefault()
+    try { navigator.vibrate?.(8) } catch { /* sin vibración */ }
+    const doc = document as Document & { startViewTransition?: (cb: () => void) => void }
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    if (doc.startViewTransition && !reduce) doc.startViewTransition(() => router.push(href))
+    else router.push(href)
+  }
 
   const dismiss = () => {
     try { safeStorage()?.setItem(DISMISS_KEY, '1') } catch { /* bloqueado */ }
@@ -72,7 +95,7 @@ export default function PwaClient() {
   return (
     <>
       {(installEvent || iosHint) && (
-        <div role="dialog" aria-label="Instalar NEXUS" className="fixed inset-x-3 bottom-[calc(env(safe-area-inset-bottom,0px)+12px)] z-[85] mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-white/10 bg-[#141414]/95 p-3 text-white shadow-2xl backdrop-blur-md sm:left-auto sm:right-4">
+        <div role="dialog" aria-label="Instalar NEXUS" className="fixed inset-x-3 bottom-[calc(var(--nx-tabbar-h,env(safe-area-inset-bottom,0px))+12px)] z-[85] mx-auto flex max-w-md items-center gap-3 rounded-2xl border border-white/10 bg-[#141414]/95 p-3 text-white shadow-2xl backdrop-blur-md sm:left-auto sm:right-4">
           <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#FACC15] text-black">
             {installEvent ? <Download size={18} aria-hidden="true" /> : <Share size={18} aria-hidden="true" />}
           </span>
@@ -88,15 +111,15 @@ export default function PwaClient() {
         </div>
       )}
 
-      {standalone && (
+      {tabs && (
         <nav aria-label="Navegación de la app" className="fixed inset-x-0 bottom-0 z-[80] border-t border-white/10 bg-[#0A0A0A]/95 pb-[env(safe-area-inset-bottom,0px)] text-white backdrop-blur-md">
           <ul className="mx-auto flex h-[60px] max-w-lg items-stretch justify-around">
             {TABS.map(({ href, label, icon: Icon, match }) => {
               const on = match(pathname)
               return (
                 <li key={href} className="flex-1">
-                  <Link href={href} aria-current={on ? 'page' : undefined} className={`flex h-full flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-transform active:scale-90 ${on ? 'text-[#FACC15]' : 'text-white/60'}`}>
-                    <Icon size={21} aria-hidden="true" />
+                  <Link href={href} onClick={(e) => go(e, href)} aria-current={on ? 'page' : undefined} className={`flex h-full flex-col items-center justify-center gap-0.5 text-[10px] font-semibold transition-transform active:scale-90 ${on ? 'text-[#FACC15]' : 'text-white/60'}`}>
+                    <span className={`inline-flex h-7 w-12 items-center justify-center rounded-full transition-colors ${on ? 'bg-[#FACC15]/15' : ''}`}><Icon size={21} aria-hidden="true" /></span>
                     {label}
                   </Link>
                 </li>

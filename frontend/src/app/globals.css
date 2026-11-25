@@ -965,4 +965,7 @@ body {
 
 /* App instalada: sin rebote/pull-to-refresh accidental y espacio para la barra de pestañas. */
 html.nx-standalone, html.nx-standalone body { overscroll-behavior-y: none; }
-html.nx-standalone body { padding-bottom: var(--nx-tabbar-h, 0px); }
+html.nx-tabbar body { padding-bottom: var(--nx-tabbar-h, 0px); }
+/* Transiciones entre páginas (View Transitions) cortas y sobrias. */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 180ms; }
+@media (prefers-reduced-motion: reduce) { ::view-transition-old(root), ::view-transition-new(root) { animation: none; } }

@@ -16,7 +16,9 @@ import { useMoments } from '@/lib/useMoments'
 import { useInsightsFeed } from '@/lib/useInsightsFeed'
 import { mergeDynamic } from '@/lib/insightsFeed'
 import { InsightCard } from './InsightCards'
+import { StreakChip } from './FanPlay'
 import PlacementAd from './PlacementAd'
+import { LeftRail, RightRail } from './SideRails'
 import { FEED_AD_AFTER } from '@/lib/adSlots'
 import { composeReels, interleavePolls, autoFacts, TABLE_ROTATION } from '@/lib/reels'
 import { useManyStandings } from '@/lib/useStandings'
@@ -25,7 +27,7 @@ import type { Poll } from '@/lib/polls'
 import type { NewsView } from '@/types/news'
 import type { Match } from '@/types/sports'
 import BriefReel from './BriefReel'
-import { FactReel, LiveMini, MatchReel, NewsReel, PollReel, TableReel, reelLi } from './ReelCards'
+import { FactReel, MatchReel, NewsReel, PollReel, TableReel, reelLi } from './ReelCards'
 import { useNow } from './useNow'
 import { CapsuleCard, PicksCard } from './FeedExtras'
 import { useCapsules } from '@/lib/useCapsules'
@@ -127,7 +129,7 @@ export default function ReelsFeed({
                 if (!dyn) return null
                 return (
                   <li key={`${item.key}-${dyn.key}`} className={reelLi}>
-                    {dyn.type === 'moment' ? <MomentCard item={dyn.item} fresh={moments.fresh} /> : <InsightCard insight={dyn.insight} />}
+                    {dyn.type === 'moment' ? <MomentCard item={dyn.item} fresh={moments.fresh} /> : <InsightCard insight={dyn.insight} live={matches.find((m) => m.id === dyn.insight.matchId) ?? null} />}
                   </li>
                 )
               }
@@ -148,12 +150,17 @@ export default function ReelsFeed({
 
   return (
     <div className="grid w-full min-w-0 grid-cols-1 gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(0,640px)_minmax(0,1fr)]">
-      <div className="hidden xl:block" aria-hidden="true" />
+      {/* Rieles laterales: solo ≥1280 px */}
+      <aside aria-label="En vivo y tablas" className="hidden justify-end xl:flex">
+        <div className="sticky self-start" style={{ top: 'calc(var(--nx-header-h) + 16px)' }}>
+          <LeftRail matches={matches} dark={dark} />
+        </div>
+      </aside>
       <div className="mx-auto w-full min-w-0 max-w-[640px]">
         <div className="mb-4 flex items-end justify-between gap-3 px-1">
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]">Noticias, datos y tablas en un solo hilo</p>
-            <h2 id="feed-heading" className="mt-1 text-2xl font-bold tracking-[-0.015em] text-[var(--nx-ink)]">Pulso</h2>
+            <h2 id="feed-heading" className="mt-1 flex flex-wrap items-center gap-2 text-2xl font-bold tracking-[-0.015em] text-[var(--nx-ink)]">Pulso <StreakChip /></h2>
           </div>
           {onRefresh && (
             <button type="button" onClick={doRefresh} disabled={refreshing} aria-live="polite" className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-[var(--nx-line)] px-3.5 text-[13px] font-semibold text-[var(--nx-ink-2)] transition-transform hover:border-[var(--nx-line-strong)] active:scale-95 disabled:opacity-70">
@@ -206,12 +213,11 @@ export default function ReelsFeed({
           </nav>
         </div>
       </div>
-      <div className="hidden xl:block">
-        <div className="sticky flex flex-col gap-4" style={{ top: 'calc(var(--nx-header-h) + 16px)' }}>
-          <PlacementAd placement="sidebar" />
-          <LiveMini matches={matches} />
+      <aside aria-label="Lo más leído, parley y encuesta" className="hidden xl:block">
+        <div className="sticky" style={{ top: 'calc(var(--nx-header-h) + 16px)' }}>
+          <RightRail stories={[...stageStories, ...stories]} polls={polls} onOpen={onOpen} />
         </div>
-      </div>
+      </aside>
     </div>
   )
 }

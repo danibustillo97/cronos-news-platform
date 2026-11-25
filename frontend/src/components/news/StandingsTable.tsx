@@ -18,8 +18,10 @@ const th = 'px-1.5 py-2.5 text-[10px] font-bold uppercase tracking-[0.12em] text
 const td = 'h-11 border-t border-[var(--nx-line)] px-1.5 text-right text-[13px] tabular-nums text-[var(--nx-ink-2)] sm:px-2'
 
 export default function StandingsTable({
-  table, limit, league, showLegend = true, stickyHeader = false, onRowsClick, caption, groupName,
+  table, limit, league, showLegend = true, stickyHeader = false, onRowsClick, caption, groupName, compact = false,
 }: {
+  /** Columnas de teléfono (#, equipo, PJ, DG, PTS) aunque la pantalla sea ancha (rieles angostos). */
+  compact?: boolean
   table: StandingsRowData[]
   limit?: number
   league?: string | null
@@ -40,11 +42,13 @@ export default function StandingsTable({
   const legend = showLegend ? standingsLegend(rows) : []
   const group = groupName ?? tableGroupLabel(league, sorted.length)
   const stick = stickyHeader ? 'sticky top-0 z-10 bg-[var(--nx-surface)]' : ''
+  const wideCell = compact ? 'hidden' : 'hidden sm:table-cell'
+  const wideCol = compact ? 'hidden' : 'hidden w-9 sm:table-column sm:w-10'
   const headers: [string, string, string][] = [
     ['PJ', 'Partidos jugados', ''],
-    ['G', 'Ganados', 'hidden sm:table-cell'],
-    ['E', 'Empatados', 'hidden sm:table-cell'],
-    ['P', 'Perdidos', 'hidden sm:table-cell'],
+    ['G', 'Ganados', wideCell],
+    ['E', 'Empatados', wideCell],
+    ['P', 'Perdidos', wideCell],
     ['DG', 'Diferencia de gol', ''],
   ]
 
@@ -54,20 +58,18 @@ export default function StandingsTable({
       <table className={`w-full table-fixed border-separate border-spacing-0 ${onRowsClick ? 'cursor-pointer' : ''}`} onClick={onRowsClick}>
         {caption && <caption className="sr-only">{caption}</caption>}
         <colgroup>
-          <col className="w-8 sm:w-9" />
+          <col className={compact ? 'w-7' : 'w-8 sm:w-9'} />
           <col />
-          <col className="w-9 sm:w-10" />
-          <col className="hidden w-9 sm:table-column sm:w-10" />
-          <col className="hidden w-9 sm:table-column sm:w-10" />
-          <col className="hidden w-9 sm:table-column sm:w-10" />
-          <col className="w-10 sm:w-11" />
-          <col className="w-11 sm:w-12" />
+          <col className={compact ? 'w-7' : 'w-9 sm:w-10'} />
+          {!compact && <><col className={wideCol} /><col className={wideCol} /><col className={wideCol} /></>}
+          <col className={compact ? 'w-9' : 'w-10 sm:w-11'} />
+          <col className={compact ? 'w-9' : 'w-11 sm:w-12'} />
         </colgroup>
         <thead>
           <tr>
             <th scope="col" className={`${th} ${stick} text-center`}>#</th>
             <th scope="col" className={`${th} ${stick} text-left`}>Equipo</th>
-            {headers.map(([a, t, cls]) => <th key={a} scope="col" className={`${th} ${stick} text-right ${cls}`}><abbr title={t} className="no-underline">{a}</abbr></th>)}
+            {headers.filter(([, , cls]) => !(compact && cls === 'hidden')).map(([a, t, cls]) => <th key={a} scope="col" className={`${th} ${stick} text-right ${cls}`}><abbr title={t} className="no-underline">{a}</abbr></th>)}
             <th scope="col" className={`${th} ${stick} pr-2 text-right sm:pr-3`}><abbr title="Puntos" className="no-underline">PTS</abbr></th>
           </tr>
         </thead>
@@ -83,15 +85,17 @@ export default function StandingsTable({
                   {r.rank}
                 </td>
                 <th scope="row" className="h-11 border-t border-[var(--nx-line)] pr-1.5 text-left font-normal">
-                  <span className="flex min-w-0 items-center gap-2">
-                    <TeamCrest src={r.logo} name={r.team} size={22} />
+                  <span className={`flex min-w-0 items-center ${compact ? 'gap-1.5' : 'gap-2'}`}>
+                    <TeamCrest src={r.logo} name={r.team} size={compact ? 18 : 22} />
                     <span className={`min-w-0 truncate text-[13px] ${leader ? 'font-bold' : 'font-semibold'} text-[var(--nx-ink)]`}>{r.team}</span>
                   </span>
                 </th>
                 <td className={td}>{r.played}</td>
-                <td className={`${td} hidden sm:table-cell`}>{r.won}</td>
-                <td className={`${td} hidden sm:table-cell`}>{r.drawn}</td>
-                <td className={`${td} hidden sm:table-cell`}>{r.lost}</td>
+                {!compact && <>
+                  <td className={`${td} ${wideCell}`}>{r.won}</td>
+                  <td className={`${td} ${wideCell}`}>{r.drawn}</td>
+                  <td className={`${td} ${wideCell}`}>{r.lost}</td>
+                </>}
                 <td className={td}>{formatGoalDiff(r.goalDifference)}</td>
                 <td className={`${td} pr-2 font-bold !text-[var(--nx-ink)] sm:pr-3`}>{r.points}</td>
               </tr>

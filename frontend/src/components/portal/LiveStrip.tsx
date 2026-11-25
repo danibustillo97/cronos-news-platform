@@ -84,7 +84,7 @@ export default function LiveStrip({ matches }: { matches: Match[] }) {
   useEffect(() => {
     const el = sentinel.current
     if (!el) return
-    const io = new IntersectionObserver(([e]) => setStuck(!e.isIntersecting && e.boundingClientRect.top < 0), { threshold: 0, rootMargin: '-120px 0px 0px 0px' })
+    const io = new IntersectionObserver(([e]) => setStuck(!e.isIntersecting && e.boundingClientRect.top < (e.rootBounds?.top ?? 0) + 1), { threshold: 0, rootMargin: '-120px 0px 0px 0px' })
     io.observe(el)
     return () => io.disconnect()
   }, [live.length])
