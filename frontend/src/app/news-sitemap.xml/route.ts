@@ -10,6 +10,7 @@ export async function GET() {
     .select('slug,title,image_url,published_at')
     .eq('status', 'published')
     .gte('published_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString())
+    .lte('published_at', new Date().toISOString())
     .order('published_at', { ascending: false })
     .limit(1000)
 
