@@ -6,6 +6,7 @@ import { Html, Text } from '@react-three/drei'
 import { motion } from 'framer-motion'
 import * as THREE from 'three'
 import { supabase } from '@/lib/supabaseClient'
+import { filterCurrentNews, newsQueryFloor } from '@/lib/newsFreshness'
 
 interface News {
   id: string
@@ -418,6 +419,8 @@ export default function NoticieroEstiloCNN() {
       const { data } = await supabase
         .from('news')
         .select('*')
+        .eq('status', 'published')
+        .gte('published_at', newsQueryFloor())
         .order('published_at', { ascending: false })
         .limit(10)
       if (data) setNoticias(data as News[])
