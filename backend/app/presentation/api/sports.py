@@ -8,8 +8,12 @@ from __future__ import annotations
 # infrastructure-free passthrough for display -- no domain entity, no
 # repository, because there's no business state of ours involved.
 
+import asyncio
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from app.domain.football.formats import format_for, group_label
 
@@ -25,12 +29,22 @@ LEAGUE_NAMES: dict[str, str] = {
     "ita.1": "Serie A",
     "ger.1": "Bundesliga",
     "uefa.champions": "Champions League",
+    "uefa.europa": "Europa League",
+    "fra.1": "Ligue 1",
     "conmebol.libertadores": "Libertadores",
     "conmebol.sudamericana": "Sudamericana",
 }
 
 _DEFAULT_SCOREBOARD_LEAGUES = [
     "col.1", "uefa.champions", "conmebol.libertadores", "conmebol.sudamericana", "esp.1", "eng.1",
+]
+
+# Cobertura ampliada del centro de jornada. Se mantiene separada del marcador
+# compacto para no cambiar el contrato ni el volumen de los consumidores actuales.
+_MATCHDAY_LEAGUES = [
+    "col.1", "uefa.champions", "uefa.europa",
+    "conmebol.libertadores", "conmebol.sudamericana",
+    "eng.1", "esp.1", "ita.1", "ger.1", "fra.1",
 ]
 # Orden de prioridad real pedido: copas continentales primero, ligas locales
 # después. ESPN devuelve tabla vacía (children == []) para competiciones en
@@ -49,9 +63,12 @@ def _status_bucket(state: str) -> str:
     return "scheduled"
 
 
-async def _fetch_league_scoreboard(client: httpx.AsyncClient, league: str) -> list[dict]:
+async def _fetch_league_scoreboard(
+    client: httpx.AsyncClient, league: str, date_key: str | None = None
+) -> list[dict]:
     try:
-        res = await client.get(f"{_ESPN_BASE}/{league}/scoreboard", timeout=8.0)
+        params = {"dates": date_key} if date_key else None
+        res = await client.get(f"{_ESPN_BASE}/{league}/scoreboard", params=params, timeout=8.0)
         res.raise_for_status()
         data = res.json()
     except Exception:
@@ -94,6 +111,34 @@ async def get_scoreboard(leagues: str = Query(",".join(_DEFAULT_SCOREBOARD_LEAGU
     order = {"live": 0, "finished": 1, "scheduled": 2}
     all_matches.sort(key=lambda m: order.get(m["status"], 3))
     return all_matches[:12]
+
+
+@router.get("/day")
+async def get_matchday(
+    response: Response,
+    date: str | None = Query(default=None, pattern=r"^\\d{8}$"),
+    limit: int = Query(default=100, ge=1, le=120),
+) -> list[dict]:
+    """Fixtures completos del día en Colombia para el Matchday Board."""
+    if date:
+        try:
+            datetime.strptime(date, "%Y%m%d")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="date must be a valid YYYYMMDD value") from exc
+        date_key = date
+    else:
+        date_key = datetime.now(ZoneInfo("America/Bogota")).strftime("%Y%m%d")
+
+    response.headers["Cache-Control"] = "public, s-maxage=20, stale-while-revalidate=40"
+
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(
+            *(_fetch_league_scoreboard(client, league, date_key) for league in _MATCHDAY_LEAGUES)
+        )
+
+    matches = [match for group in results for match in group]
+    matches.sort(key=lambda match: (match.get("date") or "9999-12-31", match["league"], match["id"]))
+    return matches[:limit]
 
 
 @router.get("/standings")
