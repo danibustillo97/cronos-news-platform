@@ -43,6 +43,7 @@ export async function generateMetadata(): Promise<Metadata> {
   const seo = await getSeoSettings()
   return {
   metadataBase: new URL('https://www.nexusnews.info'),
+  alternates: { canonical: '/' },
   title: {
     default: seo.title,
     template: '%s | Nexus News'
@@ -54,10 +55,10 @@ export async function generateMetadata(): Promise<Metadata> {
   publisher: 'Nexus News',
   openGraph: {
     type: 'website',
-    locale: 'es_ES',
+    locale: 'es_CO',
     url: 'https://www.nexusnews.info',
-    title: 'Nexus News | Noticias Deportivas al Instante',
-    description: 'El mejor portal de noticias deportivas con análisis IA en tiempo real.',
+    title: seo.title,
+    description: seo.description,
     siteName: 'Nexus News',
     images: [
       {
@@ -72,7 +73,7 @@ export async function generateMetadata(): Promise<Metadata> {
     card: 'summary_large_image',
     title: 'Nexus News | Noticias Deportivas',
     description: 'Noticias deportivas al instante con IA.',
-    creator: '@nexusnews',
+    
     images: ['/og-image.jpg'],
   },
   applicationName: 'NEXUS Fútbol',
