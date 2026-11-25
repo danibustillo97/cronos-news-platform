@@ -116,7 +116,7 @@ async def get_scoreboard(leagues: str = Query(",".join(_DEFAULT_SCOREBOARD_LEAGU
 @router.get("/day")
 async def get_matchday(
     response: Response,
-    date: str | None = Query(default=None, pattern=r"^\\d{8}$"),
+    date: str | None = Query(default=None, pattern=r"^\d{8}$"),
     limit: int = Query(default=100, ge=1, le=120),
 ) -> list[dict]:
     """Fixtures completos del día en Colombia para el Matchday Board."""
@@ -137,7 +137,7 @@ async def get_matchday(
         )
 
     matches = [match for group in results for match in group]
-    matches.sort(key=lambda match: (match.get("date") or "9999-12-31", match["league"], match["id"]))
+    matches.sort(key=lambda match: (match.get("date") or "9999-12-31", match["league"], str(match.get("id") or "")))
     return matches[:limit]
 
 
