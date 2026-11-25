@@ -25,7 +25,7 @@ export async function generateMetadata(
   }
 
   const url = `https://www.nexusnews.info/noticia/${data.slug}`;
-  const description = String(data.summary || data.excerpt || data.title).replace(/\\s+/g, ' ').trim().slice(0, 160);
+  const description = String(data.summary || data.excerpt || data.title).replace(/\s+/g, ' ').trim().slice(0, 160);
 
   return {
     title: data.title,
