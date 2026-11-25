@@ -423,7 +423,7 @@ export default function NoticieroEstiloCNN() {
         .gte('published_at', newsQueryFloor())
         .order('published_at', { ascending: false })
         .limit(10)
-      if (data) setNoticias(data as News[])
+      if (data) setNoticias(filterCurrentNews(data as News[]))
     })()
   }, [])
 
