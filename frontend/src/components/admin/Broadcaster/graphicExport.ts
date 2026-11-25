@@ -1,5 +1,5 @@
 export type GraphicKind = "lower-third" | "scoreboard" | "ticker";
-export type GraphicVariant = "elite" | "compact" | "editorial" | "live" | "goal" | "lower" | "var" | "events" | "prematch" | "lineup-home" | "lineup-away" | "stats" | "multi" | "goal-alert" | "poll" | "dato" | "pro";
+export type GraphicVariant = "elite" | "compact" | "editorial" | "live" | "goal" | "lower" | "var" | "events" | "prematch" | "lineup-home" | "lineup-away" | "stats" | "multi" | "goal-alert" | "poll" | "dato" | "pro" | "goal-pro";
 export type BroadcastMode = "normal" | "football";
 
 export interface FootballTeamPlayer {
@@ -110,6 +110,8 @@ export interface BroadcastGraphic {
   alignment?: "left" | "center" | "right";
   variant?: GraphicVariant;
   football?: FootballScoreboard;
+  /** Bound to this match: `football` is its own data, refreshed in the background. */
+  matchRef?: { league: string; id: string };
   position?: { x: number; y: number };
   leavingAt?: number;
 }

@@ -7,7 +7,7 @@ export interface DesignOutput {
   height: number;
 }
 
-export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro"];
+export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro", "goal-pro"];
 
 /** Other matches shown at once by the "multi" panel (fed by useLiveBoard). */
 export interface MultiScore {
@@ -30,6 +30,14 @@ export const getMultiVersion = () => multiVersion;
 /** Poll shown on air (one at a time), refreshed while viewers vote on the portal. */
 export interface PollBoard { kind: "poll" | "debate"; question: string; options: { label: string; votes: number }[]; total: number }
 let pollBoard: PollBoard | null = null;
+/** The goal shown by "goal-pro" (main match or any other match). */
+export interface GoalCard { teamName: string; teamLogo?: string; teamColor?: string; scorer: string; minute: string; assist?: string; score: string; competition?: string; fact?: string }
+let goalCard: GoalCard | null = null;
+export function setGoalCard(card: GoalCard | null) {
+  goalCard = card;
+  multiVersion += 1;
+}
+
 export function setPollBoard(board: PollBoard | null) {
   const next = JSON.stringify(board);
   if (next === JSON.stringify(pollBoard)) return;
@@ -459,6 +467,34 @@ function proBoard(m: FootballScoreboard, p: Palette): DesignOutput {
   return { html, width: 640, height: 150 };
 }
 
+function goalPro(p: Palette): DesignOutput {
+  const g = goalCard;
+  if (!g) {
+    return { html: `<div class="nx" style="width:1180px;height:196px;display:grid;place-items:center;color:rgba(255,255,255,.7);${FONT_TXT};font-size:28px;background:${SURFACE};border-radius:10px;box-shadow:inset 0 0 0 2px ${p.accent}">Sale solo cuando hay un gol</div>`, width: 1180, height: 196 };
+  }
+  const color = isHex(g.teamColor) ? g.teamColor! : p.accent;
+  const html = `<div class="nx" style="width:1180px;color:#fff;${FONT_TXT};filter:drop-shadow(0 18px 40px rgba(0,0,0,.6))">
+  <div style="display:flex;align-items:stretch;height:190px;border-radius:10px;overflow:hidden;background:${SURFACE};box-shadow:inset 0 0 0 2px ${p.accent}">
+    <div style="width:210px;display:grid;place-items:center;background:linear-gradient(135deg,${color},${color}55)">
+      ${g.teamLogo ? `<img src="${esc(g.teamLogo)}" alt="" style="width:150px;height:150px;object-fit:contain;filter:drop-shadow(0 6px 10px rgba(0,0,0,.6))" />` : `<span style="${NUM};font-size:64px;font-weight:900">${esc(g.teamName.slice(0, 3).toUpperCase())}</span>`}
+    </div>
+    <div style="flex:1;min-width:0;padding:20px 28px;display:flex;flex-direction:column;justify-content:center">
+      <div style="display:flex;align-items:center;gap:14px">
+        <span style="${NUM};font-size:58px;font-weight:900;letter-spacing:.04em;color:${p.accent};line-height:1">¡GOOOL!</span>
+        <span style="font:800 15px 'Segoe UI',Arial;letter-spacing:.2em;text-transform:uppercase;color:rgba(255,255,255,.7)">${esc(g.teamName)}${g.competition ? ` · ${esc(g.competition)}` : ""}</span>
+      </div>
+      <div style="${NUM};font-size:44px;font-weight:800;margin-top:6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(g.scorer || g.teamName)}</div>
+      <div style="font:600 19px 'Segoe UI',Arial;color:rgba(255,255,255,.8);margin-top:4px">Min ${esc(g.minute)}${g.assist ? ` · ${esc(g.assist)}` : ""}</div>
+    </div>
+    <div style="width:190px;display:grid;place-items:center;background:${p.accent};color:${onColor(p.accent)}">
+      <span style="${NUM};font-size:66px;font-weight:900;letter-spacing:.02em">${esc(g.score)}</span>
+    </div>
+  </div>
+  ${g.fact ? `<div style="margin-top:8px;padding:12px 22px;border-radius:8px;background:${SURFACE};box-shadow:inset 4px 0 0 ${p.accent};font:600 21px 'Segoe UI',Arial;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📊 ${esc(g.fact)}</div>` : ""}
+</div>`;
+  return { html, width: 1180, height: g.fact ? 262 : 196 };
+}
+
 function datoCard(p: Palette, title: string, subtitle: string): DesignOutput {
   const html = `<div class="nx" style="width:980px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:8px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.6),inset 0 0 0 1px ${HAIR}">
   <div style="display:flex;align-items:stretch">
@@ -757,6 +793,7 @@ function renderBase(variant: GraphicVariant, match: FootballScoreboard, title: s
     case "poll": return pollDesign(p, title);
     case "dato": return datoCard(p, title, subtitle);
     case "pro": return proBoard(match, p);
+    case "goal-pro": return goalPro(p);
     default: return elite(match, p);
   }
 }
@@ -779,6 +816,7 @@ export const FOOTBALL_VARIANT_LABEL: Record<string, string> = {
   poll: "Votación en vivo (encuesta / debate)",
   dato: "Dato grande",
   pro: "Marcador Pro (por competición)",
+  "goal-pro": "Gol (tarjeta completa)",
 };
 
 export function footballDesignDocument(design: DesignOutput, position: { x: number; y: number }, scale: number): string {

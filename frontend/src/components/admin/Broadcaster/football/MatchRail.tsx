@@ -29,7 +29,7 @@ export function groupLabel(f: Fixture, now: Date): string {
 
 const ORDER = (label: string) => (label === "En vivo" ? 0 : label === "Hoy" ? 1 : label === "Mañana" ? 2 : label === "Terminados" ? 9 : 3);
 
-export function MatchRail({ fm }: { fm: FootballMatchController }) {
+export function MatchRail({ fm, onAirMatch }: { fm: FootballMatchController; onAirMatch: (ref: { league: string; id: string }, variant: "pro" | "lineups" | "stats") => void }) {
   const [fixtures, setFixtures] = useState<(Fixture & { competitionId: string; competition: string })[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [reload, setReload] = useState(0);
@@ -113,10 +113,16 @@ export function MatchRail({ fm }: { fm: FootballMatchController }) {
                         {f.state !== "pre" && <span className="text-[13px] font-bold tabular-nums text-white">{t.score}</span>}
                       </div>
                     ))}
-                    <div className="mt-2 flex gap-1.5">
+                    <div className="mt-2 grid grid-cols-3 gap-1">
+                      {([["pro", "Marcador"], ["lineups", "Alineac."], ["stats", "Stats"]] as const).map(([v, label]) => (
+                        <button key={v} type="button" onClick={() => onAirMatch({ league: f.league, id: f.id }, v)}
+                          className="rounded-md bg-red-500/90 px-1.5 py-1 text-[10.5px] font-bold text-white hover:bg-red-400">{label}</button>
+                      ))}
+                    </div>
+                    <div className="mt-1.5 flex gap-1.5">
                       <button type="button" onClick={() => void fm.loadFixture(f, f.competitionId)}
                         className={`inline-flex flex-1 items-center justify-center gap-1 rounded-lg px-2 py-1.5 text-[11px] font-bold ${main ? "bg-emerald-400 text-black" : "bg-white/[0.08] text-white hover:bg-white/[0.14]"}`}>
-                        <MonitorUp size={12} /> {main ? "Transmitiendo" : "Transmitir"}
+                        <MonitorUp size={12} /> {main ? "Principal" : "Hacer principal"}
                       </button>
                       <button type="button" onClick={() => toggle(f.id)} aria-pressed={onScreen}
                         className={`rounded-lg border px-2 py-1.5 text-[11px] font-semibold ${onScreen ? "border-yellow-400 bg-yellow-400/15 text-yellow-200" : "border-white/10 text-neutral-400 hover:border-white/30"}`}>

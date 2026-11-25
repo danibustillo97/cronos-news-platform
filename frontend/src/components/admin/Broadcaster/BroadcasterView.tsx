@@ -25,7 +25,9 @@ import { goalAlertText, useGoalAlertsPref, useLiveBoard } from "./football/liveB
 import { MatchRail } from "./football/MatchRail";
 import { OnAirStrip } from "./football/OnAirStrip";
 import { findFreeSpot, rectAt, type Rect } from "./football/placement";
-import { renderFootballDesign } from "./football/designs";
+import { renderFootballDesign, setGoalCard } from "./football/designs";
+import { toScoreboard, type MatchRef } from "./football/matchBinding";
+import { logoToDataUrl } from "./football/raster";
 import type { BackgroundTheme } from "./football/backgrounds";
 import { drawBackground } from "./football/backgrounds";
 import { TemplateBar } from "./football/TemplateBar";
@@ -875,13 +877,13 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     elite: { x: 3, y: 4 }, compact: { x: 3, y: 4 }, editorial: { x: 3, y: 4 }, live: { x: 19, y: 86 },
     goal: { x: 21.5, y: 66 }, lower: { x: 4, y: 78 }, var: { x: 3, y: 18 }, events: { x: 4, y: 82 },
     prematch: { x: 23, y: 26 }, "lineup-home": { x: 3, y: 17 }, "lineup-away": { x: 74, y: 17 }, stats: { x: 3, y: 17 },
-    pro: { x: 2.5, y: 3.5 }, multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
+    pro: { x: 2.5, y: 3.5 }, "goal-pro": { x: 19, y: 62 }, multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
   };
   const FOOTBALL_NAMES: Record<string, string> = {
     elite: "NEXUS Elite", compact: "NEXUS Compact", editorial: "NEXUS Editorial", live: "NEXUS Live", goal: "NEXUS Goal",
     lower: "NEXUS Lower Third", var: "NEXUS VAR", events: "NEXUS Match Events", prematch: "NEXUS Previa",
     "lineup-home": "Alineación local", "lineup-away": "Alineación visitante", stats: "NEXUS Estadísticas",
-    pro: "Marcador Pro", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
+    pro: "Marcador Pro", "goal-pro": "Gol", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
   };
 
   const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string; title?: string; subtitle?: string }) => {
@@ -916,6 +918,8 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
 
   const [autoReact, setAutoReact] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [bgLocked, setBgLocked] = useState(() => { try { return localStorage.getItem("nexus.broadcast.bgLocked") === "1"; } catch { return false; } });
+  const toggleBgLock = () => setBgLocked((v) => { try { localStorage.setItem("nexus.broadcast.bgLocked", v ? "0" : "1"); } catch { /* ignore */ } return !v; });
   const [sfxOn, setSfxOn] = useState(true);
   const [sfxVolume, setSfxVolume] = useState(0.7);
   const sfxVolumeRef = useRef(0.7);
@@ -998,6 +1002,92 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       graphic,
     ]);
   };
+  // --- Graphics bound to ANY match (not only the main one) ---------------------------------
+  const logoCache = useRef(new Map<string, string>());
+  const logoData = async (url?: string | null) => {
+    if (!url) return undefined;
+    const hit = logoCache.current.get(url);
+    if (hit) return hit;
+    try { const data = await logoToDataUrl(url, 160); logoCache.current.set(url, data); return data; } catch { return undefined; }
+  };
+  const boundScoreboard = async (ref: MatchRef) => {
+    const res = await fetch(`/api/matches/${encodeURIComponent(ref.league)}/${encodeURIComponent(ref.id)}`);
+    if (!res.ok) throw new Error("No se pudieron leer los datos del partido");
+    const detail = await res.json();
+    const [home, away] = await Promise.all([logoData(detail.home?.logo), logoData(detail.away?.logo)]);
+    return { detail, board: toScoreboard(detail, { home, away }) };
+  };
+  // On Program; with `seconds` it leaves by itself (each graphic has its own timer).
+  const addToProgram = (graphic: BroadcastGraphic, seconds?: number) => {
+    const scoreboardVariants = ["elite", "compact", "editorial", "live", "pro"];
+    const isBoard = scoreboardVariants.includes(graphic.variant ?? "");
+    setProgramGraphicsSnapshot((current) => [
+      ...current.filter((item) => item.variant !== graphic.variant && !(isBoard && scoreboardVariants.includes(item.variant ?? ""))),
+      graphic,
+    ]);
+    if (seconds) window.setTimeout(() => exitProgram((item) => item.id === graphic.id), seconds * 1000);
+  };
+  const boundGraphic = (variant: GraphicVariant, ref: MatchRef, board: FootballScoreboard): BroadcastGraphic => ({
+    id: `bound-${variant}-${ref.id}-${Date.now()}`, mode: "football", name: `${FOOTBALL_NAMES[variant] ?? variant} · ${board.homeShort || board.homeTeam} vs ${board.awayShort || board.awayTeam}`,
+    kind: variant === "pro" ? "scoreboard" : "ticker", title: "", subtitle: "", accent: getCompetition(board.competitionId ?? "custom").accent,
+    variant, scale: 1, position: freeSpot(variant), matchRef: ref, football: board,
+  });
+  const airForMatch = async (ref: MatchRef, what: "pro" | "lineups" | "stats") => {
+    try {
+      const { board } = await boundScoreboard(ref);
+      if (what === "pro") addToProgram(boundGraphic("pro", ref, board));
+      else if (what === "stats") addToProgram(boundGraphic("stats", ref, board), 15);
+      else {
+        if (!board.lineups?.home?.length) { toast.info("Las alineaciones de ese partido aún no están publicadas"); return; }
+        addToProgram(boundGraphic("lineup-home", ref, board), 20);
+        addToProgram({ ...boundGraphic("lineup-away", ref, board), position: FOOTBALL_POSITIONS["lineup-away"] }, 20);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo poner al aire");
+    }
+  };
+  // Template buttons: line-ups leave by themselves after 20 s; the rest stays until removed.
+  const templatePersist = (variant: GraphicVariant, options: { title?: string; subtitle?: string } = {}) => {
+    if (variant === "lineup-home" || variant === "lineup-away") {
+      if (fm.fixture) { if (variant === "lineup-home") void airForMatch(fm.fixture, "lineups"); return; }
+    }
+    airPersist(variant, options);
+  };
+  // Bound graphics refresh themselves (score, clock, cards, line-ups) every 12 s.
+  const programRef = useRef(programGraphicsSnapshot);
+  programRef.current = programGraphicsSnapshot;
+  useEffect(() => {
+    const timer = window.setInterval(async () => {
+      const refs = new Map<string, MatchRef>();
+      programRef.current.forEach((g) => { if (g.matchRef) refs.set(`${g.matchRef.league}:${g.matchRef.id}`, g.matchRef); });
+      if (!refs.size) return;
+      const boards = new Map<string, FootballScoreboard>();
+      await Promise.all([...refs].map(async ([key, ref]) => { try { boards.set(key, (await boundScoreboard(ref)).board); } catch { /* keep last */ } }));
+      setProgramGraphicsSnapshot((current) => current.map((g) => {
+        const fresh = g.matchRef ? boards.get(`${g.matchRef.league}:${g.matchRef.id}`) : undefined;
+        return fresh ? { ...g, football: fresh } : g;
+      }));
+    }, 12000);
+    return () => window.clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Goal card with crest, scorer, minute, assist, score + a fact about the scorer as soon as it arrives.
+  const showGoal = async (card: Parameters<typeof setGoalCard>[0], scorerId?: string | null) => {
+    setGoalCard(card);
+    airTempRef.current("goal-pro", {}, 11);
+    if (!scorerId || !card) return;
+    try {
+      const res = await fetch(`/api/matches/insights/player/${scorerId}`);
+      if (res.ok) {
+        const ins = await res.json();
+        if (ins.facts?.[0]) setGoalCard({ ...card, fact: ins.facts[0] });
+      }
+    } catch { /* the card already shows the essentials */ }
+  };
+  const showGoalRef = useRef(showGoal);
+  showGoalRef.current = showGoal;
+
   const airTempRef = useRef(airTemp);
   airTempRef.current = airTemp;
 
@@ -1007,7 +1097,17 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   goalAlertsRef.current = goalAlertsOn;
   useLiveBoard(studioMode === "football", fm.fixture?.id ?? null, (goal) => {
     if (!goalAlertsRef.current) return;
-    airTempRef.current("goal-alert", goalAlertText(goal), 8);
+    const side = goal.team === "away" ? "away" : "home";
+    const teamName = (side === "home" ? goal.home?.name : goal.away?.name) ?? "";
+    void (async () => {
+      const logo = await logoData(side === "home" ? goal.home?.logo : goal.away?.logo);
+      const text = goalAlertText(goal);
+      void showGoalRef.current({
+        teamName, teamLogo: logo, scorer: goal.player?.name ?? "", minute: goal.minute ?? "",
+        assist: goal.assist?.name ? `Asistencia: ${goal.assist.name}` : undefined,
+        score: goal.score ? `${goal.score.home}-${goal.score.away}` : "", competition: goal.leagueName ?? text.subtitle,
+      }, goal.player?.id);
+    })();
   });
 
   const toggleAir = (variant: GraphicVariant) => {
@@ -1058,8 +1158,31 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     }
     if (sfxOn) playSfx(highlight.kind === "void" ? "var" : highlight.kind, sfxVolumeRef.current, sfxBus());
     if (!autoReact) return;
-    const variant: GraphicVariant = highlight.kind === "goal" ? "goal" : highlight.kind === "var" ? "var" : "events";
-    airTempRef.current(variant, { subtitle: highlight.detail ?? "" }, variant === "goal" ? 8 : 6);
+    if (highlight.kind === "goal") {
+      const m = fm.match;
+      const home = highlight.team === "home";
+      const minute = `${highlight.minute}'`;
+      void (async () => {
+        let scorerId: string | null = null;
+        if (fm.fixture) {
+          try {
+            const res = await fetch(`/api/matches/${encodeURIComponent(fm.fixture.league)}/${encodeURIComponent(fm.fixture.id)}`);
+            if (res.ok) {
+              const d = await res.json();
+              const last = [...(d.events ?? [])].reverse().find((e: { type: string; player?: { id: string } }) => (e.type === "goal" || e.type === "penalty-goal") && e.player);
+              scorerId = last?.player?.id ?? null;
+            }
+          } catch { /* card without the fact */ }
+        }
+        void showGoalRef.current({
+          teamName: home ? m.homeTeam : m.awayTeam, teamLogo: home ? m.homeLogo : m.awayLogo, teamColor: home ? m.homeColor : m.awayColor,
+          scorer: highlight.player, minute, assist: highlight.detail, score: `${m.homeScore}-${m.awayScore}`, competition: m.competition,
+        }, scorerId);
+      })();
+      return;
+    }
+    const variant: GraphicVariant = highlight.kind === "var" ? "var" : "events";
+    airTempRef.current(variant, { subtitle: highlight.detail ?? "" }, 6);
   }, [highlight, autoReact, studioMode, sfxOn]);
 
   const applyFootballTemplate = (competitionId: string) => {
@@ -1712,7 +1835,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       })()}
 
       <div className={`relative flex min-h-0 flex-1 flex-col xl:flex-row ${activePane === "football" ? "overflow-y-auto xl:overflow-hidden" : "overflow-hidden"}`}>
-        {activePane === "football" && <div className="order-3 xl:order-none xl:flex"><MatchRail fm={fm} /></div>}
+        {activePane === "football" && <div className="order-3 xl:order-none xl:flex"><MatchRail fm={fm} onAirMatch={(ref, what) => void airForMatch(ref, what)} /></div>}
         <aside className={`flex max-h-[34vh] min-h-[170px] flex-col border-b border-white/[0.08] bg-[#0d1117] xl:max-h-none xl:flex-shrink-0 xl:border-b-0 xl:border-r ${activePane === "football" ? (advancedOpen ? "absolute bottom-0 left-0 top-0 z-40 w-full max-h-none shadow-2xl shadow-black xl:left-[340px] xl:w-[380px]" : "hidden") : "xl:w-[250px]"}`}>
           <div className="flex items-center gap-2 border-b border-white/[0.07] p-2.5">
             {activePane === "football" ? (
@@ -1902,8 +2025,8 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
           )}
         </aside>
 
-        <main className={`flex min-h-[320px] min-w-0 flex-1 flex-col overflow-x-hidden bg-[#080b10] ${activePane === "football" ? "order-1 flex-none xl:order-none xl:flex-1 xl:overflow-y-auto" : "overflow-y-auto"}`}>
-          <div className={`grid grid-cols-1 gap-3 ${activePane === "football" ? (advancedOpen ? "flex-none p-2 lg:grid-cols-2" : "flex-none p-2") : "min-h-0 flex-1 p-3 lg:grid-cols-2"}`}>
+        <main className={`flex min-h-[320px] min-w-0 flex-1 flex-col overflow-x-hidden bg-[#080b10] ${activePane === "football" ? "order-1 flex-none xl:order-none xl:flex-1 xl:overflow-y-auto 2xl:grid 2xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,1fr)] 2xl:content-start" : "overflow-y-auto"}`}>
+          <div className={`grid grid-cols-1 gap-3 ${activePane === "football" ? (advancedOpen ? "flex-none p-2 lg:grid-cols-2 2xl:col-span-2" : "flex-none p-2 2xl:col-start-1 2xl:row-start-1 2xl:row-span-3") : "min-h-0 flex-1 p-3 lg:grid-cols-2"}`}>
             <section className={`flex min-h-0 flex-col overflow-hidden rounded-xl border border-emerald-400/20 bg-[#11161e] shadow-xl shadow-black/20 ${activePane === "football" && !advancedOpen ? "hidden" : ""}`}>
               <div className="flex items-center gap-2 border-b border-white/[0.07] px-4 py-3">
                 <span className="h-2 w-2 rounded-full bg-emerald-400" />
@@ -1968,11 +2091,11 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
                 <span className="text-xs font-bold uppercase tracking-[0.12em] text-yellow-200">Program</span>
                 <span className="min-w-0 flex-1 truncate text-right text-xs text-neutral-400">{programScene?.name}</span>
               </div>
-              <div className={`relative m-auto aspect-video w-full overflow-hidden bg-black max-w-[420px]`}>
+              <div className={`relative m-auto aspect-video w-full overflow-hidden bg-black ${activePane === "football" ? "max-w-none" : "max-w-[420px]"}`}>
                 <canvas ref={programCanvasRef} width={1920} height={1080} className="block aspect-video h-auto w-full" />
                 {live && <span className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-md bg-yellow-300 px-3 py-1.5 text-xs font-bold text-black"><span className="h-2 w-2 animate-pulse rounded-full bg-white" /> EN VIVO</span>}
               </div>
-              <div className="flex flex-wrap items-center gap-1.5 border-t border-white/[0.07] px-4 py-2.5">
+              <div className={`flex flex-wrap items-center gap-1.5 border-t border-white/[0.07] px-4 py-2.5 ${activePane === "football" ? "hidden" : ""}`}>
                 <span className="text-[10px] font-semibold uppercase tracking-wide text-neutral-500">Overlays</span>
                 {modeGraphics.slice(0, 4).map((graphic, index) => {
                   const on = programGraphics.some((item) => item.id === graphic.id);
@@ -1988,20 +2111,24 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
           </div>
 
           {activePane === "football" && (
-            <OnAirStrip graphics={programGraphicsSnapshot.map((g) => ({ id: g.id, name: g.name }))} onRemove={retireProgramGraphic} />
+            <div className="2xl:col-start-2 2xl:row-start-1 2xl:pt-2">
+              <OnAirStrip graphics={programGraphicsSnapshot.map((g) => ({ id: g.id, name: g.name }))} onRemove={retireProgramGraphic} />
+            </div>
           )}
 
           {activePane === "football" && (
-            <div className="space-y-2 px-2 pb-2">
+            <div className="space-y-2 px-2 pb-2 2xl:col-start-2 2xl:row-start-2">
               <TemplateBar
                 fm={fm}
-                onPersist={airPersist}
+                onPersist={templatePersist}
                 onClear={retireAllProgram}
                 onBackground={(blob, name) => void applyGeneratedBackground(blob, name)}
                 onThemeBackground={(theme) => void applyThemeBackground(theme)}
                 onReplaceBackground={(theme, file) => void replaceThemeBackground(theme, file)}
                 onResetBackground={resetThemeBackground}
                 customThemes={Object.keys(readOverrides())}
+                bgLocked={bgLocked}
+                onToggleBgLock={toggleBgLock}
                 onCamera={() => void connectCamera()}
                 onDebate={() => window.dispatchEvent(new CustomEvent(LAUNCH_DEBATE_EVENT))}
               />

@@ -61,11 +61,12 @@ const MAX_CACHED_DESIGNS = 200;
  * keeping the same object also lets the rasteriser reuse its image.
  */
 export function footballDesignFor(graphic: BroadcastGraphic): DesignOutput {
-  const source = liveFootballMatch ?? graphic.football!;
-  const seconds = liveFootballMatch ? liveClock() : source.clockSeconds;
+  const bound = Boolean(graphic.matchRef && graphic.football);
+  const source = bound ? graphic.football! : liveFootballMatch ?? graphic.football!;
+  const seconds = !bound && liveFootballMatch ? liveClock() : source.clockSeconds;
   const variant = footballDefaultVariant(graphic);
   const cached = designCache.get(graphic.id);
-  const multi = variant === "multi" || variant === "poll" ? getMultiVersion() : 0;
+  const multi = variant === "multi" || variant === "poll" || variant === "goal-pro" ? getMultiVersion() : 0;
   if (cached && cached.source === source && cached.seconds === seconds && cached.variant === variant && cached.multi === multi
     && cached.title === graphic.title && cached.subtitle === graphic.subtitle && cached.style === graphic.style) {
     return cached.design;

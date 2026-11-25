@@ -14,7 +14,8 @@ export interface BoardMatch {
 }
 export interface GoalMoment {
   id: string; kind: string; matchId: string; leagueName?: string; minute?: string; headline: string;
-  player?: { id: string; name: string } | null; home?: { name?: string }; away?: { name?: string }; score?: { home: number; away: number };
+  player?: { id: string; name: string } | null; home?: { name?: string; logo?: string | null }; away?: { name?: string; logo?: string | null }; score?: { home: number; away: number };
+  team?: "home" | "away" | null; assist?: { id: string; name: string } | null;
 }
 
 const STATUS_ORDER: Record<string, number> = { live: 0, halftime: 1, finished: 2, scheduled: 3 };
