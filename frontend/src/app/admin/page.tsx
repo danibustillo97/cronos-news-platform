@@ -35,6 +35,8 @@ export default function AdminPage() {
   useAdminSessionSync();
   const [loading, setLoading] = useState(true);
   const [navOpen, setNavOpen] = useState(false);
+  // Broadcaster: the admin menu hides to give the studio the whole screen; it slides back when the mouse touches the left edge.
+  const [edgeNav, setEdgeNav] = useState(false);
 
   const router = useRouter();
 
@@ -122,16 +124,23 @@ export default function AdminPage() {
 
   return (
     <div className="bg-[#050505] h-dvh text-white overflow-hidden">
-      <AdminSidebar
-        activeView={visibleView}
-        setActiveView={(view) => setActiveView(view as View)}
-        onLogout={handleLogout}
-        mobileOpen={navOpen}
-        onMobileClose={() => setNavOpen(false)}
-      />
+      {visibleView === "broadcaster" && !edgeNav && (
+        <div aria-hidden className="fixed inset-y-0 left-0 z-50 hidden w-2 md:block" onMouseEnter={() => setEdgeNav(true)} />
+      )}
+      {(visibleView !== "broadcaster" || edgeNav || navOpen) && (
+        <div onMouseLeave={() => visibleView === "broadcaster" && setEdgeNav(false)}>
+          <AdminSidebar
+            activeView={visibleView}
+            setActiveView={(view) => { setEdgeNav(false); setActiveView(view as View); }}
+            onLogout={handleLogout}
+            mobileOpen={navOpen}
+            onMobileClose={() => setNavOpen(false)}
+          />
+        </div>
+      )}
 
-      <div className="flex h-dvh w-full flex-col overflow-hidden md:ml-16 md:w-[calc(100vw-64px)]">
-        {visibleView !== "nexus_studio" ? (
+      <div className={`flex h-dvh w-full flex-col overflow-hidden ${visibleView === "broadcaster" ? "" : "md:ml-16 md:w-[calc(100vw-64px)]"}`}>
+        {visibleView !== "nexus_studio" && visibleView !== "broadcaster" ? (
           <AdminTopBar title={pageTitle} activeView={visibleView} onOpenMenu={() => setNavOpen(true)} />
         ) : (
           <button type="button" onClick={() => setNavOpen(true)} aria-label="Abrir menú"

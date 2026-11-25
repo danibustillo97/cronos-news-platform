@@ -7,7 +7,7 @@ export interface DesignOutput {
   height: number;
 }
 
-export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato"];
+export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro"];
 
 /** Other matches shown at once by the "multi" panel (fed by useLiveBoard). */
 export interface MultiScore {
@@ -419,6 +419,46 @@ function pollDesign(p: Palette, footer: string): DesignOutput {
   return { html, width: 860, height };
 }
 
+function proClock(m: FootballScoreboard): string {
+  if (m.period === "PRE") return "PREVIA";
+  if (m.period === "HT") return "ENTRETIEMPO";
+  if (m.period === "FT") return "FINAL";
+  if (m.period === "PEN") return "PENALES";
+  const min = Math.floor(m.clockSeconds / 60);
+  const sec = String(m.clockSeconds % 60).padStart(2, "0");
+  return `${String(min).padStart(2, "0")}:${sec}`;
+}
+
+function proBoard(m: FootballScoreboard, p: Palette): DesignOutput {
+  const ucl = m.competitionId === "champions";
+  const bg = ucl ? `${UCL_STARS},linear-gradient(100deg,#040a22,#0d2370)` : `linear-gradient(100deg,${SURFACE},rgba(20,24,32,.96))`;
+  const accent = ucl ? "#c9d6ff" : p.accent;
+  const side = (name: string, short: string | undefined, logo: string | undefined, color: string, align: "l" | "r") => `
+    <div style="display:flex;align-items:center;gap:12px;${align === "r" ? "flex-direction:row-reverse" : ""};padding:0 16px;height:100%;background:linear-gradient(${align === "l" ? "90deg" : "270deg"},${color}55,transparent)">
+      ${logo ? `<img src="${esc(logo)}" alt="" style="width:46px;height:46px;object-fit:contain;filter:drop-shadow(0 3px 5px rgba(0,0,0,.6))" />` : `<span style="width:12px;height:42px;background:${color};border-radius:2px"></span>`}
+      <span style="${NUM};font-size:30px;font-weight:800;letter-spacing:.04em">${abbr(name, short)}</span>
+    </div>`;
+  const cardsFor = (y: number, r: number) => cards(y, r);
+  const html = `<div class="nx" style="width:640px;color:#fff;${FONT_TXT};filter:drop-shadow(0 14px 30px rgba(0,0,0,.55))">
+  <div style="display:flex;align-items:center;height:28px;padding:0 14px;background:${ucl ? "#0b1a55" : "rgba(0,0,0,.75)"};border-radius:8px 8px 0 0;border:1px solid ${accent}55;border-bottom:none;width:fit-content;gap:10px">
+    <span style="font:800 12px 'Segoe UI',Arial;letter-spacing:.22em;color:${accent}">${esc((m.competition || "NEXUS").toUpperCase())}</span>
+  </div>
+  <div style="display:grid;grid-template-columns:1fr auto 1fr;align-items:center;height:72px;background:${bg};border:1px solid ${accent}44;border-radius:0 10px 10px 10px;overflow:hidden">
+    ${side(m.homeTeam, m.homeShort, m.homeLogo, isHex(m.homeColor) ? m.homeColor! : "#1f3a8a", "l")}
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:0 18px;height:100%;background:rgba(0,0,0,.35)">
+      <span style="${NUM};font-size:40px;font-weight:900;line-height:1;letter-spacing:.04em">${m.homeScore}<span style="opacity:.45;margin:0 8px">-</span>${m.awayScore}</span>
+    </div>
+    ${side(m.awayTeam, m.awayShort, m.awayLogo, isHex(m.awayColor) ? m.awayColor! : "#7f1d1d", "r")}
+  </div>
+  <div style="display:flex;align-items:center;gap:10px;margin-top:6px">
+    <span style="display:inline-flex;align-items:center;gap:7px;padding:4px 12px;border-radius:999px;background:${m.period === "FT" ? "rgba(255,255,255,.15)" : "#e11d2e"};${NUM};font-size:17px;font-weight:800;letter-spacing:.06em">${m.period !== "FT" && m.period !== "PRE" && m.period !== "HT" ? `<i style="width:8px;height:8px;border-radius:50%;background:#fff;display:inline-block"></i>` : ""}${proClock(m)}${m.addedTime ? ` <span style="color:#ffd84d">+${m.addedTime}</span>` : ""}</span>
+    <span style="display:inline-flex;align-items:center">${cardsFor(m.homeYellow, m.homeRed)}</span>
+    <span style="margin-left:auto;display:inline-flex;align-items:center">${cardsFor(m.awayYellow, m.awayRed)}</span>
+  </div>
+</div>`;
+  return { html, width: 640, height: 150 };
+}
+
 function datoCard(p: Palette, title: string, subtitle: string): DesignOutput {
   const html = `<div class="nx" style="width:980px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:8px;overflow:hidden;box-shadow:0 18px 44px rgba(0,0,0,.6),inset 0 0 0 1px ${HAIR}">
   <div style="display:flex;align-items:stretch">
@@ -716,6 +756,7 @@ function renderBase(variant: GraphicVariant, match: FootballScoreboard, title: s
     case "goal-alert": return goalAlert(p, title, subtitle);
     case "poll": return pollDesign(p, title);
     case "dato": return datoCard(p, title, subtitle);
+    case "pro": return proBoard(match, p);
     default: return elite(match, p);
   }
 }
@@ -737,6 +778,7 @@ export const FOOTBALL_VARIANT_LABEL: Record<string, string> = {
   "goal-alert": "Alerta de gol (otros partidos)",
   poll: "Votación en vivo (encuesta / debate)",
   dato: "Dato grande",
+  pro: "Marcador Pro (por competición)",
 };
 
 export function footballDesignDocument(design: DesignOutput, position: { x: number; y: number }, scale: number): string {

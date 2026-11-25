@@ -22,7 +22,9 @@ import { FootballConsole } from "./football/FootballConsole";
 import { gatewayEndpoint } from "./live/whip";
 import { kickPlayerUrl, portalEndLive, portalGoLive } from "./live/portalOnAir";
 import { goalAlertText, useGoalAlertsPref, useLiveBoard } from "./football/liveBoard";
-import { AnalysisDesk } from "./football/AnalysisDesk";
+import { MatchRail } from "./football/MatchRail";
+import { TemplateBar } from "./football/TemplateBar";
+import { DataDeck, LAUNCH_DEBATE_EVENT } from "./football/DataDeck";
 import { EXIT_MS } from "./football/motion";
 import { FootballDeck } from "./football/FootballDeck";
 import { AudioBar } from "./football/AudioBar";
@@ -868,13 +870,13 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     elite: { x: 3, y: 4 }, compact: { x: 3, y: 4 }, editorial: { x: 3, y: 4 }, live: { x: 19, y: 86 },
     goal: { x: 21.5, y: 66 }, lower: { x: 4, y: 78 }, var: { x: 3, y: 18 }, events: { x: 4, y: 82 },
     prematch: { x: 23, y: 26 }, "lineup-home": { x: 3, y: 17 }, "lineup-away": { x: 74, y: 17 }, stats: { x: 3, y: 17 },
-    multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
+    pro: { x: 2.5, y: 3.5 }, multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
   };
   const FOOTBALL_NAMES: Record<string, string> = {
     elite: "NEXUS Elite", compact: "NEXUS Compact", editorial: "NEXUS Editorial", live: "NEXUS Live", goal: "NEXUS Goal",
     lower: "NEXUS Lower Third", var: "NEXUS VAR", events: "NEXUS Match Events", prematch: "NEXUS Previa",
     "lineup-home": "Alineación local", "lineup-away": "Alineación visitante", stats: "NEXUS Estadísticas",
-    multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
+    pro: "Marcador Pro", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
   };
 
   const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string; title?: string; subtitle?: string }) => {
@@ -908,6 +910,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   };
 
   const [autoReact, setAutoReact] = useState(true);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const [sfxOn, setSfxOn] = useState(true);
   const [sfxVolume, setSfxVolume] = useState(0.7);
   const sfxVolumeRef = useRef(0.7);
@@ -963,6 +966,20 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       if (variant !== "lower") fm.clearHighlight();
     }, seconds * 1000);
     autoAirRef.current = { id, timer };
+  };
+  // Puts a widget on Program and leaves it there (templates); replaces another of the same variant.
+  const airPersist = (variant: GraphicVariant, options: { title?: string; subtitle?: string } = {}) => {
+    const graphic: BroadcastGraphic = {
+      id: `fixed-${variant}-${Date.now()}`, mode: "football", name: FOOTBALL_NAMES[variant] ?? variant,
+      kind: variant === "lower" ? "lower-third" : ["elite", "compact", "editorial", "live", "pro"].includes(variant) ? "scoreboard" : "ticker",
+      title: options.title ?? "", subtitle: options.subtitle ?? "", accent: getCompetition(fm.match.competitionId ?? "custom").accent,
+      variant, scale: 1, position: FOOTBALL_POSITIONS[variant] ?? { x: 5, y: 5 },
+    };
+    const scoreboard = graphic.kind === "scoreboard";
+    setProgramGraphicsSnapshot((current) => [
+      ...current.filter((item) => item.variant !== variant && !(scoreboard && ["elite", "compact", "editorial", "live", "pro"].includes(item.variant ?? ""))),
+      graphic,
+    ]);
   };
   const airTempRef = useRef(airTemp);
   airTempRef.current = airTemp;
@@ -1600,7 +1617,9 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
           ))}
         </div>
       )}
-      {topbarHost && createPortal(
+      {(() => {
+        // The studio bar lives in the admin top bar when there is one; in full-screen mode it renders here.
+        const bar = (
         <div className="flex min-w-max items-center gap-1.5 sm:gap-2">
           <div className="flex items-center gap-1.5">
             <span className="hidden items-center gap-1.5 px-1 text-[12px] font-black uppercase tracking-tight text-white lg:flex"><span className="text-yellow-300">NEXUS</span> SPORT <span className="rounded bg-yellow-300 px-1.5 py-0.5 text-[9px] text-black">STUDIO</span></span>
@@ -1645,12 +1664,16 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
               <Radio size={14} /><span className="hidden sm:inline">Emitir</span>
             </button>
           )}
-        </div>,
-        topbarHost,
-      )}
+        </div>
+        );
+        return topbarHost
+          ? createPortal(bar, topbarHost)
+          : <div className="flex h-12 flex-shrink-0 items-center overflow-x-auto border-b border-white/[0.08] bg-[#0b0d12] px-3 [scrollbar-width:none]">{bar}</div>;
+      })()}
 
-      <div className="flex min-h-0 flex-1 flex-col overflow-hidden xl:flex-row">
-        <aside className={`flex max-h-[34vh] min-h-[170px] flex-col border-b border-white/[0.08] bg-[#0d1117] xl:max-h-none xl:flex-shrink-0 xl:border-b-0 xl:border-r ${activePane === "football" ? "xl:w-[360px]" : "xl:w-[250px]"}`}>
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden xl:flex-row">
+        {activePane === "football" && <MatchRail fm={fm} />}
+        <aside className={`flex max-h-[34vh] min-h-[170px] flex-col border-b border-white/[0.08] bg-[#0d1117] xl:max-h-none xl:flex-shrink-0 xl:border-b-0 xl:border-r ${activePane === "football" ? (advancedOpen ? "absolute bottom-0 left-0 top-0 z-40 w-full max-h-none shadow-2xl shadow-black xl:left-[340px] xl:w-[380px]" : "hidden") : "xl:w-[250px]"}`}>
           <div className="flex items-center gap-2 border-b border-white/[0.07] p-2.5">
             {activePane === "football" ? (
               <>
@@ -1925,15 +1948,23 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
           </div>
 
           {activePane === "football" && (
-            <AnalysisDesk
-              fm={fm}
-              onAir={(variant, options, seconds) => airTemp(variant, options, seconds ?? 8)}
-              onPreview={(variant, options) => addFootballWidget(variant, options)}
-              onBackground={(blob, name) => void applyGeneratedBackground(blob, name)}
-            />
+            <div className="space-y-2 px-2 pb-2">
+              <TemplateBar
+                fm={fm}
+                onPersist={airPersist}
+                onClear={retireAllProgram}
+                onBackground={(blob, name) => void applyGeneratedBackground(blob, name)}
+                onCamera={() => void connectCamera()}
+                onDebate={() => window.dispatchEvent(new CustomEvent(LAUNCH_DEBATE_EVENT))}
+              />
+              <button type="button" onClick={() => setAdvancedOpen((open) => !open)}
+                className="rounded-lg border border-white/10 px-3 py-1.5 text-[11px] font-semibold text-neutral-400 hover:border-white/30 hover:text-white">
+                {advancedOpen ? "Cerrar controles avanzados" : "Controles avanzados (manual, widgets, medios)"}
+              </button>
+            </div>
           )}
 
-          {activePane === "football" && (
+          {activePane === "football" && advancedOpen && (
             <FootballDeck
               enabled={active}
               fm={fm}
@@ -1944,7 +1975,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             />
           )}
 
-          {activePane === "football" && (
+          {activePane === "football" && advancedOpen && (
             <FootballMedia
               sources={inputs.filter((input) => !input.id.startsWith("lib-") && input.kind !== "audio").map((input) => ({ id: input.id, name: input.name, kind: input.kind }))}
               sceneInputIds={scenes.find((scene) => scene.id === previewSceneId)?.inputIds ?? []}
@@ -2046,6 +2077,8 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             </div>
           </section>
         </main>
+
+        {activePane === "football" && <DataDeck fm={fm} onAir={(variant, options, seconds) => airTemp(variant, options, seconds ?? 8)} />}
 
         {activePane !== "football" && <aside className="flex max-h-[34vh] min-h-[180px] flex-col border-t border-white/[0.08] bg-[#0d1117] xl:max-h-none xl:w-[270px] xl:flex-shrink-0 xl:border-l xl:border-t-0">
           <div className="flex items-center gap-2 border-b border-white/[0.07] px-4 py-3">
