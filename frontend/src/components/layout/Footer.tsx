@@ -29,6 +29,7 @@ export default function Footer() {
           <Link href="/deportes/futbol/tabla" className="hover:text-[#FACC15] transition-colors">Tablas</Link>
           <Link href="/jugadores" className="hover:text-[#FACC15] transition-colors">Jugadores</Link>
           <Link href="/encuestas" className="hover:text-[#FACC15] transition-colors">Encuestas</Link>
+          <Link href="/archivo" className="hover:text-[#FACC15] transition-colors">Archivo</Link>
           <Link href="/about" className="hover:text-[#FACC15] transition-colors">Sobre NEXUS</Link>
           <Link href="/corrections" className="hover:text-[#FACC15] transition-colors">Correcciones</Link>
           <Link href="/cookies" className="hover:text-[#FACC15] transition-colors">Cookies</Link>
