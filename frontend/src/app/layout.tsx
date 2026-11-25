@@ -72,8 +72,7 @@ export async function generateMetadata(): Promise<Metadata> {
   twitter: {
     card: 'summary_large_image',
     title: 'Nexus News | Noticias Deportivas',
-    description: 'Noticias deportivas al instante con IA.',
-    
+    description: seo.description,
     images: ['/og-image.jpg'],
   },
   applicationName: 'NEXUS Fútbol',
