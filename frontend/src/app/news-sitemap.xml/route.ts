@@ -9,6 +9,7 @@ export async function GET() {
     .from('news')
     .select('slug,title,image_url,published_at')
     .eq('status', 'published')
+    .gte('published_at', new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString())
     .order('published_at', { ascending: false })
     .limit(1000)
 
@@ -17,7 +18,7 @@ export async function GET() {
   }
 
   const items = (data || [])
-    .filter(item => item.slug)
+    .filter(item => item.slug && item.published_at && Number.isFinite(new Date(item.published_at).getTime()))
     .map(item => {
       const published = item.published_at
         ? new Date(item.published_at).toISOString()
