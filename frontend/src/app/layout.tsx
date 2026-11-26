@@ -36,7 +36,7 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#0a0a0a',
+  themeColor: '#0B0D0F',
 }
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -76,11 +76,11 @@ export async function generateMetadata(): Promise<Metadata> {
     description: seo.description,
     images: ['/og-image.jpg'],
   },
-  applicationName: 'NEXUS Fútbol',
-  appleWebApp: { capable: true, title: 'NEXUS', statusBarStyle: 'black-translucent' },
+  applicationName: 'NEXUS News',
+  appleWebApp: { capable: true, title: 'NEXUS News', statusBarStyle: 'black-translucent' },
   icons: {
-    icon: [{ url: '/favicon.ico' }, { url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' }],
-    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
   },
   formatDetection: { telephone: false },
   robots: {
