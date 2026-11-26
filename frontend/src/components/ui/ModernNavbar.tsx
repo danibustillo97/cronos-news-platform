@@ -1,11 +1,12 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Menu, X, Search, Zap, Sun, Moon } from 'lucide-react'
+import { Menu, X, Search, Sun, Moon } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import Link from 'next/link'
 import { usePortalTheme } from '@/context/ThemeContext'
 import { apiUrl } from '@/studio/lab/api-client'
+import BrandLockup from '@/components/brand/BrandLockup'
 
 interface SportCategory {
   id: string
@@ -92,16 +93,12 @@ export default function ModernNavbar() {
             scrolled ? 'h-12' : 'h-14'
           }`}
         >
-          <Link href="/" className="flex items-center gap-2 min-w-0 flex-shrink-0">
-            <Zap size={26} className="text-[#FACC15] fill-[#FACC15] flex-shrink-0" strokeWidth={0} />
-            <span className="flex flex-col leading-none">
-              <span className={`font-black text-lg tracking-tight whitespace-nowrap ${isDark ? 'text-white' : 'text-neutral-900'}`}>
-                NEXUS
-              </span>
-              <span className={`text-[8px] font-bold uppercase tracking-[0.16em] whitespace-nowrap ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>
-                Sport
-              </span>
-            </span>
+          <Link href="/" aria-label="NEXUS News, inicio" className="flex min-w-0 flex-shrink-0 items-center">
+            <BrandLockup
+              size={32}
+              nameClassName={`font-black text-lg tracking-tight whitespace-nowrap ${isDark ? 'text-white' : 'text-neutral-900'}`}
+              subLabelClassName={`mt-0.5 text-[8px] font-bold uppercase tracking-[0.16em] whitespace-nowrap ${isDark ? 'text-white/45' : 'text-neutral-400'}`}
+            />
           </Link>
 
           <nav aria-label="Categorías deportivas" className="hidden md:flex min-w-0 items-center gap-5 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
