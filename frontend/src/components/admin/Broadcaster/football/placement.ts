@@ -21,6 +21,8 @@ export const CANDIDATES: Record<string, Spot[]> = {
   multi: [{ x: 17.7, y: 12 }],
   "lineup-home": [{ x: 3, y: 17 }],
   "lineup-away": [{ x: 74, y: 17 }],
+  "goal-pro": [{ x: 19, y: 62 }, { x: 19, y: 4 }],
+  cinta: [{ x: 0, y: 94.07 }, { x: 0, y: 0 }],
 };
 
 export function rectAt(spot: Spot, size: { w: number; h: number }, scale = 1): Rect {
@@ -32,6 +34,38 @@ export function overlaps(a: Rect, b: Rect, margin = 8): boolean {
 }
 
 const inside = (r: Rect) => r.x >= 0 && r.y >= 0 && r.x + r.w <= FRAME.w && r.y + r.h <= FRAME.h;
+
+const SCALES = [1, 0.85, 0.7, 0.58, 0.46];
+
+/** Spot + scale: the preferred spots first, then any free spot near them, shrinking until it fits. */
+export function findPlacement(variant: string, size: { w: number; h: number }, occupied: Rect[], fallback: Spot): { spot: Spot; scale: number } {
+  const preferred = CANDIDATES[variant] ?? [fallback];
+  const anchor = preferred[0] ?? fallback;
+  const grid: Spot[] = [];
+  for (let x = 0; x <= 98; x += 2) for (let y = 0; y <= 96; y += 2) grid.push({ x, y });
+  grid.sort((a, b) => Math.hypot(a.x - anchor.x, a.y - anchor.y) - Math.hypot(b.x - anchor.x, b.y - anchor.y));
+  for (const scale of SCALES) {
+    for (const spot of [...preferred, ...grid]) {
+      const r = rectAt(spot, size, scale);
+      if (inside(r) && !occupied.some((o) => overlaps(r, o))) return { spot, scale };
+    }
+  }
+  return { spot: anchor, scale: SCALES[SCALES.length - 1] };
+}
+
+export interface Placed { id: string; variant: string; spot: Spot; scale: number; size: { w: number; h: number } }
+
+/** Keeps every graphic off the obstacles (camera frames) and off each other, in on-air order. */
+export function settle(items: Placed[], obstacles: Rect[]): Placed[] {
+  const occupied = [...obstacles];
+  return items.map((item) => {
+    const current = rectAt(item.spot, item.size, item.scale);
+    if (item.scale >= 1 && inside(current) && !occupied.some((o) => overlaps(current, o))) { occupied.push(current); return item; }
+    const { spot, scale } = findPlacement(item.variant, item.size, occupied, item.spot);
+    occupied.push(rectAt(spot, item.size, scale));
+    return { ...item, spot, scale };
+  });
+}
 
 /** First candidate spot for `variant` that is inside the frame and free; falls back to the default spot. */
 export function findFreeSpot(variant: string, size: { w: number; h: number }, occupied: Rect[], fallback: Spot): Spot {

@@ -22,3 +22,16 @@ describe("smart placement", () => {
     expect(overlaps({ x: 0, y: 0, w: 100, h: 100 }, { x: 200, y: 0, w: 10, h: 10 })).toBe(false);
   });
 });
+
+describe("settle around a camera", () => {
+  it("moves and shrinks graphics so they never cover the camera frame", async () => {
+    const { settle, overlaps, rectAt } = await import("./placement");
+    const camera = { x: 77, y: 151, w: 1037, h: 648 };
+    const out = settle([
+      { id: "a", variant: "pro", spot: { x: 2.5, y: 3.5 }, scale: 1, size: { w: 1100, h: 110 } },
+      { id: "b", variant: "lineup-home", spot: { x: 3, y: 17 }, scale: 1, size: { w: 520, h: 760 } },
+    ], [camera]);
+    for (const g of out) expect(overlaps(rectAt(g.spot, g.size, g.scale), camera)).toBe(false);
+    expect(overlaps(rectAt(out[0].spot, out[0].size, out[0].scale), rectAt(out[1].spot, out[1].size, out[1].scale))).toBe(false);
+  });
+});

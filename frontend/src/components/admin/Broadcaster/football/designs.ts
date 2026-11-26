@@ -7,7 +7,7 @@ export interface DesignOutput {
   height: number;
 }
 
-export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro", "goal-pro"];
+export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro", "goal-pro", "cinta"];
 
 /** Other matches shown at once by the "multi" panel (fed by useLiveBoard). */
 export interface MultiScore {
@@ -35,6 +35,17 @@ export interface GoalCard { teamName: string; teamLogo?: string; teamColor?: str
 let goalCard: GoalCard | null = null;
 export function setGoalCard(card: GoalCard | null) {
   goalCard = card;
+  multiVersion += 1;
+}
+
+/** Running data bar ("cinta"): pages rotate (advanceCinta) through scores and facts. */
+let cintaPage = 0;
+let cintaFacts: string[] = [];
+export function advanceCinta() { cintaPage += 1; multiVersion += 1; }
+export function setCintaFacts(facts: string[]) {
+  const next = facts.filter(Boolean).slice(0, 8);
+  if (JSON.stringify(next) === JSON.stringify(cintaFacts)) return;
+  cintaFacts = next;
   multiVersion += 1;
 }
 
@@ -337,7 +348,7 @@ function multi(_p: Palette, title: string): DesignOutput {
     <span style="margin-left:auto;font:700 14px 'Segoe UI',Arial;letter-spacing:.2em;color:${theme.accent}">EN VIVO</span>
   </div>`;
   if (!rows.length) {
-    const html = `<div class="nx" style="width:900px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:6px;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.55)">${header}<div style="padding:22px 26px;font:500 20px 'Segoe UI',Arial;color:rgba(255,255,255,.7)">Sin partidos en vivo en este momento</div></div>`;
+    const html = `<div class="nx" style="width:900px;color:#fff;${FONT_TXT};background:${SURFACE};border-radius:6px;overflow:hidden;box-shadow:0 16px 40px rgba(0,0,0,.55)">${header}<div style="padding:22px 26px;font:500 20px 'Segoe UI',Arial;color:rgba(255,255,255,.7)">Sin partidos en vivo ahora · elígelos en «Partidos de hoy» (botón Multi)</div></div>`;
     return { html, width: 900, height: 140 };
   }
   if (rows.length <= 2) {
@@ -493,6 +504,35 @@ function goalPro(p: Palette): DesignOutput {
   ${g.fact ? `<div style="margin-top:8px;padding:12px 22px;border-radius:8px;background:${SURFACE};box-shadow:inset 4px 0 0 ${p.accent};font:600 21px 'Segoe UI',Arial;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📊 ${esc(g.fact)}</div>` : ""}
 </div>`;
   return { html, width: 1180, height: g.fact ? 262 : 196 };
+}
+
+function cinta(p: Palette): DesignOutput {
+  const per = 4;
+  const scorePages = Math.ceil(multiScores.length / per);
+  const pages = scorePages + cintaFacts.length;
+  const page = pages ? cintaPage % pages : 0;
+  const item = (m: MultiScore) => {
+    const live = m.status === "live" || m.status === "halftime";
+    const score = m.homeScore === null ? `<span style="font:700 20px 'Segoe UI',Arial;color:rgba(255,255,255,.7)">${esc(m.detail)}</span>`
+      : `<span style="${NUM};font-size:30px;font-weight:900;padding:0 10px">${m.homeScore}-${m.awayScore}</span>`;
+    return `<div style="flex:1;min-width:0;display:flex;align-items:center;justify-content:center;gap:10px;border-left:1px solid rgba(255,255,255,.12);padding:0 14px">
+      ${multiCrest(m.homeLogo, m.home, 34)}<span style="${NUM};font-size:22px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${esc(m.homeShort || m.home)}</span>
+      ${score}
+      <span style="${NUM};font-size:22px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:150px">${esc(m.awayShort || m.away)}</span>${multiCrest(m.awayLogo, m.away, 34)}
+      ${m.homeScore !== null ? `<span style="font:800 15px 'Segoe UI',Arial;color:${live ? "#ff6b6b" : "rgba(255,255,255,.6)"}">${esc(m.detail)}</span>` : ""}
+    </div>`;
+  };
+  let body: string;
+  let label = "EN VIVO";
+  if (!pages) body = `<div style="flex:1;padding:0 24px;font:600 22px 'Segoe UI',Arial;color:rgba(255,255,255,.75)">NEXUS · Fútbol en vivo</div>`;
+  else if (page < scorePages) body = multiScores.slice(page * per, page * per + per).map(item).join("");
+  else { label = "DATO"; body = `<div style="flex:1;min-width:0;padding:0 24px;font:600 24px 'Segoe UI',Arial;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📊 ${esc(cintaFacts[page - scorePages])}</div>`; }
+  const html = `<div class="nx" style="width:1920px;height:64px;display:flex;align-items:center;color:#fff;${FONT_TXT};background:${SURFACE};box-shadow:0 -2px 0 ${p.accent}">
+    <div style="height:64px;width:210px;flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:10px;background:${p.accent};color:${onColor(p.accent)};${NUM};font-size:24px;font-weight:900;letter-spacing:.12em">${label === "EN VIVO" ? `<i style="width:10px;height:10px;border-radius:50%;background:#ff3b3b;display:inline-block"></i>` : ""}${label}</div>
+    <div style="flex:1;min-width:0;height:64px;display:flex;align-items:center">${body}</div>
+    <div style="width:150px;flex-shrink:0;text-align:center;${NUM};font-size:22px;font-weight:900;letter-spacing:.06em;color:${p.accent}">⚡ NEXUS</div>
+  </div>`;
+  return { html, width: 1920, height: 64 };
 }
 
 function datoCard(p: Palette, title: string, subtitle: string): DesignOutput {
@@ -794,6 +834,7 @@ function renderBase(variant: GraphicVariant, match: FootballScoreboard, title: s
     case "dato": return datoCard(p, title, subtitle);
     case "pro": return proBoard(match, p);
     case "goal-pro": return goalPro(p);
+    case "cinta": return cinta(p);
     default: return elite(match, p);
   }
 }
@@ -817,6 +858,7 @@ export const FOOTBALL_VARIANT_LABEL: Record<string, string> = {
   dato: "Dato grande",
   pro: "Marcador Pro (por competición)",
   "goal-pro": "Gol (tarjeta completa)",
+  cinta: "Cinta de datos (abajo)",
 };
 
 export function footballDesignDocument(design: DesignOutput, position: { x: number; y: number }, scale: number): string {

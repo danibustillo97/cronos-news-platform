@@ -26,9 +26,11 @@ export function toMultiScores(matches: BoardMatch[], max = 10, opts: {
   selected?: string[]; flashes?: Record<string, Flash>; logos?: Map<string, string>; now?: number;
 } = {}): MultiScore[] {
   const now = opts.now ?? Date.now();
-  const selected = opts.selected?.length ? new Set(opts.selected) : null;
-  return [...matches]
-    .filter((m) => (selected ? selected.has(m.id) : m.status !== "scheduled" || isSoon(m.date)))
+  const chosen = opts.selected?.length ? matches.filter((m) => opts.selected!.includes(m.id)) : [];
+  // Default: what is being played (+ kick-offs in the next 3 h). Finished games only when chosen by hand.
+  let pool = chosen.length ? chosen : matches.filter((m) => m.status === "live" || m.status === "halftime" || (m.status === "scheduled" && isSoon(m.date)));
+  if (!pool.length) pool = matches.filter((m) => m.status === "scheduled" && m.date && new Date(m.date).getTime() > now && new Date(m.date).toDateString() === new Date(now).toDateString());
+  return [...pool]
     .sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9))
     .slice(0, max)
     .map((m) => ({

@@ -24,11 +24,11 @@ import { kickPlayerUrl, portalEndLive, portalGoLive } from "./live/portalOnAir";
 import { goalAlertText, useGoalAlertsPref, useLiveBoard } from "./football/liveBoard";
 import { MatchRail } from "./football/MatchRail";
 import { FootballStage, type StageScene } from "./football/FootballStage";
-import { VIRTUAL_SETS, drawVirtualSet, type SetTheme, type VirtualSet } from "./football/virtualSets";
+import { VIRTUAL_SETS, cameraRects, drawVirtualSet, type SetTheme, type VirtualSet } from "./football/virtualSets";
 import { onAirPollId } from "./football/pollBoard";
 import { OnAirStrip } from "./football/OnAirStrip";
-import { findFreeSpot, rectAt, type Rect } from "./football/placement";
-import { renderFootballDesign, setGoalCard } from "./football/designs";
+import { findFreeSpot, rectAt, settle, type Rect } from "./football/placement";
+import { advanceCinta, renderFootballDesign, setCintaFacts, setGoalCard } from "./football/designs";
 import { toScoreboard, type MatchRef } from "./football/matchBinding";
 import { logoToDataUrl } from "./football/raster";
 import type { BackgroundTheme } from "./football/backgrounds";
@@ -149,7 +149,7 @@ function isScenes(value: unknown): value is BroadcastScene[] {
     typeof scene.id === "string" && typeof scene.name === "string"
     && Array.isArray(scene.inputIds) && (scene.graphicId === null || typeof scene.graphicId === "string")
     && (scene.graphicIds === undefined || Array.isArray(scene.graphicIds))
-    && (scene.layout === undefined || ["auto", "single", "split", "triple", "pip", "set-left", "set-center", "set-duo", "set-desk"].includes(scene.layout)));
+    && (scene.layout === undefined || ["auto", "single", "split", "triple", "pip", "set-left", "set-center", "set-duo", "set-desk", "set-wall", "set-arena"].includes(scene.layout)));
 }
 
 function isGraphics(value: unknown): value is BroadcastGraphic[] {
@@ -880,13 +880,13 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     elite: { x: 3, y: 4 }, compact: { x: 3, y: 4 }, editorial: { x: 3, y: 4 }, live: { x: 19, y: 86 },
     goal: { x: 21.5, y: 66 }, lower: { x: 4, y: 78 }, var: { x: 3, y: 18 }, events: { x: 4, y: 82 },
     prematch: { x: 23, y: 26 }, "lineup-home": { x: 3, y: 17 }, "lineup-away": { x: 74, y: 17 }, stats: { x: 3, y: 17 },
-    pro: { x: 2.5, y: 3.5 }, "goal-pro": { x: 19, y: 62 }, multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
+    pro: { x: 2.5, y: 3.5 }, "goal-pro": { x: 19, y: 62 }, cinta: { x: 0, y: 94.07 }, multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
   };
   const FOOTBALL_NAMES: Record<string, string> = {
     elite: "NEXUS Elite", compact: "NEXUS Compact", editorial: "NEXUS Editorial", live: "NEXUS Live", goal: "NEXUS Goal",
     lower: "NEXUS Lower Third", var: "NEXUS VAR", events: "NEXUS Match Events", prematch: "NEXUS Previa",
     "lineup-home": "Alineación local", "lineup-away": "Alineación visitante", stats: "NEXUS Estadísticas",
-    pro: "Marcador Pro", "goal-pro": "Gol", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
+    pro: "Marcador Pro", "goal-pro": "Gol", cinta: "Cinta de datos", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
   };
 
   const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string; title?: string; subtitle?: string }) => {
@@ -1098,7 +1098,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   const goalAlertsOn = useGoalAlertsPref();
   const goalAlertsRef = useRef(goalAlertsOn);
   goalAlertsRef.current = goalAlertsOn;
-  useLiveBoard(studioMode === "football", fm.fixture?.id ?? null, (goal) => {
+  const boardMatches = useLiveBoard(studioMode === "football", fm.fixture?.id ?? null, (goal) => {
     if (!goalAlertsRef.current) return;
     const side = goal.team === "away" ? "away" : "home";
     const teamName = (side === "home" ? goal.home?.name : goal.away?.name) ?? "";
@@ -1542,18 +1542,20 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   const applyVirtualSet = async (set: VirtualSet, theme: SetTheme) => {
     const item = await libraryItem(`Escenario · ${set.id} · ${theme}`, () => drawVirtualSet(set.layout, theme));
     if (!item) return;
-    const cams = cameraIds();
-    setProgramLook({ layout: set.layout, backgroundId: ensureLibraryInput(item), inputIds: cams.length ? cams.slice(0, set.layout === "set-duo" ? 2 : 1) : [] });
-    if (!cams.length) toast.info("Escenario listo. Conecta tu cámara para aparecer en el marco.");
+    const cams = set.camera ? cameraIds() : [];
+    setProgramLook({ layout: set.layout, backgroundId: ensureLibraryInput(item), inputIds: cams.slice(0, set.layout === "set-duo" ? 2 : 1) });
+    if (set.camera && !cams.length) toast.info("Escenario listo. Conecta tu cámara para aparecer en el marco.");
   };
   const programBackground = (item: MediaItem) => setProgramLook({ backgroundId: ensureLibraryInput(item) });
-  const stageToggleOn = (variant: GraphicVariant) => programGraphicsSnapshot.some((g) => g.variant === variant || (variant === "lineup-home" && g.variant === "lineup-away"));
-  const stageToggle = (variant: GraphicVariant) => {
-    if (stageToggleOn(variant)) {
-      exitProgram((g) => g.variant === variant || (variant === "lineup-home" && (g.variant === "lineup-home" || g.variant === "lineup-away")));
-      return;
-    }
-    if (variant === "lineup-home") { if (fm.fixture) void airForMatch(fm.fixture, "lineups"); else toast.info("Elige un partido principal o usa «Alineac.» en la lista de partidos"); return; }
+  const SCOREBOARDS = ["elite", "compact", "editorial", "live", "pro"];
+  const sameFamily = (g: BroadcastGraphic, variant: GraphicVariant) => g.variant === variant
+    || (variant === "lineup-home" && g.variant === "lineup-away") || (variant === "pro" && SCOREBOARDS.includes(g.variant ?? ""));
+  const stageToggleOn = (variant: GraphicVariant) => programGraphicsSnapshot.some((g) => sameFamily(g, variant));
+  const stageToggle = (variant: GraphicVariant, target: MatchRef | null = null) => {
+    if (stageToggleOn(variant)) { exitProgram((g) => sameFamily(g, variant)); return; }
+    const ref = target ?? fm.fixture;
+    if (variant === "lineup-home") { if (ref) void airForMatch(ref, "lineups"); else toast.info("Elige un partido (número o «Partidos de hoy»)"); return; }
+    if ((variant === "pro" || variant === "stats") && target) { void airForMatch(target, variant); return; }
     if (variant === "poll") { if (onAirPollId()) airPersist("poll", { title: `Vota en ${window.location.host}` }); else toast.info("Primero lanza una votación desde la pestaña Datos"); return; }
     if (variant === "multi") { airPersist("multi", { title: "Resultados en vivo" }); return; }
     airPersist(variant);
@@ -1565,19 +1567,69 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       if (set) await applyVirtualSet(set, theme);
     } else {
       const cams = cameraIds();
-      setProgramLook({ layout: "single", inputIds: scene.id === "jornada" ? [] : cams.slice(0, 1) });
+      setProgramLook({ layout: "single", inputIds: scene.camera ? cams.slice(0, 1) : [] });
+      if (scene.camera && !cams.length) toast.info("Conecta tu cámara para aparecer en pantalla.");
       if (scene.background && !bgLocked) void applyThemeBackground(scene.background);
     }
     window.setTimeout(() => scene.graphics.forEach((variant) => {
       if (variant === "poll") { if (onAirPollId()) airPersist("poll", { title: `Vota en ${window.location.host}` }); return; }
-      // With a camera on the left of the set, the results board sits on the right, smaller, never over the camera.
-      const beside = scene.set === "set-left" && variant === "multi" ? { position: { x: 60.5, y: 14 }, scale: 0.58 } : {};
-      airPersist(variant, variant === "multi" ? { title: "Resultados en vivo", ...beside } : {});
+      airPersist(variant, variant === "multi" ? { title: "Resultados en vivo" } : {});
     }), 120);
   };
   const backgroundThumbs = useMemo(() => mediaLibrary.filter((item) => item.category === "fondo" && item.kind === "image")
     .slice(-11).map((item) => ({ id: item.id, name: item.name, url: URL.createObjectURL(item.blob) })), [mediaLibrary]);
   useEffect(() => () => backgroundThumbs.forEach((b) => URL.revokeObjectURL(b.url)), [backgroundThumbs]);
+
+  // Any match: is its scoreboard / line-ups / stats on air? Pressing again takes it off.
+  const matchFamily = (g: BroadcastGraphic, ref: MatchRef, what: "pro" | "lineups" | "stats") => g.matchRef?.id === ref.id
+    && (what === "pro" ? g.variant === "pro" : what === "stats" ? g.variant === "stats" : g.variant === "lineup-home" || g.variant === "lineup-away");
+  const isMatchOn = (ref: MatchRef, what: "pro" | "lineups" | "stats") => programGraphicsSnapshot.some((g) => matchFamily(g, ref, what));
+  const toggleMatch = (ref: MatchRef, what: "pro" | "lineups" | "stats") => {
+    if (isMatchOn(ref, what)) exitProgram((g) => matchFamily(g, ref, what));
+    else void airForMatch(ref, what);
+  };
+  const graphicSize = (g: BroadcastGraphic) => {
+    const d = renderFootballDesign(g.variant as GraphicVariant, g.football ?? fm.match, g.title, g.subtitle);
+    return { w: d.width, h: d.height };
+  };
+  // Tap on the screen: the graphic under the finger goes off air.
+  const tapProgram = (fx: number, fy: number) => {
+    const px = fx * 1920;
+    const py = fy * 1080;
+    const hit = [...programGraphicsSnapshot].reverse().find((g) => {
+      if (g.mode !== "football" || !g.variant) return false;
+      const r = rectAt(g.position ?? { x: 5, y: 5 }, graphicSize(g), g.scale ?? 1);
+      return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+    });
+    if (hit) { retireProgramGraphic(hit.id); toast.success(`Quitado: ${hit.name}`); }
+  };
+  // Graphics adapt to the set on screen: never over a camera frame, never over each other (move, then shrink).
+  useEffect(() => {
+    if (studioMode !== "football") return;
+    const items = programGraphicsSnapshot.filter((g) => g.mode === "football" && g.variant).map((g) => ({
+      id: g.id, variant: g.variant as string, spot: g.position ?? FOOTBALL_POSITIONS[g.variant as string] ?? { x: 5, y: 5 }, scale: g.scale ?? 1, size: graphicSize(g),
+    }));
+    if (!items.length) return;
+    const placed = settle(items, cameraRects(programSceneSnapshot.layout, 9));
+    const moved = new Map(placed.filter((o, i) => o.spot.x !== items[i].spot.x || o.spot.y !== items[i].spot.y || o.scale !== items[i].scale).map((o) => [o.id, o]));
+    if (!moved.size) return;
+    setProgramGraphicsSnapshot((current) => current.map((g) => { const o = moved.get(g.id); return o ? { ...g, position: o.spot, scale: o.scale } : g; }));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [programGraphicsSnapshot, programSceneSnapshot.layout, studioMode]);
+  // Data ticker: rotates every 6 s through live scores, today's results and the next kick-offs.
+  const cintaOnRef = useRef(false);
+  cintaOnRef.current = programGraphicsSnapshot.some((g) => g.variant === "cinta");
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (cintaOnRef.current) advanceCinta(); }, 6000);
+    return () => window.clearInterval(timer);
+  }, []);
+  useEffect(() => {
+    const hour = (d?: string) => (d ? new Date(d).toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" }) : "");
+    const finished = boardMatches.filter((m) => m.status === "finished").map((m) => `Final · ${m.homeTeam} ${m.homeScore ?? 0}-${m.awayScore ?? 0} ${m.awayTeam}${m.leagueName ? ` (${m.leagueName})` : ""}`);
+    const next = boardMatches.filter((m) => m.status === "scheduled").sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))
+      .map((m) => `Próximo ${hour(m.date)} · ${m.homeTeam} vs ${m.awayTeam}${m.leagueName ? ` (${m.leagueName})` : ""}`);
+    setCintaFacts([...next.slice(0, 4), ...finished.slice(0, 4)]);
+  }, [boardMatches]);
 
   // Theme backgrounds: the user's own image for a theme replaces the generated one (stored in the library).
   const BG_OVERRIDES = "nexus.broadcast.bgOverrides";
@@ -1900,8 +1952,13 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             live={live}
             monitor={<canvas ref={programCanvasRef} width={1920} height={1080} className="block h-full w-full object-contain" />}
             onAir={programGraphicsSnapshot.map((g) => ({ id: g.id, name: g.name, variant: g.variant }))}
+            keysActive={active && !advancedOpen}
+            board={boardMatches}
             isOn={stageToggleOn}
-            onToggle={stageToggle}
+            onToggle={(variant, target) => stageToggle(variant, target)}
+            isMatchOn={isMatchOn}
+            onMatch={toggleMatch}
+            onMonitorTap={tapProgram}
             onRemove={retireProgramGraphic}
             onClear={retireAllProgram}
             onScene={(scene, theme) => void applyStageScene(scene, theme)}
@@ -1915,7 +1972,6 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             onToggleBgLock={toggleBgLock}
             onCamera={() => void connectCamera()}
             cameraCount={inputs.filter((input) => input.kind === "camera").length}
-            onAirMatch={(ref, what) => void airForMatch(ref, what)}
             onDataAir={(variant, options, seconds) => airTemp(variant, options, seconds ?? 8)}
             onAdvanced={() => setAdvancedOpen(true)}
           />

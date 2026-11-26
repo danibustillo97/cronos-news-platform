@@ -9,9 +9,12 @@ describe("liveBoard", () => {
       { id: "3", leagueName: "Serie A", homeTeam: "Inter", awayTeam: "Milan", status: "scheduled", date: "2099-01-01T00:00:00Z" },
     ];
     const out = toMultiScores(matches);
-    expect(out.map((m) => m.id)).toEqual(["2", "1"]); // far-future scheduled match is left out
+    expect(out.map((m) => m.id)).toEqual(["2"]); // finished and far-future matches are left out by default
     expect(out[0]).toMatchObject({ homeScore: 1, awayScore: 0, status: "live", detail: "63'" });
-    expect(out[1].detail).toBe("Final");
+    const chosen = toMultiScores(matches, 10, { selected: ["1"] });
+    expect(chosen.map((m) => m.id)).toEqual(["1"]); // a finished game only when chosen by hand
+    expect(chosen[0].detail).toBe("Final");
+    expect(toMultiScores(matches, 10, { selected: ["gone"] }).map((m) => m.id)).toEqual(["2"]); // stale choice -> default
   });
 
   it("alerts only new goals from other matches", () => {
