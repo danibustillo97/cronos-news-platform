@@ -1,11 +1,12 @@
 import type { Metadata } from 'next'
 import { Suspense } from 'react'
+import Link from 'next/link'
 import PortalPage, { pageShell } from '@/components/portal/PortalPage'
 import PlayersSearchClient from './PlayersSearchClient'
 
 export const metadata: Metadata = {
-  title: 'Estadísticas y comparador de jugadores',
-  description: 'Busca futbolistas, consulta sus estadísticas por temporada y compara su rendimiento entre competiciones con las herramientas de NEXUS News.',
+  title: 'Estadísticas de futbolistas y comparador de jugadores',
+  description: 'Busca jugadores de la Liga BetPlay y del fútbol internacional. Consulta sus perfiles y compara el rendimiento por temporada y competición.',
   alternates: { canonical: '/jugadores' },
 }
 
@@ -19,6 +20,15 @@ export default function PlayersPage() {
           <p className="mt-2 text-[15px] leading-relaxed text-[var(--nx-ink-2)]">
             Busca futbolistas, revisa sus números por temporada y compáralos por rendimiento y competición. Encuentra perfiles de la Liga BetPlay y del fútbol internacional.
           </p>
+          <p className="mt-3 text-sm leading-relaxed text-[var(--nx-muted)]">
+            La ficha de un jugador gana valor cuando se lee junto al torneo en el que compite: por eso NEXUS conecta
+            los perfiles con la actualidad de los clubes, las tablas de posiciones y las preguntas que deja cada jornada.
+          </p>
+          <nav aria-label="Explorar jugadores y competiciones" className="mt-4 flex flex-wrap gap-x-5 gap-y-2 text-sm font-semibold">
+            <Link href="/deportes/futbol/tabla" className="text-[var(--nx-accent-text)] hover:underline">Tabla Liga BetPlay</Link>
+            <Link href="/deportes/futbol" className="text-[var(--nx-accent-text)] hover:underline">Noticias de fútbol</Link>
+            <Link href="/encuestas" className="text-[var(--nx-accent-text)] hover:underline">Debates de fútbol</Link>
+          </nav>
         </header>
       </div>
       <Suspense fallback={null}>

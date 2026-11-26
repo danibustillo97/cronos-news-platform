@@ -22,7 +22,15 @@ export default function PollsClient() {
     <PortalPage>
       <div className={`${pageShell} max-w-[960px] pb-20 pt-8 sm:pt-12`}>
         <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]"><Vote size={14} aria-hidden="true" /> Tu opinión cuenta</p>
-        <h1 className="mt-2 text-[clamp(1.75rem,1.4rem+1.5vw,2.5rem)] font-bold leading-[1.1] tracking-[-0.015em] text-[var(--nx-ink)]">Encuestas y debates</h1>
+        <h1 className="mt-2 text-[clamp(1.75rem,1.4rem+1.5vw,2.5rem)] font-bold leading-[1.1] tracking-[-0.015em] text-[var(--nx-ink)]">Encuestas y debates de fútbol</h1>
+        <p className="mt-3 max-w-3xl text-[15px] leading-relaxed text-[var(--nx-ink-2)]">
+          En NEXUS News, la conversación también forma parte del juego. Aquí puedes votar, contrastar puntos de vista
+          y participar en preguntas sobre la Liga BetPlay, los clubes colombianos, la Selección y el fútbol internacional.
+        </p>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-[var(--nx-muted)]">
+          Los resultados de una encuesta reflejan la participación de la comunidad; no sustituyen estadísticas oficiales
+          ni representan necesariamente la opinión de todos los aficionados.
+        </p>
         <div className="mt-8 flex flex-col gap-4">
           {!loaded ? (
             Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-64" />)

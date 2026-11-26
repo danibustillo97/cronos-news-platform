@@ -10,6 +10,8 @@ interface PageProps {
   params: Promise<{ slug: string }>;
 }
 
+export const revalidate = 300
+
 export async function generateMetadata(
   { params }: PageProps
 ): Promise<Metadata> {
@@ -85,11 +87,13 @@ export default async function Page({ params }: PageProps) {
     dateModified,
     author: { '@type': 'Person', name: publicAuthorName(news.author) },
     publisher: {
-      '@type': 'Organization',
-      name: 'Nexus News',
+      '@type': 'NewsMediaOrganization',
+      '@id': 'https://www.nexusnews.info/#organization',
+      name: 'NEXUS News',
+      url: 'https://www.nexusnews.info',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://www.nexusnews.info/image/logo.png',
+        url: 'https://www.nexusnews.info/brand/nexus-symbol.svg',
       },
     },
     articleSection: news.category || undefined,

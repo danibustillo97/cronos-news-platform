@@ -8,7 +8,7 @@ export const revalidate = 300
 
 export const metadata: Metadata = {
   title: 'Archivo de noticias deportivas',
-  description: 'Consulta el archivo de NEXUS News: noticias deportivas publicadas, contexto y cobertura de la Liga BetPlay y el fútbol internacional que siguen disponibles después del ciclo de actualidad.',
+  description: 'Explora el archivo de NEXUS News: noticias de la Liga BetPlay y del fútbol colombiano e internacional que conservan su URL permanente.',
   alternates: { canonical: '/archivo' },
 }
 

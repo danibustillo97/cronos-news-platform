@@ -9,9 +9,9 @@ import { apiUrl } from '@/studio/lab/api-client'
 // site's <head>. They must never drift into being treated as the source
 // of truth again; the real values live in Supabase's `site_settings` row.
 const FALLBACK_SEO = {
-  title: 'Nexus News | Noticias Deportivas al Instante',
-  description: 'El mejor portal de noticias deportivas con análisis IA en tiempo real. Cobertura de fútbol, NBA, F1 y más.',
-  keywords: ['deportes', 'noticias', 'fútbol', 'NBA', 'F1', 'resultados en vivo'],
+  title: 'NEXUS News | Fútbol colombiano, Liga BetPlay y actualidad',
+  description: 'Noticias de fútbol colombiano e internacional, Liga BetPlay, partidos y resultados. Actualidad con datos, contexto y debate para el hincha.',
+  keywords: ['fútbol colombiano', 'Liga BetPlay', 'noticias de fútbol', 'partidos', 'resultados', 'tabla de posiciones'],
 }
 
 async function getSeoSettings(): Promise<{ title: string; description: string; keywords: string[] }> {
@@ -63,10 +63,10 @@ export async function generateMetadata(): Promise<Metadata> {
     siteName: 'Nexus News',
     images: [
       {
-        url: '/og-image.jpg', // Asegúrate de tener esta imagen en public/
+        url: '/opengraph-image',
         width: 1200,
         height: 630,
-        alt: 'Nexus News - Noticias Deportivas',
+        alt: 'NEXUS News: fútbol con contexto, datos y debate',
       },
     ],
   },
@@ -74,7 +74,7 @@ export async function generateMetadata(): Promise<Metadata> {
     card: 'summary_large_image',
     title: 'Nexus News | Noticias Deportivas',
     description: seo.description,
-    images: ['/og-image.jpg'],
+    images: ['/opengraph-image'],
   },
   applicationName: 'NEXUS News',
   appleWebApp: { capable: true, title: 'NEXUS News', statusBarStyle: 'black-translucent' },

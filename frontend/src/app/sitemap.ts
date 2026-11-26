@@ -20,15 +20,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }))
 
+  // Static URLs omit lastModified: generating a sitemap is not a page update.
+  // Article URLs below use real database timestamps only.
   const staticUrls: MetadataRoute.Sitemap = [
-    { url: baseUrl, lastModified: new Date(), changeFrequency: 'hourly', priority: 1 },
-    { url: `${baseUrl}/deportes`, lastModified: new Date(), changeFrequency: 'hourly', priority: 0.9 },
-    { url: `${baseUrl}/deportes/futbol`, lastModified: new Date(), changeFrequency: 'hourly', priority: 0.9 },
-    { url: `${baseUrl}/deportes/futbol/tabla`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.6 },
-    { url: `${baseUrl}/explorar`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.5 },
-    { url: `${baseUrl}/archivo`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.6 },
-    { url: `${baseUrl}/encuestas`, lastModified: new Date(), changeFrequency: 'daily', priority: 0.6 },
-    { url: `${baseUrl}/jugadores`, lastModified: new Date(), changeFrequency: 'weekly', priority: 0.6 },
+    { url: baseUrl, changeFrequency: 'hourly', priority: 1 },
+    { url: `${baseUrl}/deportes`, changeFrequency: 'hourly', priority: 0.9 },
+    { url: `${baseUrl}/deportes/futbol`, changeFrequency: 'hourly', priority: 0.9 },
+    { url: `${baseUrl}/deportes/futbol/tabla`, changeFrequency: 'daily', priority: 0.6 },
+    { url: `${baseUrl}/explorar`, changeFrequency: 'weekly', priority: 0.5 },
+    { url: `${baseUrl}/archivo`, changeFrequency: 'daily', priority: 0.6 },
+    { url: `${baseUrl}/encuestas`, changeFrequency: 'daily', priority: 0.6 },
+    { url: `${baseUrl}/jugadores`, changeFrequency: 'weekly', priority: 0.6 },
     { url: `${baseUrl}/privacy`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${baseUrl}/terms`, changeFrequency: 'yearly', priority: 0.3 },
     { url: `${baseUrl}/cookies`, changeFrequency: 'yearly', priority: 0.3 },

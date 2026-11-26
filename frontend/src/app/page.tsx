@@ -11,7 +11,23 @@ export const revalidate = 60
 const SITE = 'https://www.nexusnews.info'
 
 export const metadata: Metadata = {
+  title: 'NEXUS News: fútbol colombiano, Liga BetPlay y noticias',
+  description: 'Noticias de fútbol colombiano e internacional, Liga BetPlay, partidos y resultados. El fútbol, más allá del marcador: actualidad con datos, contexto y debate.',
   alternates: { canonical: SITE },
+  openGraph: {
+    type: 'website',
+    locale: 'es_CO',
+    siteName: 'NEXUS News',
+    title: 'NEXUS News: fútbol colombiano, Liga BetPlay y noticias',
+    description: 'Actualidad del fútbol colombiano e internacional, resultados, datos y debates para el hincha.',
+    images: [{ url: '/opengraph-image', width: 1200, height: 630, alt: 'NEXUS News: el fútbol, más allá del marcador' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'NEXUS News: fútbol colombiano y Liga BetPlay',
+    description: 'Actualidad, datos y debate del fútbol colombiano e internacional.',
+    images: ['/opengraph-image'],
+  },
 }
 
 export default async function HomePage() {
@@ -19,10 +35,15 @@ export default async function HomePage() {
   const ordered = news ? applyLayout(news, layout ?? defaultLayout()) : []
   const graph = [
     {
-      '@type': 'Organization',
+      '@type': 'NewsMediaOrganization',
       '@id': `${SITE}/#organization`,
-      name: 'Nexus News',
+      name: 'NEXUS News',
       url: SITE,
+      slogan: 'El fútbol, más allá del marcador.',
+      description: 'Medio digital deportivo en español para Colombia y Latinoamérica: noticias, resultados, datos, perfiles y debates de fútbol.',
+      logo: { '@type': 'ImageObject', url: `${SITE}/brand/nexus-symbol.svg` },
+      publishingPrinciples: `${SITE}/about#principios-editoriales`,
+      correctionsPolicy: `${SITE}/corrections`,
     },
     {
       '@type': 'WebSite',
