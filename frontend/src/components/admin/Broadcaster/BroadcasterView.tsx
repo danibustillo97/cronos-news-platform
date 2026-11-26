@@ -925,6 +925,18 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
 
   const [autoReact, setAutoReact] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // ---- Football PREVIEW bus (Phase 2): "Preparar" builds the next look + graphics here; TAKE sends it to Program.
+  const [prepareMode, setPrepareModeState] = useState(false);
+  const [pvwScene, setPvwScene] = useState<BroadcastScene>(INITIAL_SCENES[2]);
+  const [pvwGraphics, setPvwGraphics] = useState<BroadcastGraphic[]>([]);
+  const fbPreviewCanvasRef = useRef<HTMLCanvasElement>(null);
+  const programRef = useRef<BroadcastGraphic[]>([]);
+  programRef.current = programGraphicsSnapshot;
+  const pvwRef = useRef(pvwGraphics);
+  pvwRef.current = pvwGraphics;
+  const prepareRef = useRef(false);
+  /** Set while an action must go straight to Program (automatic show, panic, live alerts). */
+  const forceProgramRef = useRef(false);
   const [bgLocked, setBgLocked] = useState(() => { try { return localStorage.getItem("nexus.broadcast.bgLocked") === "1"; } catch { return false; } });
   const toggleBgLock = () => setBgLocked((v) => { try { localStorage.setItem("nexus.broadcast.bgLocked", v ? "0" : "1"); } catch { /* ignore */ } return !v; });
   const [sfxOn, setSfxOn] = useState(true);
@@ -943,6 +955,27 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   // Effects go into the program mix (heard on air and in recordings) once the mixer exists.
   const sfxBus = () => (mixerRef.current ? { context: mixerRef.current.context, node: mixerRef.current.master } : undefined);
 
+  type Bus = "program" | "preview";
+  const currentBus = (): Bus => (prepareRef.current && !forceProgramRef.current ? "preview" : "program");
+  const busList = (bus: Bus = currentBus()) => (bus === "preview" ? pvwRef.current : programRef.current);
+  const setBusGraphics = (bus: Bus, update: (current: BroadcastGraphic[]) => BroadcastGraphic[]) => {
+    if (bus === "preview") setPvwGraphics(update); else setProgramGraphicsSnapshot(update);
+  };
+  const setLook = (bus: Bus, patch: Partial<BroadcastScene>) => {
+    if (bus === "preview") setPvwScene((current) => ({ ...current, ...patch })); else setProgramSceneSnapshot((current) => ({ ...current, ...patch }));
+  };
+  /** Removes from the bus being worked on (Program: animated exit; Preview: at once). */
+  const exitBus = (test: (item: BroadcastGraphic) => boolean, bus: Bus = currentBus()) => {
+    if (bus === "preview") setPvwGraphics((current) => current.filter((item) => !test(item)));
+    else exitProgram(test);
+  };
+  /** Timed graphics leave Program and their prepared copy, so a later TAKE does not bring them back. */
+  const exitEverywhere = (test: (item: BroadcastGraphic) => boolean) => {
+    exitProgram(test);
+    setPvwGraphics((current) => current.filter((item) => !test(item)));
+  };
+  const onProgram = <T,>(fn: () => T): T => { forceProgramRef.current = true; try { return fn(); } finally { forceProgramRef.current = false; } };
+
   const exitProgram = (test: (item: BroadcastGraphic) => boolean) => {
     const stamp = Date.now();
     setProgramGraphicsSnapshot((current) => current.map((item) => (test(item) && !item.leavingAt ? { ...item, leavingAt: stamp } : item)));
@@ -958,7 +991,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   // Smart placement: the new graphic takes the first spot that doesn't cover what is already on air.
   const freeSpot = (variant: GraphicVariant, title = "", subtitle = "", replaceVariant = true) => {
     const size = renderFootballDesign(variant, fm.match, title, subtitle);
-    const occupied: Rect[] = programGraphicsSnapshot
+    const occupied: Rect[] = busList()
       .filter((g) => g.mode === "football" && g.variant && !(replaceVariant && g.variant === variant))
       .map((g) => {
         const d = renderFootballDesign(g.variant as GraphicVariant, fm.match, g.title, g.subtitle);
@@ -996,7 +1029,8 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     autoAirRef.current = { id, timer };
   };
   // Puts a widget on Program and leaves it there (templates); replaces another of the same variant.
-  const airPersist = (variant: GraphicVariant, options: { title?: string; subtitle?: string; position?: { x: number; y: number }; scale?: number } = {}) => {
+  const airPersist = (variant: GraphicVariant, options: { title?: string; subtitle?: string; position?: { x: number; y: number }; scale?: number; bus?: Bus } = {}) => {
+    const bus = options.bus ?? currentBus();
     const graphic: BroadcastGraphic = {
       id: `fixed-${variant}-${Date.now()}`, mode: "football", name: FOOTBALL_NAMES[variant] ?? variant,
       kind: variant === "lower" ? "lower-third" : ["elite", "compact", "editorial", "live", "pro"].includes(variant) ? "scoreboard" : "ticker",
@@ -1004,7 +1038,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       variant, scale: options.scale ?? 1, position: options.position ?? freeSpot(variant, options.title ?? "", options.subtitle ?? ""),
     };
     const scoreboard = graphic.kind === "scoreboard";
-    setProgramGraphicsSnapshot((current) => [
+    setBusGraphics(bus, (current) => [
       ...current.filter((item) => item.variant !== variant && !(scoreboard && ["elite", "compact", "editorial", "live", "pro"].includes(item.variant ?? ""))),
       graphic,
     ]);
@@ -1025,14 +1059,16 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     return { detail, board: toScoreboard(detail, { home, away }) };
   };
   // On Program; with `seconds` it leaves by itself (each graphic has its own timer).
-  const addToProgram = (graphic: BroadcastGraphic, seconds?: number) => {
+  const addToProgram = (input: BroadcastGraphic, seconds?: number, bus: Bus = currentBus()) => {
     const scoreboardVariants = ["elite", "compact", "editorial", "live", "pro"];
-    const isBoard = scoreboardVariants.includes(graphic.variant ?? "");
-    setProgramGraphicsSnapshot((current) => [
+    const isBoard = scoreboardVariants.includes(input.variant ?? "");
+    // In Preview a timed graphic only remembers its duration; the clock starts when it goes on air (TAKE).
+    const graphic = seconds && bus === "preview" ? { ...input, autoOut: seconds } : input;
+    setBusGraphics(bus, (current) => [
       ...current.filter((item) => item.variant !== graphic.variant && !(isBoard && scoreboardVariants.includes(item.variant ?? ""))),
       graphic,
     ]);
-    if (seconds) window.setTimeout(() => exitProgram((item) => item.id === graphic.id), seconds * 1000);
+    if (seconds && bus === "program") window.setTimeout(() => exitEverywhere((item) => item.id === graphic.id), seconds * 1000);
   };
   const boundGraphic = (variant: GraphicVariant, ref: MatchRef, board: FootballScoreboard): BroadcastGraphic => ({
     id: `bound-${variant}-${ref.id}-${Date.now()}`, mode: "football", name: `${FOOTBALL_NAMES[variant] ?? variant} · ${board.homeShort || board.homeTeam} vs ${board.awayShort || board.awayTeam}`,
@@ -1040,14 +1076,15 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     variant, scale: 1, position: freeSpot(variant), matchRef: ref, football: board,
   });
   const airForMatch = async (ref: MatchRef, what: "pro" | "lineups" | "stats") => {
+    const bus = currentBus(); // decided at the click, before the data arrives
     try {
       const { board } = await boundScoreboard(ref);
-      if (what === "pro") addToProgram(boundGraphic("pro", ref, board));
-      else if (what === "stats") addToProgram(boundGraphic("stats", ref, board), 15);
+      if (what === "pro") addToProgram(boundGraphic("pro", ref, board), undefined, bus);
+      else if (what === "stats") addToProgram(boundGraphic("stats", ref, board), 15, bus);
       else {
         if (!board.lineups?.home?.length) { toast.info("Las alineaciones de ese partido aún no están publicadas"); return; }
-        addToProgram(boundGraphic("lineup-home", ref, board), 20);
-        addToProgram({ ...boundGraphic("lineup-away", ref, board), position: FOOTBALL_POSITIONS["lineup-away"] }, 20);
+        addToProgram(boundGraphic("lineup-home", ref, board), 20, bus);
+        addToProgram({ ...boundGraphic("lineup-away", ref, board), position: FOOTBALL_POSITIONS["lineup-away"] }, 20, bus);
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "No se pudo poner al aire");
@@ -1061,19 +1098,19 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     airPersist(variant, options);
   };
   // Bound graphics refresh themselves (score, clock, cards, line-ups) every 12 s.
-  const programRef = useRef(programGraphicsSnapshot);
-  programRef.current = programGraphicsSnapshot;
   useEffect(() => {
     const timer = window.setInterval(async () => {
       const refs = new Map<string, MatchRef>();
-      programRef.current.forEach((g) => { if (g.matchRef) refs.set(`${g.matchRef.league}:${g.matchRef.id}`, g.matchRef); });
+      [...programRef.current, ...pvwRef.current].forEach((g) => { if (g.matchRef) refs.set(`${g.matchRef.league}:${g.matchRef.id}`, g.matchRef); });
       if (!refs.size) return;
       const boards = new Map<string, FootballScoreboard>();
       await Promise.all([...refs].map(async ([key, ref]) => { try { boards.set(key, (await boundScoreboard(ref)).board); } catch { /* keep last */ } }));
-      setProgramGraphicsSnapshot((current) => current.map((g) => {
+      const refresh = (current: BroadcastGraphic[]) => current.map((g) => {
         const fresh = g.matchRef ? boards.get(`${g.matchRef.league}:${g.matchRef.id}`) : undefined;
         return fresh ? { ...g, football: fresh } : g;
-      }));
+      });
+      setProgramGraphicsSnapshot(refresh);
+      setPvwGraphics(refresh);
     }, 12000);
     return () => window.clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1307,9 +1344,10 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   };
 
   // What the frame clock draws; refreshed on every render so the clock itself never restarts.
-  const frameRef = useRef({ inputs, previewScene, programScene, previewGraphics, programGraphics, drawProgram: true, drawPreview: true });
+  const frameRef = useRef({ inputs, previewScene, programScene, previewGraphics, programGraphics, drawProgram: true, drawPreview: true, fbScene: pvwScene, fbGraphics: pvwGraphics, drawFb: false });
   frameRef.current = {
     inputs, previewScene, programScene, previewGraphics, programGraphics,
+    fbScene: pvwScene, fbGraphics: pvwGraphics, drawFb: active && prepareMode && studioMode === "football",
     // Off screen and off air there is nothing to draw; on air Program keeps rendering even while hidden.
     drawProgram: active || live || recording,
     drawPreview: active,
@@ -1349,6 +1387,10 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
         } else {
           drawScene(program, frame.programScene, frame.inputs, inputVideoRefs.current, inputImageRefs.current, frame.programGraphics, programFadeAlphaRef.current, "program");
         }
+      }
+      const fbPreview = fbPreviewCanvasRef.current;
+      if (fbPreview && frame.drawFb && !document.hidden && tick % 2 === 0) {
+        drawScene(fbPreview, frame.fbScene, frame.inputs, inputVideoRefs.current, inputImageRefs.current, frame.fbGraphics, 1, "preview");
       }
       const preview = previewCanvasRef.current;
       if (preview && frame.drawPreview && !document.hidden && tick % 2 === 0) {
@@ -1533,7 +1575,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   };
 
   // ---- Football studio: everything acts directly on PROGRAM (what is on air) --------------------
-  const setProgramLook = (patch: Partial<BroadcastScene>) => setProgramSceneSnapshot((current) => ({ ...current, ...patch }));
+  const setProgramLook = (patch: Partial<BroadcastScene>, bus: Bus = currentBus()) => setLook(bus, patch);
   const libraryItem = async (name: string, make: () => Promise<Blob>): Promise<MediaItem | null> => {
     const existing = mediaLibrary.find((item) => item.name === name);
     if (existing) return existing;
@@ -1543,20 +1585,21 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     return item;
   };
   const cameraIds = () => inputsRef.current.filter((input) => input.kind === "camera" || input.kind === "screen").map((input) => input.id);
-  const applyVirtualSet = async (set: VirtualSet, theme: SetTheme) => {
+  const applyVirtualSet = async (set: VirtualSet, theme: SetTheme, bus: Bus = currentBus()) => {
     const item = await libraryItem(`Escenario v${SETS_VERSION} · ${set.id} · ${theme}`, () => drawVirtualSet(set.layout, theme));
     if (!item) return;
     const cams = set.camera ? cameraIds() : [];
-    setProgramLook({ layout: set.layout, backgroundId: ensureLibraryInput(item), inputIds: cams.slice(0, set.layout === "set-duo" ? 2 : 1) });
+    setProgramLook({ layout: set.layout, backgroundId: ensureLibraryInput(item), inputIds: cams.slice(0, set.layout === "set-duo" ? 2 : 1) }, bus);
     if (set.camera && !cams.length) toast.info("Escenario listo. Conecta tu cámara para aparecer en el marco.");
   };
-  const programBackground = (item: MediaItem) => setProgramLook({ backgroundId: ensureLibraryInput(item) });
+  const programBackground = (item: MediaItem, bus: Bus = currentBus()) => setProgramLook({ backgroundId: ensureLibraryInput(item) }, bus);
   const SCOREBOARDS = ["elite", "compact", "editorial", "live", "pro"];
   const sameFamily = (g: BroadcastGraphic, variant: GraphicVariant) => g.variant === variant
     || (variant === "lineup-home" && g.variant === "lineup-away") || (variant === "pro" && SCOREBOARDS.includes(g.variant ?? ""));
-  const stageToggleOn = (variant: GraphicVariant) => programGraphicsSnapshot.some((g) => sameFamily(g, variant));
+  const stageToggleOn = (variant: GraphicVariant) => (prepareMode && studioMode === "football" ? pvwGraphics : programGraphicsSnapshot).some((g) => sameFamily(g, variant));
+  const stageLiveOn = (variant: GraphicVariant) => programGraphicsSnapshot.some((g) => sameFamily(g, variant));
   const stageToggle = (variant: GraphicVariant, target: MatchRef | null = null) => {
-    if (stageToggleOn(variant)) { exitProgram((g) => sameFamily(g, variant)); return; }
+    if (busList().some((g) => sameFamily(g, variant))) { exitBus((g) => sameFamily(g, variant)); return; }
     const ref = target ?? fm.fixture;
     if (variant === "lineup-home") { if (ref) void airForMatch(ref, "lineups"); else toast.info("Elige un partido (número o «Partidos de hoy»)"); return; }
     if ((variant === "pro" || variant === "stats") && target) { void airForMatch(target, variant); return; }
@@ -1565,19 +1608,20 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     airPersist(variant);
   };
   const applyStageScene = async (scene: StageScene, theme: SetTheme) => {
-    retireAllProgram();
+    const bus = currentBus();
+    if (bus === "preview") setPvwGraphics([]); else retireAllProgram();
     if (scene.set) {
       const set = VIRTUAL_SETS.find((item) => item.layout === scene.set);
-      if (set) await applyVirtualSet(set, theme);
+      if (set) await applyVirtualSet(set, theme, bus);
     } else {
       const cams = cameraIds();
-      setProgramLook({ layout: "single", inputIds: scene.camera ? cams.slice(0, 1) : [] });
+      setProgramLook({ layout: "single", inputIds: scene.camera ? cams.slice(0, 1) : [] }, bus);
       if (scene.camera && !cams.length) toast.info("Conecta tu cámara para aparecer en pantalla.");
       if (scene.background && !bgLocked) void applyThemeBackground(scene.background);
     }
     window.setTimeout(() => scene.graphics.forEach((variant) => {
-      if (variant === "poll") { if (onAirPollId()) airPersist("poll", { title: `Vota en ${window.location.host}` }); return; }
-      airPersist(variant, variant === "multi" ? { title: "Resultados en vivo" } : {});
+      if (variant === "poll") { if (onAirPollId()) airPersist("poll", { title: `Vota en ${window.location.host}`, bus }); return; }
+      airPersist(variant, variant === "multi" ? { title: "Resultados en vivo", bus } : { bus });
     }), 120);
   };
   const backgroundThumbs = useMemo(() => mediaLibrary.filter((item) => item.category === "fondo" && item.kind === "image")
@@ -1597,21 +1641,21 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   const autoShow: AutoShowHandlers = {
     onStart: (league, withAd) => {
       retireAllProgram(); // nothing from before stays stuck on screen
-      if (!bgLocked) void applyVirtualSet(ledSet, showTheme(league));
+      if (!bgLocked) void applyVirtualSet(ledSet, showTheme(league), "program");
       window.setTimeout(() => {
-        airPersist("recap", { position: FOOTBALL_POSITIONS.recap });
-        airPersist("cinta");
-        if (withAd) airPersist("ad", { position: FOOTBALL_POSITIONS.ad });
+        airPersist("recap", { position: FOOTBALL_POSITIONS.recap, bus: "program" });
+        airPersist("cinta", { bus: "program" });
+        if (withAd) airPersist("ad", { position: FOOTBALL_POSITIONS.ad, bus: "program" });
       }, 200);
     },
     onSlide: (slide, logos, step, leagueChanged) => {
       setRecapSlide(slide, logos, step);
-      if (leagueChanged && slide.league && !bgLocked) void applyVirtualSet(ledSet, showTheme(slide.league));
+      if (leagueChanged && slide.league && !bgLocked) void applyVirtualSet(ledSet, showTheme(slide.league), "program");
       // the show owns the screen: only its pieces (and live goal cards) stay
       if (programRef.current.some((g) => !SHOW_KEEP.has(g.variant ?? ""))) exitProgram((g) => !SHOW_KEEP.has(g.variant ?? ""));
-      if (!programRef.current.some((g) => g.variant === "recap")) airPersist("recap", { position: FOOTBALL_POSITIONS.recap });
+      if (!programRef.current.some((g) => g.variant === "recap")) airPersist("recap", { position: FOOTBALL_POSITIONS.recap, bus: "program" });
     },
-    onAd: (on) => { if (on) airPersist("ad", { position: FOOTBALL_POSITIONS.ad }); else exitProgram((g) => g.variant === "ad"); },
+    onAd: (on) => { if (on) airPersist("ad", { position: FOOTBALL_POSITIONS.ad, bus: "program" }); else exitProgram((g) => g.variant === "ad"); },
     onEnd: () => { exitProgram((g) => g.variant === "recap" || g.variant === "ad"); setRecapSlide(null); },
     attachMusic,
   };
@@ -1619,9 +1663,9 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   // Any match: is its scoreboard / line-ups / stats on air? Pressing again takes it off.
   const matchFamily = (g: BroadcastGraphic, ref: MatchRef, what: "pro" | "lineups" | "stats") => g.matchRef?.id === ref.id
     && (what === "pro" ? g.variant === "pro" : what === "stats" ? g.variant === "stats" : g.variant === "lineup-home" || g.variant === "lineup-away");
-  const isMatchOn = (ref: MatchRef, what: "pro" | "lineups" | "stats") => programGraphicsSnapshot.some((g) => matchFamily(g, ref, what));
+  const isMatchOn = (ref: MatchRef, what: "pro" | "lineups" | "stats") => (prepareMode && studioMode === "football" ? pvwGraphics : programGraphicsSnapshot).some((g) => matchFamily(g, ref, what));
   const toggleMatch = (ref: MatchRef, what: "pro" | "lineups" | "stats") => {
-    if (isMatchOn(ref, what)) exitProgram((g) => matchFamily(g, ref, what));
+    if (busList().some((g) => matchFamily(g, ref, what))) exitBus((g) => matchFamily(g, ref, what));
     else void airForMatch(ref, what);
   };
   const graphicSize = (g: BroadcastGraphic) => {
@@ -1639,19 +1683,75 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     });
     if (hit) { retireProgramGraphic(hit.id); toast.success(`Quitado: ${hit.name}`); }
   };
+  const tapPreview = (fx: number, fy: number) => {
+    const px = fx * 1920;
+    const py = fy * 1080;
+    const hit = [...pvwGraphics].reverse().find((g) => {
+      if (g.mode !== "football" || !g.variant) return false;
+      const r = rectAt(g.position ?? { x: 5, y: 5 }, graphicSize(g), g.scale ?? 1);
+      return px >= r.x && px <= r.x + r.w && py >= r.y && py <= r.y + r.h;
+    });
+    if (hit) setPvwGraphics((current) => current.filter((g) => g.id !== hit.id));
+  };
   // Graphics adapt to the set on screen: never over a camera frame, never over each other (move, then shrink).
-  useEffect(() => {
-    if (studioMode !== "football") return;
-    const items = programGraphicsSnapshot.filter((g) => g.mode === "football" && g.variant).map((g) => ({
+  const settleMoves = (list: BroadcastGraphic[], layout: string | undefined) => {
+    const items = list.filter((g) => g.mode === "football" && g.variant).map((g) => ({
       id: g.id, variant: g.variant as string, spot: g.position ?? FOOTBALL_POSITIONS[g.variant as string] ?? { x: 5, y: 5 }, scale: g.scale ?? 1, size: graphicSize(g),
     }));
-    if (!items.length) return;
-    const placed = settle(items, cameraRects(programSceneSnapshot.layout, 9));
+    if (!items.length) return null;
+    const placed = settle(items, cameraRects(layout, 9));
     const moved = new Map(placed.filter((o, i) => o.spot.x !== items[i].spot.x || o.spot.y !== items[i].spot.y || o.scale !== items[i].scale).map((o) => [o.id, o]));
-    if (!moved.size) return;
-    setProgramGraphicsSnapshot((current) => current.map((g) => { const o = moved.get(g.id); return o ? { ...g, position: o.spot, scale: o.scale } : g; }));
+    if (!moved.size) return null;
+    return (current: BroadcastGraphic[]) => current.map((g) => { const o = moved.get(g.id); return o ? { ...g, position: o.spot, scale: o.scale } : g; });
+  };
+  useEffect(() => {
+    if (studioMode !== "football") return;
+    const apply = settleMoves(programGraphicsSnapshot, programSceneSnapshot.layout);
+    if (apply) setProgramGraphicsSnapshot(apply);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [programGraphicsSnapshot, programSceneSnapshot.layout, studioMode]);
+  useEffect(() => {
+    if (studioMode !== "football" || !prepareMode) return;
+    const apply = settleMoves(pvwGraphics, pvwScene.layout);
+    if (apply) setPvwGraphics(apply);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pvwGraphics, pvwScene.layout, studioMode, prepareMode]);
+
+  // ---- Preview / Program in football mode: prepare, then TAKE (cut or the studio's transition) ----
+  prepareRef.current = prepareMode && studioMode === "football";
+  const copyProgramToPreview = () => {
+    setPvwScene({ ...programSceneSnapshot, inputIds: [...programSceneSnapshot.inputIds] });
+    setPvwGraphics(programGraphicsSnapshot.filter((g) => !g.leavingAt).map((g) => ({ ...g })));
+  };
+  const setPrepareMode = (on: boolean) => {
+    if (on) copyProgramToPreview(); // start from what is on air
+    setPrepareModeState(on);
+    try { localStorage.setItem("nexus.broadcast.prepare", on ? "1" : "0"); } catch { /* ignore */ }
+  };
+  useEffect(() => { try { if (localStorage.getItem("nexus.broadcast.prepare") === "1") setPrepareMode(true); } catch { /* ignore */ } }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const takeFootball = (override?: TransitionMode) => {
+    if (isTransitioningRef.current) return;
+    const mode = override ?? transitionMode;
+    const to: BroadcastScene = { ...pvwScene, inputIds: [...pvwScene.inputIds] };
+    const toGraphics = pvwGraphics.map((g) => ({ ...g, leavingAt: undefined }));
+    const startClocks = () => toGraphics.forEach((g) => {
+      if (g.autoOut) window.setTimeout(() => exitEverywhere((x) => x.id === g.id), g.autoOut * 1000);
+    });
+    if (mode === "cut") {
+      programFadeAlphaRef.current = 1;
+      setProgramSceneSnapshot(to);
+      setProgramGraphicsSnapshot(toGraphics);
+      startClocks();
+      return;
+    }
+    activeTransitionModeRef.current = mode;
+    isTransitioningRef.current = true;
+    transitionStateRef.current = {
+      from: programSceneSnapshot, fromGraphics: programGraphicsSnapshot, to, toGraphics,
+      progress: 0, startedAt: performance.now(), duration: transitionMs,
+      onComplete: () => { setProgramSceneSnapshot(to); setProgramGraphicsSnapshot(toGraphics); startClocks(); },
+    };
+  };
   // Data ticker: rotates every 6 s through live scores, today's results and the next kick-offs.
   const cintaOnRef = useRef(false);
   cintaOnRef.current = programGraphicsSnapshot.some((g) => g.variant === "cinta");
@@ -1996,12 +2096,24 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             keysActive={active && !advancedOpen}
             board={boardMatches}
             isOn={stageToggleOn}
+            isLive={stageLiveOn}
+            prepare={prepareMode}
+            onPrepare={setPrepareMode}
+            previewMonitor={<canvas ref={fbPreviewCanvasRef} width={1920} height={1080} className="block h-full w-full object-contain" />}
+            previewList={pvwGraphics.map((g) => ({ id: g.id, name: g.name, variant: g.variant }))}
+            onRemovePreview={(id) => setPvwGraphics((current) => current.filter((g) => g.id !== id))}
+            onPreviewTap={tapPreview}
+            onTake={(mode) => takeFootball(mode)}
+            transition={transitionMode}
+            onTransition={setTransitionMode}
+            onCopyToPreview={copyProgramToPreview}
+            onClearPreview={() => setPvwGraphics([])}
             onToggle={(variant, target) => stageToggle(variant, target)}
             isMatchOn={isMatchOn}
             onMatch={toggleMatch}
             onMonitorTap={tapProgram}
             onRemove={retireProgramGraphic}
-            onClear={retireAllProgram}
+            onClear={() => onProgram(retireAllProgram)}
             onScene={(scene, theme) => void applyStageScene(scene, theme)}
             onSet={(set, theme) => void applyVirtualSet(set, theme)}
             onThemeBackground={(theme) => void applyThemeBackground(theme)}
@@ -2601,7 +2713,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
           ] as Array<[string, string, GraphicVariant]>).map(([label, shortcut, variant]) => {
             const onAir = programGraphicsSnapshot.some((item) => item.variant === variant);
             return <button key={shortcut} type="button" onClick={() => toggleAir(variant)} title={onAir ? "Retirar del aire" : "Sacar al aire"} className={`inline-flex items-center gap-1.5 rounded-[var(--nx-r)] border px-2 py-1.5 text-[10px] font-semibold ${onAir ? "border-[var(--nx-gold)] bg-[var(--nx-gold)]/15 text-white" : "border-[var(--nx-line-2)] text-[var(--nx-muted)] hover:text-[var(--nx-text)]"}`}>{onAir && <span className={ui.liveDot} />}<span>{label}</span><kbd className={ui.kbd}>{shortcut}</kbd></button>;
-          })}          <button type="button" onClick={() => takeScene()} className={`whitespace-nowrap px-4 py-2 text-[10px] font-black ${ui.btnPrimary}`}>TAKE <kbd className="ml-1 rounded bg-black/20 px-1">Espacio</kbd></button>
+          })}          <button type="button" onClick={() => (prepareMode ? takeFootball() : takeScene())} title={prepareMode ? "Preview → Program" : "Escena preparada → Program"} className={`whitespace-nowrap px-4 py-2 text-[10px] font-black ${ui.btnPrimary}`}>TAKE <kbd className="ml-1 rounded bg-black/20 px-1">Espacio</kbd></button>
           <button type="button" onClick={retireAllProgram} className={`whitespace-nowrap px-3 py-2 text-[10px] font-bold ${ui.btnGhost}`}>Retirar todo <kbd className="ml-1 rounded bg-black/30 px-1">Esc</kbd></button>
           <button type="button" onClick={() => document.documentElement.requestFullscreen?.()} aria-label="Pantalla completa" className={`p-2 ${ui.btnGhost}`}><RectangleHorizontal size={15} /></button>
         </footer>

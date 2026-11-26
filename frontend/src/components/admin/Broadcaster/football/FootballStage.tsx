@@ -13,8 +13,9 @@
 // On phones the program stays on top and the tools become tabs.
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BarChart3, Camera, ChevronDown, Clapperboard, Expand, EyeOff, Hash, Image as ImageIcon, Keyboard, ListOrdered, Lock, Maximize2, Minimize2, MonitorUp, Palette, Play, Radio, Sparkles, ToggleRight, Unlock, Upload, UserPlus, Video, X } from "lucide-react";
+import { ArrowRightLeft, BarChart3, Camera, ChevronDown, Copy, Trash2, Clapperboard, Expand, EyeOff, Hash, Image as ImageIcon, Keyboard, ListOrdered, Lock, Maximize2, Minimize2, MonitorUp, Palette, Play, Radio, Sparkles, ToggleRight, Unlock, Upload, UserPlus, Video, X } from "lucide-react";
 import type { GraphicVariant } from "../graphicExport";
+import type { TransitionMode } from "../compositor";
 import type { FootballMatchController } from "./useFootballMatch";
 import { SET_THEME_LABEL, VIRTUAL_SETS, drawVirtualSet, type SetTheme, type VirtualSet } from "./virtualSets";
 import { BACKGROUND_LABEL, type BackgroundTheme } from "./backgrounds";
@@ -75,6 +76,20 @@ interface Props {
   board: BoardMatch[];
   onAir: { id: string; name: string; variant?: string }[];
   isOn: (variant: GraphicVariant) => boolean;
+  /** On Program right now (for the red AL AIRE mark while preparing). */
+  isLive: (variant: GraphicVariant) => boolean;
+  /** Preview / Program: false = "Directo" (acts on air), true = "Preparar" (acts on Preview, TAKE sends it). */
+  prepare: boolean;
+  onPrepare: (on: boolean) => void;
+  previewMonitor: ReactNode;
+  previewList: { id: string; name: string; variant?: string }[];
+  onRemovePreview: (id: string) => void;
+  onPreviewTap: (x: number, y: number) => void;
+  onTake: (mode?: TransitionMode) => void;
+  transition: TransitionMode;
+  onTransition: (mode: TransitionMode) => void;
+  onCopyToPreview: () => void;
+  onClearPreview: () => void;
   onToggle: (variant: GraphicVariant, target: MatchRef | null) => void;
   isMatchOn: (ref: MatchRef, what: MatchWhat) => boolean;
   onMatch: (ref: MatchRef, what: MatchWhat) => void;
@@ -136,6 +151,14 @@ const panel = ui.panelPad;
 const head = `mb-1.5 ${ui.title}`;
 const keyCap = ui.kbd;
 const GROUP_LABEL: Record<StageScene["group"], string> = { partido: "Partido", analisis: "Debate y análisis", "sin-camara": "Sin cámara" };
+const CONTEXT_LABEL: Record<StageScene["group"] | "show", string> = { ...GROUP_LABEL, show: "Programa automático" };
+/** Graphics most useful first, depending on the kind of scene on screen. */
+const CONTEXT_ORDER: Record<StageScene["group"] | "show", string[]> = {
+  partido: ["pro", "events", "stats", "lineup-home", "multi", "cinta", "prematch", "poll"],
+  analisis: ["poll", "stats", "pro", "prematch", "lineup-home", "events", "multi", "cinta"],
+  "sin-camara": ["multi", "cinta", "pro", "stats", "prematch", "lineup-home", "poll", "events"],
+  show: ["cinta", "multi", "pro", "stats", "poll", "prematch", "lineup-home", "events"],
+};
 
 /** Collapsible library section (remembers open/closed). */
 function Section({ id, title, icon, children, defaultOpen = true, extra }: { id: string; title: string; icon: ReactNode; children: ReactNode; defaultOpen?: boolean; extra?: ReactNode }) {
@@ -168,6 +191,7 @@ export function FootballStage(props: Props) {
   const [slots, setSlots] = useState<MatchRef[]>([]);
   const [target, setTarget] = useState<MatchRef | null>(null);
   const [multiSel, setMultiSel] = useState<string[]>([]);
+  const [context, setContext] = useState<StageScene["group"] | "show">("partido");
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1280px)");
@@ -238,8 +262,8 @@ export function FootballStage(props: Props) {
   }, [props, active]);
 
   // Keyboard: capture phase, so these keys never reach the older studio shortcuts.
-  const latest = useRef({ keys, assigning, pressSlot, runAction, active: props.keysActive });
-  latest.current = { keys, assigning, pressSlot, runAction, active: props.keysActive };
+  const latest = useRef({ keys, assigning, pressSlot, runAction, active: props.keysActive, prepare: props.prepare, take: props.onTake });
+  latest.current = { keys, assigning, pressSlot, runAction, active: props.keysActive, prepare: props.prepare, take: props.onTake };
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
       const cur = latest.current;
@@ -247,6 +271,12 @@ export function FootballStage(props: Props) {
       const el = event.target;
       if (el instanceof HTMLElement && (el.isContentEditable || ["INPUT", "TEXTAREA", "SELECT"].includes(el.tagName))) return;
       const key = event.key.toLowerCase();
+      // Preparing in Preview: Space = TAKE with the chosen transition, Enter = TAKE with a fade (same keys as the studio).
+      if (cur.prepare && !cur.assigning && (event.code === "Space" || event.key === "Enter")) {
+        event.preventDefault(); event.stopImmediatePropagation();
+        cur.take(event.key === "Enter" ? "fade" : undefined);
+        return;
+      }
       if (cur.assigning) {
         event.preventDefault(); event.stopImmediatePropagation();
         if (key === "escape") { setAssigning(null); return; }
@@ -279,7 +309,7 @@ export function FootballStage(props: Props) {
   const sceneButtons = (group: StageScene["group"]) => (
     <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-1">
       {STAGE_SCENES.filter((sc) => sc.group === group).map((sc) => (
-        <button key={sc.id} type="button" onClick={() => props.onScene(sc, theme)} className={`${ui.card} px-2.5 py-1.5 text-left`}>
+        <button key={sc.id} type="button" onClick={() => { setContext(sc.group); props.onScene(sc, theme); }} className={`${ui.card} px-2.5 py-1.5 text-left`}>
           <span className="block text-[12px] font-bold text-[var(--nx-text)]">{sc.label}</span>
           <span className="block text-[10px] leading-tight text-[var(--nx-dim)]">{sc.hint}</span>
         </button>
@@ -371,18 +401,29 @@ export function FootballStage(props: Props) {
   const graphicsPanel = (
     <div className="space-y-2">
       <div className={panel}>
-        <p className={head}><ToggleRight size={12} className="text-[var(--nx-gold)]" /> Gráficos · toca o usa la tecla</p>
+        <p className={head}><ToggleRight size={12} className="text-[var(--nx-gold)]" /> Gráficos · {props.prepare ? "se preparan en Preview" : "salen al aire"}</p>
+        <div className="mb-1.5 flex flex-wrap items-center gap-1 rounded-[var(--nx-r-sm)] bg-[var(--nx-s2)] px-2 py-1 text-[10.5px] text-[var(--nx-muted)]">
+          <span>Contexto:</span><b className="text-[var(--nx-text)]">{CONTEXT_LABEL[context]}</b>
+          {context === "analisis" && <button type="button" onClick={() => { setBottomTab("datos"); setMobileTab("datos"); }} className="ml-auto text-[var(--nx-gold)] hover:underline">Lanzar debate / votación</button>}
+          {(context === "sin-camara" || context === "show") && <button type="button" onClick={() => { setContext("show"); setBottomTab("auto"); setMobileTab("auto"); }} className="ml-auto text-[var(--nx-gold)] hover:underline">Programa automático</button>}
+          {context === "partido" && <button type="button" onClick={() => { setBottomTab("hoy"); setMobileTab("hoy"); }} className="ml-auto text-[var(--nx-gold)] hover:underline">Elegir partido</button>}
+        </div>
         <p className="mb-1.5 truncate rounded-[var(--nx-r-sm)] bg-[var(--nx-s2)] px-2 py-1 text-[10.5px] text-[var(--nx-muted)]">Partido activo: <b className="text-[var(--nx-text)]">{activeName}</b></p>
         <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-1">
-          {TOGGLES.map((t) => {
+          {[...TOGGLES].sort((a, b) => CONTEXT_ORDER[context].indexOf(a.variant) - CONTEXT_ORDER[context].indexOf(b.variant)).map((t) => {
             const on = props.isOn(t.variant);
+            const liveNow = props.isLive(t.variant);
             return (
               <button key={t.variant} type="button" onClick={() => runAction(t.variant)} aria-pressed={on}
                 className={`flex items-center gap-2 px-2 py-1.5 text-left transition ${on ? ui.cardOn : ui.card}`}>
                 <span className={`flex h-5 w-9 flex-shrink-0 items-center rounded-full p-0.5 transition ${on ? "justify-end bg-[var(--nx-gold)]" : "justify-start bg-white/15"}`}><span className="h-4 w-4 rounded-full bg-white" /></span>
                 <span className="min-w-0 flex-1">
                   <span className="block text-[12px] font-bold text-[var(--nx-text)]">{t.label}</span>
-                  <span className={`flex items-center gap-1 truncate text-[10px] ${on ? "font-bold text-[var(--nx-live)]" : "text-[var(--nx-dim)]"}`}>{on && <span className={ui.liveDot} />}{on ? "AL AIRE" : t.hint}</span>
+                  <span className="flex items-center gap-1.5 truncate text-[10px]">
+                    {props.prepare && on && <span className="font-bold text-[var(--nx-ok)]">EN PREVIEW</span>}
+                    {liveNow && <span className="inline-flex items-center gap-1 font-bold text-[var(--nx-live)]"><span className={ui.liveDot} />AL AIRE</span>}
+                    {!on && !liveNow && <span className="text-[var(--nx-dim)]">{t.hint}</span>}
+                  </span>
                 </span>
                 {desktop && keyBadge(t.variant)}
               </button>
@@ -395,6 +436,24 @@ export function FootballStage(props: Props) {
           </p>
         )}
       </div>
+      {props.prepare && (
+        <div className={panel}>
+          <p className={head}><span className="h-2 w-2 rounded-full bg-[var(--nx-ok)]" /> En preview
+            <button type="button" onClick={props.onCopyToPreview} title="Copiar lo que está al aire a Preview" className="ml-auto inline-flex items-center gap-1 normal-case tracking-normal text-[var(--nx-muted)] hover:text-[var(--nx-text)]"><Copy size={11} /> Igualar</button>
+            <button type="button" onClick={props.onClearPreview} title="Vaciar Preview" className="inline-flex items-center gap-1 normal-case tracking-normal text-[var(--nx-muted)] hover:text-[var(--nx-live)]"><Trash2 size={11} /></button>
+          </p>
+          {props.previewList.length === 0 && <p className="px-1 text-[11px] text-[var(--nx-dim)]">Preview sin gráficos. Enciende uno o elige una escena.</p>}
+          <ul className="space-y-1">
+            {props.previewList.map((g) => (
+              <li key={g.id} className="flex items-center gap-1.5 rounded-[var(--nx-r-sm)] bg-[var(--nx-s2)] py-1 pl-2 pr-1 text-[11px] text-[var(--nx-text)]">
+                <span className="h-1.5 w-1.5 flex-shrink-0 rounded-full bg-[var(--nx-ok)]" />
+                <span className="min-w-0 flex-1 truncate">{g.name}</span>
+                <button type="button" onClick={() => props.onRemovePreview(g.id)} aria-label={`Quitar ${g.name} de Preview`} className="rounded p-0.5 text-[var(--nx-dim)] hover:bg-white/10 hover:text-white"><X size={12} /></button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
       <div className={panel}>
         <p className={head}><Radio size={12} className="text-[var(--nx-live)]" /> Al aire ahora
           {props.onAir.length > 0 && <button type="button" onClick={props.onClear} className="ml-auto inline-flex items-center gap-1 normal-case tracking-normal text-[var(--nx-muted)] hover:text-[var(--nx-live)]"><EyeOff size={11} /> Ocultar todo</button>}
@@ -522,15 +581,41 @@ export function FootballStage(props: Props) {
   ];
   const screenRef = useRef<HTMLDivElement>(null);
   const fullscreen = () => { const el = screenRef.current; if (!el) return; if (document.fullscreenElement) void document.exitFullscreen(); else void el.requestFullscreen?.(); };
+  const twoUp = props.prepare && desktop;
+  const monitorStyle = desktop ? (twoUp
+    ? { maxHeight: monitorH, maxWidth: `calc(${monitorH} * 16 / 9)` }
+    : { maxHeight: monitorH, maxWidth: `calc(${monitorH} * 16 / 9)` }) : undefined;
+  const previewScreen = (
+    <div className="relative aspect-video w-full overflow-hidden rounded-[var(--nx-r)] bg-black ring-2 ring-[var(--nx-ok)]" style={monitorStyle}>
+      <div className="h-full w-full cursor-pointer" title="Toca un gráfico para quitarlo de Preview"
+        onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); props.onPreviewTap((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }}>
+        {props.previewMonitor}
+      </div>
+      <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-[var(--nx-ok)] px-1.5 py-0.5 text-[10px] font-black tracking-[0.16em] text-black">PREVIEW</span>
+    </div>
+  );
+  const transitions: [TransitionMode, string][] = [["cut", "Corte"], ["fade", "Fundido"], ["wipe", "Barrido"], ["dip", "A negro"]];
+  const takeBar = props.prepare && (
+    <div className="flex w-full flex-wrap items-center gap-1.5 pt-1.5">
+      <span className={ui.title}><ArrowRightLeft size={12} /> Transición</span>
+      {transitions.map(([mode, label]) => (
+        <button key={mode} type="button" onClick={() => props.onTransition(mode)} className={props.transition === mode ? ui.chipOn : ui.chip}>{label}</button>
+      ))}
+      <button type="button" onClick={() => props.onTake()} className={`ml-auto px-5 py-2 text-[13px] font-black tracking-wider ${ui.btnPrimary}`}>
+        TAKE <kbd className="rounded bg-black/20 px-1 text-[10px]">Espacio</kbd>
+      </button>
+    </div>
+  );
   const screen = (
     <div ref={screenRef} className="group relative aspect-video w-full overflow-hidden rounded-[var(--nx-r)] bg-black ring-1 ring-[var(--nx-line-2)]"
-      style={desktop ? { maxHeight: monitorH, maxWidth: `calc(${monitorH} * 16 / 9)` } : undefined}>
+      style={monitorStyle}>
       <div className="h-full w-full cursor-pointer" title="Toca un gráfico para ocultarlo"
         onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); props.onMonitorTap((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }}>
         {monitor}
       </div>
+      {props.prepare && <span className="pointer-events-none absolute left-1.5 top-1.5 rounded bg-[var(--nx-live)] px-1.5 py-0.5 text-[10px] font-black tracking-[0.16em] text-white">PROGRAM</span>}
       {/* edges: quick access */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 hidden flex-col xl:flex justify-center gap-1 p-1.5 opacity-70 transition group-hover:opacity-100">
+      <div className={`pointer-events-none absolute inset-y-0 left-0 hidden flex-col justify-center gap-1 p-1.5 opacity-70 transition group-hover:opacity-100 ${props.prepare ? "" : "xl:flex"}`}>
         {quick.map((q) => (
           <button key={q.action} type="button" onClick={() => runAction(q.action)}
             className={`pointer-events-auto rounded-md px-2 py-1 text-[10px] font-bold backdrop-blur ${props.isOn(q.action as GraphicVariant) ? "bg-[var(--nx-gold)] text-[var(--nx-gold-ink)]" : "bg-black/60 text-white hover:bg-black/80"}`}>{q.label}</button>
@@ -549,7 +634,10 @@ export function FootballStage(props: Props) {
 
   const programHeader = (
     <div className="flex w-full items-center gap-2 pb-1 text-[11px]">
-      <span className="hidden rounded bg-[var(--nx-s2)] px-2 py-0.5 font-black uppercase tracking-[0.16em] text-[var(--nx-text)] sm:inline">Program</span>
+      <span className="inline-flex flex-shrink-0 rounded-[var(--nx-r-sm)] border border-[var(--nx-line-2)] p-0.5" role="group" aria-label="Modo de trabajo">
+        <button type="button" onClick={() => props.onPrepare(false)} aria-pressed={!props.prepare} title="Lo que tocas sale al aire de inmediato" className={`rounded px-2 py-0.5 text-[10.5px] font-bold ${!props.prepare ? "bg-[var(--nx-live)] text-white" : "text-[var(--nx-muted)] hover:text-[var(--nx-text)]"}`}>Directo</button>
+        <button type="button" onClick={() => props.onPrepare(true)} aria-pressed={props.prepare} title="Arma la escena en Preview y sácala con TAKE" className={`rounded px-2 py-0.5 text-[10.5px] font-bold ${props.prepare ? "bg-[var(--nx-ok)] text-black" : "text-[var(--nx-muted)] hover:text-[var(--nx-text)]"}`}>Preparar</button>
+      </span>
       <span className={`inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-2 py-0.5 font-black uppercase tracking-wider ${live ? "bg-[var(--nx-live)] text-white" : "border border-[var(--nx-line-2)] text-[var(--nx-dim)]"}`}>{live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />}{live ? "Al aire" : "Fuera del aire"}</span>
       {props.recording && <span className="inline-flex items-center gap-1 rounded border border-[var(--nx-live)] px-1.5 py-0.5 font-bold text-[var(--nx-live)]"><span className={ui.liveDot} /> REC</span>}
       <span className="truncate text-[var(--nx-muted)]">Activo: {activeName}</span>
@@ -585,7 +673,8 @@ export function FootballStage(props: Props) {
         <div className="flex min-h-0 flex-col gap-1.5">
           <div className={`flex flex-none flex-col items-center px-2 pb-1 pt-1.5 ${ui.panel}`}>
             {programHeader}
-            {screen}
+            {twoUp ? <div className="grid w-full grid-cols-2 items-center gap-2">{previewScreen}{screen}</div> : screen}
+            {takeBar}
             {slotBar}
           </div>
           <div className="flex min-h-[230px] flex-1 flex-col">{bottomTabs}</div>
@@ -602,7 +691,8 @@ export function FootballStage(props: Props) {
     <div className="flex min-h-0 flex-1 flex-col bg-[var(--nx-bg)]">
       <div className="flex-none px-1.5 pt-1">
         {programHeader}
-        {screen}
+        {props.prepare ? <div className="grid grid-cols-2 gap-1">{previewScreen}{screen}</div> : screen}
+        {takeBar}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
         <div className="px-1.5">{slotBar}</div>

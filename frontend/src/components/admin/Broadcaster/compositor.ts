@@ -1,3 +1,4 @@
+import { drawPresenter } from "./presenterLayer";
 import { SET_RECTS, type SetLayout } from "./football/virtualSets";
 import type { BroadcastGraphic, BroadcastMode, FootballScoreboard, GraphicVariant } from "./graphicExport";
 import type { CropRect } from "./CropEditor";
@@ -249,6 +250,9 @@ export function drawScene(
       drawInput(input, x, y, cellWidth, cellHeight);
     });
   }
+
+  // Presenter (Noris, Phase 4): between the studio and the graphics, only when a real model is registered.
+  drawPresenter(context, width, height, surface);
 
   if (!graphics.length) {
     context.restore();

@@ -114,6 +114,8 @@ export interface BroadcastGraphic {
   matchRef?: { league: string; id: string };
   position?: { x: number; y: number };
   leavingAt?: number;
+  /** Prepared in Preview with a duration: it leaves by itself this many seconds after TAKE. */
+  autoOut?: number;
 }
 
 function safeColor(value: string | undefined, fallback: string): string {

@@ -44,3 +44,38 @@ Status: Phase 1 in progress. Every phase keeps the existing features working and
 4. **Noris 3D presenter** — `presenter/` module: R3F scene rendered off-screen with alpha → compositor layer (position/scale per scene); `useGLTF` + `AnimationMixer` with idle/walk/run state machine mapped from clip names; configurable camera, key/fill/rim lights, contact shadows; model from `/models/noris.glb` or uploaded `.glb` (IndexedDB). Hooks ready for TTS + lip-sync (viseme morph targets) and script cues. No static image fallback.
 5. **Animation, transitions, virtual studios** — animated graphic in/out, stinger transitions, presenter walk-in cues, refined sets.
 6. **Responsive, performance, validation** — phone production layout, frame-time budget (raster cache hits, presenter at 30 fps), end-to-end checks.
+
+## Phase 1 — done (commit ff3d367)
+
+Tokens `--nx-*` + `football/ui.ts`; top production bar, production library (scenes by group, camera sources,
+virtual studios, graphic package, backgrounds), program canvas status (PROGRAM / al aire / REC, fullscreen),
+contextual panel and production deck restyled. No handler or shortcut changed.
+
+## Phase 2 — Preview / Program in football mode (done)
+
+**How it works**
+- Work mode in the program header: **Directo** (as before: every action goes to Program) or **Preparar**.
+- In *Preparar* the studio has a real Preview bus (`pvwScene` + `pvwGraphics` in `BroadcasterView`) drawn by the same
+  compositor on its own canvas (green PREVIEW monitor next to the red PROGRAM monitor).
+- Every stage action is routed by one helper (`currentBus()` → `setLook`, `setBusGraphics`, `exitBus`): scenes,
+  virtual studios, backgrounds, graphic toggles, keys 1–9, and Marcador / Alineac. / Stats of any match.
+  No logic was duplicated: the same functions take a bus.
+- **TAKE** (`takeFootball`) sends Preview to Program with the existing transition engine (`transitionStateRef`,
+  `drawTransition`): Corte, Fundido, Barrido, A negro. Space = TAKE with the chosen transition, Enter = TAKE with fade
+  (same keys as the classic studio). The footer TAKE follows the mode.
+- Timed graphics prepared in Preview (line-ups 20 s, stats 15 s) store `autoOut` and start their clock only after TAKE;
+  when they leave Program their Preview copy is removed too (`exitEverywhere`), so a later TAKE does not bring them back.
+- Always straight to Program: "Ocultar todo"/key 0 (panic), the automatic show, live goal alerts.
+- Preview tools: tap a graphic on the PREVIEW monitor to remove it, **Igualar** (copy Program to Preview), vaciar.
+- Right panel is **contextual**: the scene group on screen (Partido / Debate y análisis / Sin cámara / Programa
+  automático) reorders the graphics by usefulness and offers the matching action (elegir partido, lanzar votación,
+  programa automático). Each graphic shows *EN PREVIEW* and/or *AL AIRE*.
+- Smart placement (`settle`) runs on both buses with each bus's own set layout.
+
+**Noris readiness (no model invented)** — `presenterLayer.ts`: the compositor draws a registered presenter source
+between studio and graphics on Program/Preview (`drawPresenter`), feet on the bottom of its rect. Nothing is registered
+until a real rigged `noris.glb` exists, so nothing is drawn. Unit-tested.
+
+**Validated** — tsc, eslint (0 errors), vitest (all), and in a real browser: Preparar → scene only in Preview while
+Program unchanged → Space → Program; ticker + key 1 prepared → TAKE (Corte) → Program; Directo → Estadísticas straight
+to Program.
