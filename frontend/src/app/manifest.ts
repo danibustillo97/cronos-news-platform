@@ -17,7 +17,7 @@ export default function manifest(): MetadataRoute.Manifest {
     lang: 'es-CO',
     categories: ['sports', 'news'],
     icons: [
-      { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any maskable' },
+      { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
     ],
     shortcuts: [
       { name: 'Partidos', url: '/deportes/futbol?view=matches', icons: [{ src: '/favicon.svg', sizes: 'any' }] },
