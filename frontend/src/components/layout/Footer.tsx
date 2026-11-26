@@ -4,7 +4,7 @@
 // that exist and should remain reachable from every public route.
 
 import Link from 'next/link'
-import { Zap } from 'lucide-react'
+import BrandLockup from '@/components/brand/BrandLockup'
 import { usePortalTheme } from '@/context/ThemeContext'
 
 export default function Footer() {
@@ -14,14 +14,12 @@ export default function Footer() {
   return (
     <footer className={`border-t mt-16 ${isDark ? 'border-white/10 bg-neutral-950' : 'border-neutral-200 bg-white'}`}>
       <div className="max-w-7xl mx-auto px-4 py-8 flex flex-col sm:flex-row items-center justify-between gap-4">
-        <Link href="/" className="flex items-center gap-2">
-          <Zap size={20} className="text-[#FACC15] fill-[#FACC15]" strokeWidth={0} />
-          <span className="flex flex-col leading-none">
-            <span className={`font-black text-sm ${isDark ? 'text-white' : 'text-neutral-900'}`}>NEXUS</span>
-            <span className={`text-[7px] font-bold uppercase tracking-[0.16em] ${isDark ? 'text-white/40' : 'text-neutral-400'}`}>
-              Noticias que importan
-            </span>
-          </span>
+        <Link href="/" aria-label="NEXUS News, inicio" className="flex items-center">
+          <BrandLockup
+            size={32}
+            nameClassName={`font-black text-sm ${isDark ? 'text-white' : 'text-neutral-900'}`}
+            subLabelClassName={`mt-0.5 text-[7px] font-bold uppercase tracking-[0.16em] ${isDark ? 'text-white/45' : 'text-neutral-400'}`}
+          />
         </Link>
 
         <nav aria-label="Enlaces del sitio" className={`flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-xs font-medium ${isDark ? 'text-neutral-400' : 'text-neutral-500'}`}>
