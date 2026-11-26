@@ -38,7 +38,7 @@ export default function OpenGraphImage() {
           <div style={{ fontSize: 13, fontWeight: 800, letterSpacing: 3, color: '#A7A9A6' }}>COLOMBIA Y EL MUNDO / ACTUALIDAD / DEBATE</div>
         </div>
         <div style={{ position: 'absolute', right: -84, top: 115, width: 460, height: 460, borderRadius: 230, border: '1px solid rgba(250,204,21,0.22)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <div style={{ position: 'relative', width: 300, height: 300 }}>
+          <div style={{ position: 'relative', display: 'flex', width: 300, height: 300 }}>
             <div style={{ position: 'absolute', left: 38, top: 42, width: 112, height: 14, borderRadius: 8, background: '#F4F4F0', transform: 'rotate(45deg)' }} />
             <div style={{ position: 'absolute', left: 38, top: 218, width: 112, height: 14, borderRadius: 8, background: '#F4F4F0', transform: 'rotate(-45deg)' }} />
             <div style={{ position: 'absolute', left: 160, top: 144, width: 105, height: 14, borderRadius: 8, background: '#FACC15' }} />
