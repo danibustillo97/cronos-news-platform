@@ -29,6 +29,10 @@
 - UI: new "Partidos de hoy" (select / main / order / number per match, actions per real state), timeline with filter
   per match, mobile "Partidos" tab (select several, change main), calendar grouped by Colombia day and real state.
 
-## Known remaining
-- The backend `/api/sports/scoreboard` keeps its date-less behaviour for other consumers (portal); the broadcaster no
-  longer uses it. Fixing it there needs a backend restart and a decision about the portal widgets.
+## Backend scoreboard (fixed)
+`/api/sports/scoreboard` now queries ESPN by Colombia day (yesterday + today, filtered here: today's matches plus any still
+being played since last night), maps the real state (`app/domain/football/match_status.py`, tested) and adds
+`matchState`, `statusName`, `clock`. The historical contract is kept: `status` is still `live | finished | scheduled`
+(half-time and pauses count as `live`), so the portal (`/deportes/futbol`, `useScoreboard`), the poll generator and the
+studio keep working; postponed / cancelled get their own value instead of pretending to be finished. Leagues are fetched
+in parallel. **Requires restarting the backend** (uvicorn runs without reload).

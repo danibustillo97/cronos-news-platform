@@ -8,8 +8,12 @@ from __future__ import annotations
 # infrastructure-free passthrough for display -- no domain entity, no
 # repository, because there's no business state of ours involved.
 
+import asyncio
+
 import httpx
 from fastapi import APIRouter, HTTPException, Query
+
+from app.domain.football.match_status import belongs_to_today, bogota_today, espn_dates, legacy_bucket, normalize_status
 
 from app.domain.football.formats import format_for, group_label
 
@@ -41,31 +45,39 @@ _STANDINGS_TABS = [
 ]
 
 
-def _status_bucket(state: str) -> str:
-    if state == "in":
-        return "live"
-    if state == "post":
-        return "finished"
-    return "scheduled"
 
-
-async def _fetch_league_scoreboard(client: httpx.AsyncClient, league: str) -> list[dict]:
+async def _fetch_league_day(client: httpx.AsyncClient, league: str, day: str) -> list[dict]:
     try:
-        res = await client.get(f"{_ESPN_BASE}/{league}/scoreboard", timeout=8.0)
+        res = await client.get(f"{_ESPN_BASE}/{league}/scoreboard", params={"dates": day}, timeout=8.0)
         res.raise_for_status()
-        data = res.json()
+        return res.json().get("events", []) or []
     except Exception:
         return []
 
+
+async def _fetch_league_scoreboard(client: httpx.AsyncClient, league: str) -> list[dict]:
+    """Matches of TODAY in Colombia (plus any still being played since last night), with their real state.
+
+    Before: ESPN's date-less scoreboard returned its "current round", mixing yesterday's and older games.
+    """
+    today = bogota_today()
+    days = await asyncio.gather(*(_fetch_league_day(client, league, d) for d in espn_dates(today)))
+    seen: set[str] = set()
+    events = [e for day in days for e in day if str(e.get("id")) not in seen and not seen.add(str(e.get("id")))]
+
     matches = []
-    for event in data.get("events", []):
+    for event in events:
         competition = (event.get("competitions") or [{}])[0]
         competitors = competition.get("competitors") or []
         home = next((c for c in competitors if c.get("homeAway") == "home"), None)
         away = next((c for c in competitors if c.get("homeAway") == "away"), None)
         if not home or not away:
             continue
-        status = event.get("status", {}).get("type", {})
+        status_obj = event.get("status", {}) or {}
+        status = status_obj.get("type", {}) or {}
+        state = normalize_status(status)
+        if not belongs_to_today(state, event.get("date"), today):
+            continue
         matches.append({
             "id": event.get("id"),
             "league": league,
@@ -76,8 +88,11 @@ async def _fetch_league_scoreboard(client: httpx.AsyncClient, league: str) -> li
             "awayLogo": away.get("team", {}).get("logo"),
             "homeScore": int(home.get("score") or 0),
             "awayScore": int(away.get("score") or 0),
-            "status": _status_bucket(status.get("state", "")),
+            "status": legacy_bucket(state),
             "statusDetail": status.get("shortDetail", ""),
+            "matchState": state,
+            "statusName": status.get("name", ""),
+            "clock": status_obj.get("displayClock", ""),
             "date": event.get("date"),
             "venue": (competition.get("venue") or {}).get("fullName"),
         })
@@ -88,7 +103,7 @@ async def _fetch_league_scoreboard(client: httpx.AsyncClient, league: str) -> li
 async def get_scoreboard(leagues: str = Query(",".join(_DEFAULT_SCOREBOARD_LEAGUES))) -> list[dict]:
     league_list = [l.strip() for l in leagues.split(",") if l.strip()]
     async with httpx.AsyncClient() as client:
-        results = [await _fetch_league_scoreboard(client, league) for league in league_list]
+        results = await asyncio.gather(*(_fetch_league_scoreboard(client, league) for league in league_list))
 
     all_matches = [m for group in results for m in group]
     order = {"live": 0, "finished": 1, "scheduled": 2}
