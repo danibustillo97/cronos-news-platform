@@ -38,7 +38,7 @@ function FormChips({ form }: { form?: string | null }) {
   return <span className="inline-flex gap-0.5">{form.slice(-5).split("").map((c, i) => <i key={i} className={`grid h-4 w-4 place-items-center rounded text-[9px] font-bold not-italic text-white ${tone[c] ?? "bg-white/10"}`}>{label[c] ?? c}</i>)}</span>;
 }
 
-export function DataDeck({ fm, onAir }: { fm: FootballMatchController; onAir: AirFn }) {
+export function DataDeck({ fm, onAir, embedded = false }: { fm: FootballMatchController; onAir: AirFn; embedded?: boolean }) {
   const fixture = fm.fixture;
   const [detail, setDetail] = useState<MatchDetail | null>(null);
   const [insight, setInsight] = useState<Insight | null>(null);
@@ -123,8 +123,8 @@ export function DataDeck({ fm, onAir }: { fm: FootballMatchController; onAir: Ai
   const onTarget = stat("shotsOnTarget");
 
   return (
-    <aside className="flex min-h-0 w-full flex-col border-t border-white/[0.08] bg-[#0b0f15] xl:h-full xl:w-[400px] xl:flex-shrink-0 xl:border-l xl:border-t-0">
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
+    <aside className={embedded ? "w-full" : "flex min-h-0 w-full flex-col border-t border-white/[0.08] bg-[#0b0f15] xl:h-full xl:w-[400px] xl:flex-shrink-0 xl:border-l xl:border-t-0"}>
+      <div className={embedded ? "grid gap-3 p-3 xl:grid-cols-3" : "min-h-0 flex-1 space-y-3 overflow-y-auto p-3"}>
         {/* Match header */}
         <div className="rounded-2xl border border-white/[0.08] bg-gradient-to-br from-white/[0.06] to-transparent p-3">
           <div className="flex items-center gap-2 text-[10.5px] font-bold uppercase tracking-[0.14em]">

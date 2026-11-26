@@ -1,3 +1,4 @@
+import { SET_RECTS, type SetLayout } from "./football/virtualSets";
 import type { BroadcastGraphic, BroadcastMode, FootballScoreboard, GraphicVariant } from "./graphicExport";
 import type { CropRect } from "./CropEditor";
 import { drawMotion, entryElapsed, motionFor } from "./football/motion";
@@ -7,7 +8,7 @@ import { getDesignImage } from "./football/raster";
 // Draws Preview and Program: sources, layouts, graphics and transitions on a 1920×1080 canvas.
 
 export type InputKind = "camera" | "screen" | "video" | "image" | "audio";
-export type SceneLayout = "auto" | "single" | "split" | "triple" | "pip";
+export type SceneLayout = "auto" | "single" | "split" | "triple" | "pip" | "set-left" | "set-center" | "set-duo" | "set-desk";
 export type TransitionMode = "cut" | "fade" | "wipe" | "dip";
 
 export interface BroadcastInput {
@@ -159,7 +160,7 @@ export function drawScene(
       : scene.layout === "triple" ? allVisibleInputs.slice(0, 3)
       : allVisibleInputs;
 
-  const drawInput = (input: BroadcastInput, x: number, y: number, cellWidth: number, cellHeight: number) => {
+  const drawInput = (input: BroadcastInput, x: number, y: number, cellWidth: number, cellHeight: number, label = true) => {
     const video = videoElements.get(input.id);
     if (input.kind === "image") {
       const image = imageElements.get(input.id);
@@ -174,6 +175,7 @@ export function drawScene(
       context.textAlign = "center";
       context.fillText("ESPERANDO SEÑAL", x + cellWidth / 2, y + cellHeight / 2, cellWidth - 60);
     }
+    if (!label) return;
     context.fillStyle = "rgba(0,0,0,.58)";
     context.fillRect(x + 16, y + cellHeight - 66, Math.min(520, input.name.length * 27 + 44), 48);
     context.fillStyle = "#fff";
@@ -218,6 +220,12 @@ export function drawScene(
       context.fillText("F Ú T B O L   E N   V I V O", width / 2, height / 2 + height * 0.07);
       context.textBaseline = "alphabetic";
     }
+  } else if (scene.layout && scene.layout.startsWith("set-") && SET_RECTS[scene.layout as SetLayout]) {
+    // Virtual set: cameras exactly inside the frames of the studio background, no name labels.
+    SET_RECTS[scene.layout as SetLayout].forEach((r, index) => {
+      const input = visibleInputs[index];
+      if (input) drawInput(input, r.x * width, r.y * height, r.w * width, r.h * height, false);
+    });
   } else if (scene.layout === "pip" && visibleInputs.length > 1) {
     drawInput(visibleInputs[0], 0, 0, width, height);
     const insetWidth = Math.round(width * 0.3);

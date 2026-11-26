@@ -23,6 +23,9 @@ import { gatewayEndpoint } from "./live/whip";
 import { kickPlayerUrl, portalEndLive, portalGoLive } from "./live/portalOnAir";
 import { goalAlertText, useGoalAlertsPref, useLiveBoard } from "./football/liveBoard";
 import { MatchRail } from "./football/MatchRail";
+import { FootballStage, type StageScene } from "./football/FootballStage";
+import { VIRTUAL_SETS, drawVirtualSet, type SetTheme, type VirtualSet } from "./football/virtualSets";
+import { onAirPollId } from "./football/pollBoard";
 import { OnAirStrip } from "./football/OnAirStrip";
 import { findFreeSpot, rectAt, type Rect } from "./football/placement";
 import { renderFootballDesign, setGoalCard } from "./football/designs";
@@ -146,7 +149,7 @@ function isScenes(value: unknown): value is BroadcastScene[] {
     typeof scene.id === "string" && typeof scene.name === "string"
     && Array.isArray(scene.inputIds) && (scene.graphicId === null || typeof scene.graphicId === "string")
     && (scene.graphicIds === undefined || Array.isArray(scene.graphicIds))
-    && (scene.layout === undefined || ["auto", "single", "split", "triple", "pip"].includes(scene.layout)));
+    && (scene.layout === undefined || ["auto", "single", "split", "triple", "pip", "set-left", "set-center", "set-duo", "set-desk"].includes(scene.layout)));
 }
 
 function isGraphics(value: unknown): value is BroadcastGraphic[] {
@@ -989,12 +992,12 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     autoAirRef.current = { id, timer };
   };
   // Puts a widget on Program and leaves it there (templates); replaces another of the same variant.
-  const airPersist = (variant: GraphicVariant, options: { title?: string; subtitle?: string } = {}) => {
+  const airPersist = (variant: GraphicVariant, options: { title?: string; subtitle?: string; position?: { x: number; y: number }; scale?: number } = {}) => {
     const graphic: BroadcastGraphic = {
       id: `fixed-${variant}-${Date.now()}`, mode: "football", name: FOOTBALL_NAMES[variant] ?? variant,
       kind: variant === "lower" ? "lower-third" : ["elite", "compact", "editorial", "live", "pro"].includes(variant) ? "scoreboard" : "ticker",
       title: options.title ?? "", subtitle: options.subtitle ?? "", accent: getCompetition(fm.match.competitionId ?? "custom").accent,
-      variant, scale: 1, position: freeSpot(variant, options.title ?? "", options.subtitle ?? ""),
+      variant, scale: options.scale ?? 1, position: options.position ?? freeSpot(variant, options.title ?? "", options.subtitle ?? ""),
     };
     const scoreboard = graphic.kind === "scoreboard";
     setProgramGraphicsSnapshot((current) => [
@@ -1525,11 +1528,67 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     setPromoItemId(null);
   };
 
+  // ---- Football studio: everything acts directly on PROGRAM (what is on air) --------------------
+  const setProgramLook = (patch: Partial<BroadcastScene>) => setProgramSceneSnapshot((current) => ({ ...current, ...patch }));
+  const libraryItem = async (name: string, make: () => Promise<Blob>): Promise<MediaItem | null> => {
+    const existing = mediaLibrary.find((item) => item.name === name);
+    if (existing) return existing;
+    const item: MediaItem = { id: createId("media"), name, kind: "image", category: "fondo", blob: await make(), createdAt: Date.now() };
+    try { await saveMedia(item); } catch { toast.error("No se pudo guardar la imagen"); return null; }
+    setMediaLibrary((current) => [...current, item]);
+    return item;
+  };
+  const cameraIds = () => inputsRef.current.filter((input) => input.kind === "camera" || input.kind === "screen").map((input) => input.id);
+  const applyVirtualSet = async (set: VirtualSet, theme: SetTheme) => {
+    const item = await libraryItem(`Escenario · ${set.id} · ${theme}`, () => drawVirtualSet(set.layout, theme));
+    if (!item) return;
+    const cams = cameraIds();
+    setProgramLook({ layout: set.layout, backgroundId: ensureLibraryInput(item), inputIds: cams.length ? cams.slice(0, set.layout === "set-duo" ? 2 : 1) : [] });
+    if (!cams.length) toast.info("Escenario listo. Conecta tu cámara para aparecer en el marco.");
+  };
+  const programBackground = (item: MediaItem) => setProgramLook({ backgroundId: ensureLibraryInput(item) });
+  const stageToggleOn = (variant: GraphicVariant) => programGraphicsSnapshot.some((g) => g.variant === variant || (variant === "lineup-home" && g.variant === "lineup-away"));
+  const stageToggle = (variant: GraphicVariant) => {
+    if (stageToggleOn(variant)) {
+      exitProgram((g) => g.variant === variant || (variant === "lineup-home" && (g.variant === "lineup-home" || g.variant === "lineup-away")));
+      return;
+    }
+    if (variant === "lineup-home") { if (fm.fixture) void airForMatch(fm.fixture, "lineups"); else toast.info("Elige un partido principal o usa «Alineac.» en la lista de partidos"); return; }
+    if (variant === "poll") { if (onAirPollId()) airPersist("poll", { title: `Vota en ${window.location.host}` }); else toast.info("Primero lanza una votación desde la pestaña Datos"); return; }
+    if (variant === "multi") { airPersist("multi", { title: "Resultados en vivo" }); return; }
+    airPersist(variant);
+  };
+  const applyStageScene = async (scene: StageScene, theme: SetTheme) => {
+    retireAllProgram();
+    if (scene.set) {
+      const set = VIRTUAL_SETS.find((item) => item.layout === scene.set);
+      if (set) await applyVirtualSet(set, theme);
+    } else {
+      const cams = cameraIds();
+      setProgramLook({ layout: "single", inputIds: scene.id === "jornada" ? [] : cams.slice(0, 1) });
+      if (scene.background && !bgLocked) void applyThemeBackground(scene.background);
+    }
+    window.setTimeout(() => scene.graphics.forEach((variant) => {
+      if (variant === "poll") { if (onAirPollId()) airPersist("poll", { title: `Vota en ${window.location.host}` }); return; }
+      // With a camera on the left of the set, the results board sits on the right, smaller, never over the camera.
+      const beside = scene.set === "set-left" && variant === "multi" ? { position: { x: 60.5, y: 14 }, scale: 0.58 } : {};
+      airPersist(variant, variant === "multi" ? { title: "Resultados en vivo", ...beside } : {});
+    }), 120);
+  };
+  const backgroundThumbs = useMemo(() => mediaLibrary.filter((item) => item.category === "fondo" && item.kind === "image")
+    .slice(-11).map((item) => ({ id: item.id, name: item.name, url: URL.createObjectURL(item.blob) })), [mediaLibrary]);
+  useEffect(() => () => backgroundThumbs.forEach((b) => URL.revokeObjectURL(b.url)), [backgroundThumbs]);
+
   // Theme backgrounds: the user's own image for a theme replaces the generated one (stored in the library).
   const BG_OVERRIDES = "nexus.broadcast.bgOverrides";
   const readOverrides = (): Record<string, string> => { try { return JSON.parse(localStorage.getItem(BG_OVERRIDES) || "{}"); } catch { return {}; } };
   const applyThemeBackground = async (theme: BackgroundTheme) => {
     const custom = mediaLibrary.find((item) => item.id === readOverrides()[theme]);
+    if (studioMode === "football") {
+      const item = custom ?? await libraryItem(`Fondo · ${theme}`, () => drawBackground(theme));
+      if (item) programBackground(item);
+      return;
+    }
     if (custom) { setBackground(custom); return; }
     await applyGeneratedBackground(await drawBackground(theme), `Fondo · ${theme}`);
   };
@@ -1835,7 +1894,32 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       })()}
 
       <div className={`relative flex min-h-0 flex-1 flex-col xl:flex-row ${activePane === "football" ? "overflow-y-auto xl:overflow-hidden" : "overflow-hidden"}`}>
-        {activePane === "football" && <div className="order-3 xl:order-none xl:flex"><MatchRail fm={fm} onAirMatch={(ref, what) => void airForMatch(ref, what)} /></div>}
+        {activePane === "football" && (
+          <FootballStage
+            fm={fm}
+            live={live}
+            monitor={<canvas ref={programCanvasRef} width={1920} height={1080} className="block h-full w-full object-contain" />}
+            onAir={programGraphicsSnapshot.map((g) => ({ id: g.id, name: g.name, variant: g.variant }))}
+            isOn={stageToggleOn}
+            onToggle={stageToggle}
+            onRemove={retireProgramGraphic}
+            onClear={retireAllProgram}
+            onScene={(scene, theme) => void applyStageScene(scene, theme)}
+            onSet={(set, theme) => void applyVirtualSet(set, theme)}
+            onThemeBackground={(theme) => void applyThemeBackground(theme)}
+            backgrounds={backgroundThumbs}
+            onBackgroundItem={(id) => { const item = mediaLibrary.find((m) => m.id === id); if (item) programBackground(item); }}
+            onUploadBackground={(file) => void (async () => { const item = await libraryItem(`Fondo propio · ${file.name}`, async () => file); if (item) programBackground(item); })()}
+            onNoBackground={() => setProgramLook({ backgroundId: null })}
+            bgLocked={bgLocked}
+            onToggleBgLock={toggleBgLock}
+            onCamera={() => void connectCamera()}
+            cameraCount={inputs.filter((input) => input.kind === "camera").length}
+            onAirMatch={(ref, what) => void airForMatch(ref, what)}
+            onDataAir={(variant, options, seconds) => airTemp(variant, options, seconds ?? 8)}
+            onAdvanced={() => setAdvancedOpen(true)}
+          />
+        )}
         <aside className={`flex max-h-[34vh] min-h-[170px] flex-col border-b border-white/[0.08] bg-[#0d1117] xl:max-h-none xl:flex-shrink-0 xl:border-b-0 xl:border-r ${activePane === "football" ? (advancedOpen ? "absolute bottom-0 left-0 top-0 z-40 w-full max-h-none shadow-2xl shadow-black xl:left-[340px] xl:w-[380px]" : "hidden") : "xl:w-[250px]"}`}>
           <div className="flex items-center gap-2 border-b border-white/[0.07] p-2.5">
             {activePane === "football" ? (
@@ -2025,7 +2109,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
           )}
         </aside>
 
-        <main className={`flex min-h-[320px] min-w-0 flex-1 flex-col overflow-x-hidden bg-[#080b10] ${activePane === "football" ? "order-1 flex-none xl:order-none xl:flex-1 xl:overflow-y-auto 2xl:grid 2xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,1fr)] 2xl:content-start" : "overflow-y-auto"}`}>
+        <main className={`flex min-h-[320px] min-w-0 flex-1 flex-col overflow-x-hidden bg-[#080b10] ${activePane === "football" ? (advancedOpen ? "absolute inset-0 z-30 overflow-y-auto" : "hidden") : "overflow-y-auto"}`}>
           <div className={`grid grid-cols-1 gap-3 ${activePane === "football" ? (advancedOpen ? "flex-none p-2 lg:grid-cols-2 2xl:col-span-2" : "flex-none p-2 2xl:col-start-1 2xl:row-start-1 2xl:row-span-3") : "min-h-0 flex-1 p-3 lg:grid-cols-2"}`}>
             <section className={`flex min-h-0 flex-col overflow-hidden rounded-xl border border-emerald-400/20 bg-[#11161e] shadow-xl shadow-black/20 ${activePane === "football" && !advancedOpen ? "hidden" : ""}`}>
               <div className="flex items-center gap-2 border-b border-white/[0.07] px-4 py-3">
@@ -2092,7 +2176,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
                 <span className="min-w-0 flex-1 truncate text-right text-xs text-neutral-400">{programScene?.name}</span>
               </div>
               <div className={`relative m-auto aspect-video w-full overflow-hidden bg-black ${activePane === "football" ? "max-w-none" : "max-w-[420px]"}`}>
-                <canvas ref={programCanvasRef} width={1920} height={1080} className="block aspect-video h-auto w-full" />
+                {activePane !== "football" && <canvas ref={programCanvasRef} width={1920} height={1080} className="block aspect-video h-auto w-full" />}
                 {live && <span className="absolute left-3 top-3 inline-flex items-center gap-2 rounded-md bg-yellow-300 px-3 py-1.5 text-xs font-bold text-black"><span className="h-2 w-2 animate-pulse rounded-full bg-white" /> EN VIVO</span>}
               </div>
               <div className={`flex flex-wrap items-center gap-1.5 border-t border-white/[0.07] px-4 py-2.5 ${activePane === "football" ? "hidden" : ""}`}>
@@ -2154,7 +2238,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             <FootballMedia
               sources={inputs.filter((input) => !input.id.startsWith("lib-") && input.kind !== "audio").map((input) => ({ id: input.id, name: input.name, kind: input.kind }))}
               sceneInputIds={scenes.find((scene) => scene.id === previewSceneId)?.inputIds ?? []}
-              layout={scenes.find((scene) => scene.id === previewSceneId)?.layout ?? "auto"}
+              layout={((scenes.find((scene) => scene.id === previewSceneId)?.layout ?? "auto").startsWith("set-") ? "auto" : (scenes.find((scene) => scene.id === previewSceneId)?.layout ?? "auto")) as "auto" | "single" | "split" | "triple" | "pip"}
               backgroundItemId={(scenes.find((scene) => scene.id === previewSceneId)?.backgroundId ?? "").replace("lib-", "") || null}
               promoItemId={promoItemId}
               library={mediaLibrary}
@@ -2253,7 +2337,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
           </section>
         </main>
 
-        {activePane === "football" && <div className="order-2 xl:order-none xl:flex"><DataDeck fm={fm} onAir={(variant, options, seconds) => airTemp(variant, options, seconds ?? 8)} /></div>}
+        {false && <div className="order-2 xl:order-none xl:flex"><DataDeck fm={fm} onAir={(variant, options, seconds) => airTemp(variant, options, seconds ?? 8)} /></div>}
 
         {activePane !== "football" && <aside className="flex max-h-[34vh] min-h-[180px] flex-col border-t border-white/[0.08] bg-[#0d1117] xl:max-h-none xl:w-[270px] xl:flex-shrink-0 xl:border-l xl:border-t-0">
           <div className="flex items-center gap-2 border-b border-white/[0.07] px-4 py-3">
@@ -2381,7 +2465,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
         </aside>}
       </div>
       {activePane === "football" && (
-        <footer className="flex h-16 flex-shrink-0 items-center gap-2 border-t border-white/[0.1] bg-[#090c11] px-3">
+        <footer className="hidden h-16 flex-shrink-0 xl:flex items-center gap-2 border-t border-white/[0.1] bg-[#090c11] px-3">
           <AudioBar inputs={inputs} programInputIds={programScene?.inputIds ?? []} onUpdateInput={updateInput} masterVolume={masterVolume} onMasterVolume={setMasterVolume} />
           <div className="h-8 w-px bg-white/[0.1]" />
           <div className="flex min-w-[96px] flex-col px-2 leading-3">

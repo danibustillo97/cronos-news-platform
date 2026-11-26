@@ -29,7 +29,7 @@ export function groupLabel(f: Fixture, now: Date): string {
 
 const ORDER = (label: string) => (label === "En vivo" ? 0 : label === "Hoy" ? 1 : label === "Mañana" ? 2 : label === "Terminados" ? 9 : 3);
 
-export function MatchRail({ fm, onAirMatch }: { fm: FootballMatchController; onAirMatch: (ref: { league: string; id: string }, variant: "pro" | "lineups" | "stats") => void }) {
+export function MatchRail({ fm, onAirMatch, embedded = false }: { fm: FootballMatchController; onAirMatch: (ref: { league: string; id: string }, variant: "pro" | "lineups" | "stats") => void; embedded?: boolean }) {
   const [fixtures, setFixtures] = useState<(Fixture & { competitionId: string; competition: string })[] | null>(null);
   const [selected, setSelected] = useState<string[]>([]);
   const [reload, setReload] = useState(0);
@@ -76,7 +76,7 @@ export function MatchRail({ fm, onAirMatch }: { fm: FootballMatchController; onA
   const todayIds = (groups.find(([l]) => l === "Hoy")?.[1] ?? []).map((f) => f.id).concat(liveIds);
 
   return (
-    <aside className="flex max-h-[60vh] min-h-0 w-full flex-col border-b border-white/[0.08] bg-[#0b0f15] xl:max-h-none xl:w-[340px] xl:flex-shrink-0 xl:border-b-0 xl:border-r">
+    <aside className={embedded ? "flex min-h-0 w-full flex-col" : "flex max-h-[60vh] min-h-0 w-full flex-col border-b border-white/[0.08] bg-[#0b0f15] xl:max-h-none xl:w-[340px] xl:flex-shrink-0 xl:border-b-0 xl:border-r"}>
       <div className="flex items-center gap-2 border-b border-white/[0.07] px-3 py-2.5">
         <Radio size={14} className="text-red-400" />
         <h3 className="text-[13px] font-bold text-white">Partidos</h3>
@@ -94,7 +94,7 @@ export function MatchRail({ fm, onAirMatch }: { fm: FootballMatchController; onA
         {groups.map(([label, list]) => (
           <section key={label} className="mb-3">
             <p className={`sticky top-0 z-10 mb-1 bg-[#0b0f15] px-1 py-1 text-[10.5px] font-bold uppercase tracking-[0.16em] ${label === "En vivo" ? "text-red-400" : "text-neutral-500"}`}>{label} · {list.length}</p>
-            <ul className="space-y-1">
+            <ul className={embedded ? "grid gap-1.5 sm:grid-cols-2 2xl:grid-cols-4 xl:grid-cols-3" : "space-y-1"}>
               {list.map((f) => {
                 const main = mainId === f.id;
                 const onScreen = selected.includes(f.id);
