@@ -11,10 +11,10 @@
 // On phones the program stays on top and the tools become tabs.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Camera, Check, Clapperboard, EyeOff, Hash, Image as ImageIcon, Keyboard, Lock, Radio, Sparkles, ToggleRight, Unlock, Upload, X } from "lucide-react";
+import { BarChart3, Camera, Check, Clapperboard, EyeOff, Hash, Image as ImageIcon, Keyboard, ListOrdered, Lock, Maximize2, Minimize2, Radio, Sparkles, ToggleRight, Unlock, Upload, X } from "lucide-react";
 import type { GraphicVariant } from "../graphicExport";
 import type { FootballMatchController } from "./useFootballMatch";
-import { VIRTUAL_SETS, drawVirtualSet, type SetTheme, type VirtualSet } from "./virtualSets";
+import { SET_THEME_LABEL, VIRTUAL_SETS, drawVirtualSet, type SetTheme, type VirtualSet } from "./virtualSets";
 import { BACKGROUND_LABEL, type BackgroundTheme } from "./backgrounds";
 import { readMultiSelection, writeMultiSelection, type BoardMatch } from "./liveBoard";
 import { MatchRail } from "./MatchRail";
@@ -91,7 +91,8 @@ interface Props {
   onAdvanced: () => void;
 }
 
-function themeFor(league?: string): SetTheme {
+function themeFor(league?: string, teams: string[] = []): SetTheme {
+  if (teams.some((t) => /junior/i.test(t))) return "junior";
   if (league === "uefa.champions") return "champions";
   if (league === "col.1") return "betplay";
   if (league === "conmebol.libertadores") return "libertadores";
@@ -147,7 +148,12 @@ export function FootballStage(props: Props) {
     window.addEventListener("nexus:multi-selection", onSel);
     return () => { mq.removeEventListener("change", update); window.removeEventListener("nexus:multi-selection", onSel); };
   }, []);
-  useEffect(() => { setTheme(themeFor(fm.fixture?.league)); }, [fm.fixture?.league]);
+  useEffect(() => { setTheme(themeFor(fm.fixture?.league, [fm.match.homeTeam, fm.match.awayTeam])); }, [fm.fixture?.league, fm.match.homeTeam, fm.match.awayTeam]);
+  // Program size on computers: the tabs below must always be visible.
+  const [size, setSize] = useState<"s" | "m" | "l">("m");
+  useEffect(() => { try { const v = localStorage.getItem("nexus.broadcast.monitor"); if (v === "s" || v === "m" || v === "l") setSize(v); } catch { /* ignore */ } }, []);
+  const pickSize = (v: "s" | "m" | "l") => { setSize(v); try { localStorage.setItem("nexus.broadcast.monitor", v); } catch { /* ignore */ } };
+  const monitorH = size === "s" ? "max(160px, calc(100dvh - 620px))" : size === "m" ? "max(200px, calc(100dvh - 520px))" : "max(240px, calc(100dvh - 380px))";
 
   const byId = useMemo(() => new Map(board.map((m) => [m.id, m])), [board]);
   const saveSlots = (next: MatchRef[]) => { setSlots(next); try { localStorage.setItem(SLOTS_STORE, JSON.stringify(next)); } catch { /* ignore */ } };
@@ -244,8 +250,8 @@ export function FootballStage(props: Props) {
       <div className={panel}>
         <p className={head}><Sparkles size={12} className="text-sky-300" /> Escenarios virtuales</p>
         <div className="mb-1.5 flex flex-wrap gap-1">
-          {(["nexus", "champions", "betplay", "libertadores"] as SetTheme[]).map((t) => (
-            <button key={t} type="button" onClick={() => setTheme(t)} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${theme === t ? "bg-white text-black" : "border border-white/10 text-neutral-400"}`}>{t === "nexus" ? "NEXUS" : t === "betplay" ? "BetPlay" : t[0].toUpperCase() + t.slice(1)}</button>
+          {(Object.keys(SET_THEME_LABEL) as SetTheme[]).map((t) => (
+            <button key={t} type="button" onClick={() => setTheme(t)} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${theme === t ? "bg-white text-black" : "border border-white/10 text-neutral-400"}`}>{SET_THEME_LABEL[t]}</button>
           ))}
         </div>
         <div className="grid grid-cols-2 gap-1.5">
@@ -347,13 +353,13 @@ export function FootballStage(props: Props) {
         const isTarget = active?.id === ref.id;
         return (
           <button key={ref.id} type="button" onClick={() => pressSlot(i + 1)} title={m ? `${m.homeTeam} vs ${m.awayTeam} · ${m.leagueName ?? ""}` : ""}
-            className={`flex min-w-[132px] flex-shrink-0 items-center gap-1.5 rounded-lg border px-1.5 py-1 text-left ${on ? "border-red-500 bg-red-500/15" : isTarget ? "border-emerald-400/70 bg-emerald-400/[0.07]" : "border-white/[0.08] bg-white/[0.03] hover:border-white/25"}`}>
+            className={`flex min-w-[124px] flex-shrink-0 items-center gap-1.5 rounded-lg border px-1.5 py-0.5 text-left ${on ? "border-red-500 bg-red-500/15" : isTarget ? "border-emerald-400/70 bg-emerald-400/[0.07]" : "border-white/[0.08] bg-white/[0.03] hover:border-white/25"}`}>
             <span className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-md text-[13px] font-black ${on ? "bg-red-500 text-white" : "bg-white text-black"}`}>{i + 1}</span>
             {m ? (
               <span className="min-w-0 flex-1 leading-tight">
                 <span className="flex items-center gap-1 text-[10.5px] font-semibold text-white"><Crest src={m.homeLogo} name={m.homeTeam} />{short(m.homeTeam)}<b className="ml-auto tabular-nums">{m.status === "scheduled" ? "" : m.homeScore ?? 0}</b></span>
                 <span className="flex items-center gap-1 text-[10.5px] font-semibold text-white"><Crest src={m.awayLogo} name={m.awayTeam} />{short(m.awayTeam)}<b className="ml-auto tabular-nums">{m.status === "scheduled" ? "" : m.awayScore ?? 0}</b></span>
-                <span className={`block text-[9.5px] ${isLive(m) ? "text-red-400" : "text-neutral-500"}`}>{isLive(m) ? `● ${m.statusDetail ?? "En vivo"}` : m.status === "scheduled" && m.date ? new Date(m.date).toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" }) : m.statusDetail}</span>
+                <span className={`block text-[9px] leading-none ${isLive(m) ? "text-red-400" : "text-neutral-500"}`}>{isLive(m) ? `● ${m.statusDetail ?? "En vivo"}` : m.status === "scheduled" && m.date ? new Date(m.date).toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" }) : m.statusDetail}</span>
               </span>
             ) : <span className="text-[10px] text-neutral-500">Partido no disponible</span>}
           </button>
@@ -425,20 +431,20 @@ export function FootballStage(props: Props) {
   ];
   const screen = (
     <div className="group relative aspect-video w-full overflow-hidden rounded-lg bg-black"
-      style={desktop ? { maxHeight: "calc(100dvh - 330px)", maxWidth: "calc((100dvh - 330px) * 16 / 9)" } : undefined}>
+      style={desktop ? { maxHeight: monitorH, maxWidth: `calc(${monitorH} * 16 / 9)` } : undefined}>
       <div className="h-full w-full cursor-pointer" title="Toca un gráfico para ocultarlo"
         onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); props.onMonitorTap((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }}>
         {monitor}
       </div>
       {/* edges: quick access */}
-      <div className="pointer-events-none absolute inset-y-0 left-0 flex flex-col justify-center gap-1 p-1.5 opacity-70 transition group-hover:opacity-100">
+      <div className="pointer-events-none absolute inset-y-0 left-0 hidden flex-col xl:flex justify-center gap-1 p-1.5 opacity-70 transition group-hover:opacity-100">
         {quick.map((q) => (
           <button key={q.action} type="button" onClick={() => runAction(q.action)}
             className={`pointer-events-auto rounded-md px-2 py-1 text-[10px] font-bold backdrop-blur ${props.isOn(q.action as GraphicVariant) ? "bg-red-500 text-white" : "bg-black/60 text-white hover:bg-black/80"}`}>{q.label}</button>
         ))}
       </div>
       <button type="button" onClick={props.onClear} title="Ocultar todo (tecla 0)"
-        className="absolute right-1.5 top-1.5 inline-flex items-center gap-1 rounded-md bg-black/70 px-2 py-1 text-[10.5px] font-bold text-white opacity-80 backdrop-blur hover:bg-red-500 group-hover:opacity-100">
+        className="absolute right-1 top-1 inline-flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] xl:right-1.5 xl:top-1.5 xl:px-2 xl:py-1 xl:text-[10.5px] font-bold text-white opacity-80 backdrop-blur hover:bg-red-500 group-hover:opacity-100">
         <EyeOff size={12} /> Ocultar todo
       </button>
     </div>
@@ -448,7 +454,16 @@ export function FootballStage(props: Props) {
     <div className="flex w-full items-center gap-2 pb-1 text-[11px]">
       <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-black uppercase tracking-wider ${live ? "bg-red-500 text-white" : "bg-white/10 text-neutral-300"}`}>{live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />}{live ? "En vivo" : "Programa"}</span>
       <span className="truncate text-neutral-400">Activo: {activeName}</span>
-      <span className={`ml-auto rounded-full px-2 py-0.5 text-[10px] font-bold ${fm.autoMode ? "bg-emerald-400 text-black" : "bg-neutral-700 text-neutral-200"}`}>{fm.autoMode ? "AUTOMÁTICO" : "MANUAL"}</span>
+      {desktop && (
+        <span className="ml-auto inline-flex items-center gap-0.5 rounded-md border border-white/10 p-0.5" title="Tamaño de la pantalla">
+          <Minimize2 size={11} className="mx-0.5 text-neutral-500" />
+          {(["s", "m", "l"] as const).map((v) => (
+            <button key={v} type="button" onClick={() => pickSize(v)} className={`rounded px-1.5 text-[10px] font-bold ${size === v ? "bg-white text-black" : "text-neutral-400 hover:text-white"}`}>{v === "s" ? "S" : v === "m" ? "M" : "L"}</button>
+          ))}
+          <Maximize2 size={11} className="mx-0.5 text-neutral-500" />
+        </span>
+      )}
+      <span className={`${desktop ? "" : "ml-auto"} rounded-full px-2 py-0.5 text-[10px] font-bold ${fm.autoMode ? "bg-emerald-400 text-black" : "bg-neutral-700 text-neutral-200"}`}>{fm.autoMode ? "AUTO" : "MANUAL"}</span>
     </div>
   );
 
@@ -469,37 +484,46 @@ export function FootballStage(props: Props) {
       <div className="grid min-h-0 flex-1 grid-cols-[260px_minmax(0,1fr)_270px] gap-2 overflow-hidden p-2">
         <div className="min-h-0 space-y-2 overflow-y-auto pr-0.5">{scenesPanel}{backgroundsPanel}</div>
         <div className="flex min-h-0 flex-col gap-1.5">
-          <div className="flex flex-col items-center rounded-xl border border-white/[0.07] bg-black/60 p-2">
+          <div className="flex flex-none flex-col items-center rounded-xl border border-white/[0.07] bg-black/60 px-2 pb-1 pt-1.5">
             {programHeader}
             {screen}
             {slotBar}
           </div>
-          {bottomTabs}
+          <div className="flex min-h-[230px] flex-1 flex-col">{bottomTabs}</div>
         </div>
         <div className="min-h-0 overflow-y-auto pl-0.5">{graphicsPanel}</div>
       </div>
     );
   }
+  const tabs = [
+    ["graficos", "Gráficos", ToggleRight], ["hoy", "Partidos", ListOrdered], ["escenas", "Escenas", Clapperboard],
+    ["fondos", "Fondos", ImageIcon], ["datos", "Datos", BarChart3],
+  ] as const;
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-      <div className="sticky top-0 z-20 bg-black px-1.5 pt-1.5">
+    <div className="flex min-h-0 flex-1 flex-col bg-black">
+      <div className="flex-none px-1.5 pt-1">
         {programHeader}
         {screen}
-        {slotBar}
-        <div className="flex gap-1 overflow-x-auto pb-1.5">
-          {([["graficos", "Gráficos"], ["hoy", "Partidos"], ["escenas", "Escenas"], ["fondos", "Fondos"], ["calendario", "Calendario"], ["datos", "Datos"]] as const).map(([id, label]) => (
-            <button key={id} type="button" onClick={() => setMobileTab(id)} className={`flex-shrink-0 rounded-full px-3 py-1.5 text-[12px] font-semibold ${mobileTab === id ? "bg-white text-black" : "bg-white/[0.06] text-neutral-300"}`}>{label}</button>
-          ))}
+      </div>
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
+        <div className="px-1.5">{slotBar}</div>
+        <div className="px-1.5 pb-3">
+          {mobileTab === "graficos" && graphicsPanel}
+          {mobileTab === "hoy" && todayPanel}
+          {mobileTab === "escenas" && <div className="space-y-2">{scenesPanel}</div>}
+          {mobileTab === "fondos" && backgroundsPanel}
+          {mobileTab === "calendario" && calendar}
+          {mobileTab === "datos" && data}
+          {mobileTab === "hoy" && <div className="mt-2 rounded-xl border border-white/[0.07]"><p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-500">Calendario</p>{calendar}</div>}
         </div>
       </div>
-      <div className="p-2 pb-24">
-        {mobileTab === "graficos" && graphicsPanel}
-        {mobileTab === "hoy" && todayPanel}
-        {mobileTab === "escenas" && <div className="space-y-2">{scenesPanel}</div>}
-        {mobileTab === "fondos" && backgroundsPanel}
-        {mobileTab === "calendario" && calendar}
-        {mobileTab === "datos" && data}
-      </div>
+      <nav className="grid flex-none grid-cols-5 border-t border-white/10 bg-[#07090d] pb-[env(safe-area-inset-bottom)]">
+        {tabs.map(([id, label, Icon]) => (
+          <button key={id} type="button" onClick={() => setMobileTab(id)} className={`flex flex-col items-center gap-0.5 py-2 text-[10.5px] font-semibold ${mobileTab === id ? "text-yellow-300" : "text-neutral-400"}`}>
+            <Icon size={18} />{label}
+          </button>
+        ))}
+      </nav>
     </div>
   );
 }

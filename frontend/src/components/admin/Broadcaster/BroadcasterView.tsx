@@ -24,7 +24,7 @@ import { kickPlayerUrl, portalEndLive, portalGoLive } from "./live/portalOnAir";
 import { goalAlertText, useGoalAlertsPref, useLiveBoard } from "./football/liveBoard";
 import { MatchRail } from "./football/MatchRail";
 import { FootballStage, type StageScene } from "./football/FootballStage";
-import { VIRTUAL_SETS, cameraRects, drawVirtualSet, type SetTheme, type VirtualSet } from "./football/virtualSets";
+import { SETS_VERSION, VIRTUAL_SETS, cameraRects, drawVirtualSet, type SetTheme, type VirtualSet } from "./football/virtualSets";
 import { onAirPollId } from "./football/pollBoard";
 import { OnAirStrip } from "./football/OnAirStrip";
 import { findFreeSpot, rectAt, settle, type Rect } from "./football/placement";
@@ -1540,7 +1540,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   };
   const cameraIds = () => inputsRef.current.filter((input) => input.kind === "camera" || input.kind === "screen").map((input) => input.id);
   const applyVirtualSet = async (set: VirtualSet, theme: SetTheme) => {
-    const item = await libraryItem(`Escenario · ${set.id} · ${theme}`, () => drawVirtualSet(set.layout, theme));
+    const item = await libraryItem(`Escenario v${SETS_VERSION} · ${set.id} · ${theme}`, () => drawVirtualSet(set.layout, theme));
     if (!item) return;
     const cams = set.camera ? cameraIds() : [];
     setProgramLook({ layout: set.layout, backgroundId: ensureLibraryInput(item), inputIds: cams.slice(0, set.layout === "set-duo" ? 2 : 1) });

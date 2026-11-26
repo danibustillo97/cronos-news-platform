@@ -144,7 +144,7 @@ export default function AdminPage() {
           <AdminTopBar title={pageTitle} activeView={visibleView} onOpenMenu={() => setNavOpen(true)} />
         ) : (
           <button type="button" onClick={() => setNavOpen(true)} aria-label="Abrir menú"
-            className="fixed bottom-4 left-4 z-40 flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-[#0b0b0d]/95 text-neutral-200 shadow-xl md:hidden">
+            className={`fixed z-40 flex items-center justify-center rounded-full border border-white/10 bg-[#0b0b0d]/95 text-neutral-200 shadow-xl md:hidden ${visibleView === "broadcaster" ? "right-2 top-1.5 h-9 w-9" : "bottom-4 left-4 h-11 w-11"}`}>
             <MenuIcon size={18} />
           </button>
         )}
