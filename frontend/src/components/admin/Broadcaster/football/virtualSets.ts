@@ -5,7 +5,7 @@
 
 import { logoToDataUrl } from "./raster";
 
-export type SetLayout = "set-left" | "set-center" | "set-duo" | "set-desk" | "set-wall" | "set-arena";
+export type SetLayout = "set-left" | "set-center" | "set-duo" | "set-desk" | "set-wall" | "set-arena" | "set-show";
 export interface FrameRect { x: number; y: number; w: number; h: number }
 
 export const SET_RECTS: Record<SetLayout, FrameRect[]> = {
@@ -16,7 +16,12 @@ export const SET_RECTS: Record<SetLayout, FrameRect[]> = {
   // without camera: the whole screen is for graphics
   "set-wall": [],
   "set-arena": [],
+  "set-show": [],
 };
+
+/** "Estudio del programa": main LED screen for the show + advertising tower (1920x1080 px). */
+export const SHOW_SCREEN = { x: 70, y: 92, w: 1380, h: 770 };
+export const SHOW_TOWER = { x: 1480, y: 150, w: 400, h: 560 };
 
 /** Camera frames in 1920x1080 pixels (+ a small margin): graphics must stay off them. */
 export function cameraRects(layout: string | undefined, cameras: number, margin = 14) {
@@ -33,11 +38,12 @@ export const VIRTUAL_SETS: VirtualSet[] = [
   { id: "estudio-mesa", label: "Mesa de análisis", layout: "set-desk", hint: "Cámara arriba, datos abajo", camera: true },
   { id: "pantalla-led", label: "Pantalla LED (sin cámara)", layout: "set-wall", hint: "Estudio con pantalla gigante para los datos", camera: false },
   { id: "estadio", label: "Estadio de noche (sin cámara)", layout: "set-arena", hint: "Grada, luces y cancha", camera: false },
+  { id: "programa", label: "Estudio del programa (épico)", layout: "set-show", hint: "Pantalla gigante + torre de publicidad + anillos de luz", camera: false },
 ];
 
 export type SetTheme = "nexus" | "champions" | "betplay" | "libertadores" | "junior";
 /** Bumped whenever the drawings change, so saved copies of old sets are not reused. */
-export const SETS_VERSION = 3;
+export const SETS_VERSION = 4;
 
 interface Theme { bg1: string; bg2: string; glow: string; metal: string; label: string; sub: string; crest?: string }
 export const SET_THEMES: Record<SetTheme, Theme> = {
@@ -261,6 +267,7 @@ const BRAND_SPOT: Record<SetLayout, { x: number; y: number; size: number; crest:
   "set-desk": { x: 0.15, y: 0.42, size: 48, crest: 200, align: "center" },
   "set-wall": { x: 0.5, y: 0.9, size: 40, crest: 110, align: "center" },
   "set-arena": { x: 0.5, y: 0.255, size: 60, crest: 190, align: "center" },
+  "set-show": { x: 0.874, y: 0.5, size: 44, crest: 200, align: "center" },
 };
 
 export async function drawVirtualSet(layout: SetLayout, theme: SetTheme = "nexus"): Promise<Blob> {
@@ -283,9 +290,11 @@ export async function drawVirtualSet(layout: SetLayout, theme: SetTheme = "nexus
     floor(ctx, t);
   }
 
+  if (layout === "set-show") drawShow(ctx, t, theme, crest);
+
   // crest + brand where there is room
   const bx = spot.x * W; const by = spot.y * H;
-  if (layout !== "set-wall" && layout !== "set-duo") {
+  if (layout !== "set-wall" && layout !== "set-duo" && layout !== "set-show") {
     if (crest) {
       ctx.save(); ctx.shadowColor = "rgba(0,0,0,.7)"; ctx.shadowBlur = 40;
       const s = spot.crest;
@@ -346,6 +355,51 @@ export async function drawVirtualSet(layout: SetLayout, theme: SetTheme = "nexus
   }
 
   return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error("canvas"))), "image/png"));
+}
+
+/** The show studio: light halo, giant curved LED screen with bezel, advertising tower, floor ring. */
+function drawShow(ctx: CanvasRenderingContext2D, t: Theme, theme: SetTheme, crest: HTMLImageElement | null) {
+  // halo arcs behind the screen
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 4; i += 1) {
+    ctx.strokeStyle = alpha(t.glow, 0.18 - i * 0.035); ctx.lineWidth = 10 - i * 2;
+    ctx.beginPath(); ctx.ellipse(SHOW_SCREEN.x + SHOW_SCREEN.w / 2, SHOW_SCREEN.y + SHOW_SCREEN.h / 2, SHOW_SCREEN.w / 2 + 60 + i * 34, SHOW_SCREEN.h / 2 + 40 + i * 26, 0, Math.PI * 1.04, Math.PI * 1.96); ctx.stroke();
+  }
+  ctx.restore();
+  // main screen with its idle picture (the show card sits on top)
+  const scr = { x: SHOW_SCREEN.x / W, y: SHOW_SCREEN.y / H, w: SHOW_SCREEN.w / W, h: SHOW_SCREEN.h / H };
+  bezel(ctx, scr, t);
+  const g = ctx.createLinearGradient(0, SHOW_SCREEN.y, 0, SHOW_SCREEN.y + SHOW_SCREEN.h);
+  g.addColorStop(0, t.bg1); g.addColorStop(1, t.bg2);
+  ctx.fillStyle = g; ctx.fillRect(SHOW_SCREEN.x, SHOW_SCREEN.y, SHOW_SCREEN.w, SHOW_SCREEN.h);
+  ctx.save(); ctx.beginPath(); ctx.rect(SHOW_SCREEN.x, SHOW_SCREEN.y, SHOW_SCREEN.w, SHOW_SCREEN.h); ctx.clip(); ctx.globalAlpha = 0.45; wallArt(ctx, theme, t); ctx.restore();
+  brand(ctx, t, SHOW_SCREEN.x + SHOW_SCREEN.w / 2, SHOW_SCREEN.y + SHOW_SCREEN.h / 2, 110, "center", SHOW_SCREEN.w * 0.8);
+  // advertising tower
+  const tw = SHOW_TOWER;
+  ctx.save(); ctx.shadowColor = "rgba(0,0,0,.8)"; ctx.shadowBlur = 40;
+  roundRect(ctx, tw.x - 22, tw.y - 70, tw.w + 44, tw.h + 230, 18);
+  const metal = ctx.createLinearGradient(tw.x, 0, tw.x + tw.w, 0);
+  metal.addColorStop(0, "#15171b"); metal.addColorStop(0.5, "#24272d"); metal.addColorStop(1, "#111316");
+  ctx.fillStyle = metal; ctx.fill();
+  ctx.restore();
+  ctx.save(); ctx.shadowColor = t.glow; ctx.shadowBlur = 24; ctx.strokeStyle = t.glow; ctx.lineWidth = 3;
+  roundRect(ctx, tw.x - 22, tw.y - 70, tw.w + 44, tw.h + 230, 18); ctx.stroke();
+  ctx.restore();
+  ctx.fillStyle = "#06070a"; ctx.fillRect(tw.x, tw.y, tw.w, tw.h);
+  // tower top: live badge, bottom: crest/brand
+  ctx.save(); ctx.fillStyle = "#ff2a2a"; ctx.shadowColor = "#ff2a2a"; ctx.shadowBlur = 20;
+  ctx.beginPath(); ctx.arc(tw.x + 22, tw.y - 36, 9, 0, Math.PI * 2); ctx.fill(); ctx.restore();
+  ctx.fillStyle = "#fff"; ctx.font = "900 26px 'Arial Black', Arial"; ctx.textAlign = "left"; ctx.fillText("EN VIVO", tw.x + 42, tw.y - 26);
+  ctx.textAlign = "right"; ctx.fillStyle = alpha(t.glow, 0.95); ctx.font = "800 20px 'Segoe UI', Arial"; ctx.fillText("NEXUS", tw.x + tw.w, tw.y - 28);
+  if (crest) ctx.drawImage(crest, tw.x + tw.w / 2 - 55, tw.y + tw.h + 22, 110, 110);
+  else brand(ctx, t, tw.x + tw.w / 2, tw.y + tw.h + 80, 40, "center", tw.w - 20);
+  // floor ring + reflection of the screen
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  ctx.shadowColor = t.glow; ctx.shadowBlur = 40; ctx.strokeStyle = alpha(t.glow, 0.7); ctx.lineWidth = 6;
+  ctx.beginPath(); ctx.ellipse(W * 0.38, H * 0.95, 620, 60, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.strokeStyle = alpha(t.glow, 0.25); ctx.lineWidth = 3;
+  ctx.beginPath(); ctx.ellipse(W * 0.38, H * 0.95, 720, 80, 0, 0, Math.PI * 2); ctx.stroke();
+  ctx.restore();
 }
 
 /** Night stadium: themed sky, floodlights, packed stands and a striped pitch in perspective. */

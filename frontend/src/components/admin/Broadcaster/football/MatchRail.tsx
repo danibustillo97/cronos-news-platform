@@ -9,25 +9,13 @@ import { Loader2, MonitorUp, Radio, RefreshCw } from "lucide-react";
 import { COMPETITIONS } from "./competitions";
 import type { Fixture, FootballMatchController } from "./useFootballMatch";
 import { readMultiSelection, writeMultiSelection } from "./liveBoard";
+import { ORDER, groupLabel } from "./matchDays";
 
 const LEAGUES = COMPETITIONS.filter((c) => c.espn && c.id !== "mls");
 
 function ymd(d: Date) {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(d.getDate()).padStart(2, "0")}`;
 }
-
-export function groupLabel(f: Fixture, now: Date): string {
-  if (f.state === "in") return "En vivo";
-  if (f.state === "post") return "Terminados";
-  const d = new Date(f.date);
-  const day = (x: Date) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
-  const diff = Math.round((day(d) - day(now)) / 86400000);
-  if (diff <= 0) return "Hoy";
-  if (diff === 1) return "Mañana";
-  return d.toLocaleDateString("es-CO", { weekday: "long", day: "numeric", month: "short" });
-}
-
-const ORDER = (label: string) => (label === "En vivo" ? 0 : label === "Hoy" ? 1 : label === "Mañana" ? 2 : label === "Terminados" ? 9 : 3);
 
 export function MatchRail({ fm, onAirMatch, embedded = false }: { fm: FootballMatchController; onAirMatch: (ref: { league: string; id: string }, variant: "pro" | "lineups" | "stats") => void; embedded?: boolean }) {
   const [fixtures, setFixtures] = useState<(Fixture & { competitionId: string; competition: string })[] | null>(null);
@@ -61,8 +49,8 @@ export function MatchRail({ fm, onAirMatch, embedded = false }: { fm: FootballMa
       map.set(label, [...(map.get(label) ?? []), f]);
     }
     return [...map.entries()]
-      .map(([label, list]) => [label, list.sort((a, b) => (label === "Terminados" ? b.date.localeCompare(a.date) : a.date.localeCompare(b.date)))] as const)
-      .sort((a, b) => ORDER(a[0]) - ORDER(b[0]));
+      .map(([label, list]) => [label, list.sort((a, b) => a.date.localeCompare(b.date))] as const)
+      .sort((a, b) => ORDER(a[0], a[1][0]) - ORDER(b[0], b[1][0]));
   }, [fixtures]);
 
   const toggle = (id: string) => {
@@ -103,7 +91,7 @@ export function MatchRail({ fm, onAirMatch, embedded = false }: { fm: FootballMa
                   <li key={f.id} className={`rounded-xl border p-2 ${main ? "border-emerald-400/70 bg-emerald-400/[0.07]" : "border-white/[0.06] bg-white/[0.02]"}`}>
                     <div className="flex items-center gap-2 text-[10px] text-neutral-500">
                       <span className="truncate">{f.competition}</span>
-                      <span className={`ml-auto flex-shrink-0 font-semibold ${f.state === "in" ? "text-red-400" : ""}`}>{f.state === "in" ? `● ${f.detail}` : f.state === "post" ? "Final" : time}</span>
+                      <span className={`ml-auto flex-shrink-0 font-semibold ${f.state === "in" ? "text-red-400" : ""}`}>{f.state === "in" ? `● ${f.detail}` : `${new Date(f.date).toLocaleDateString("es-CO", { weekday: "short", day: "numeric", month: "short" })} · ${f.state === "post" ? "Final" : time}`}</span>
                     </div>
                     {[f.home, f.away].map((t) => (
                       <div key={t.id} className="mt-1 flex items-center gap-2">

@@ -23,6 +23,8 @@ export const CANDIDATES: Record<string, Spot[]> = {
   "lineup-away": [{ x: 74, y: 17 }],
   "goal-pro": [{ x: 19, y: 62 }, { x: 19, y: 4 }],
   cinta: [{ x: 0, y: 94.07 }, { x: 0, y: 0 }],
+  recap: [{ x: 3.65, y: 8.52 }],
+  ad: [{ x: 77.08, y: 13.89 }],
 };
 
 export function rectAt(spot: Spot, size: { w: number; h: number }, scale = 1): Rect {

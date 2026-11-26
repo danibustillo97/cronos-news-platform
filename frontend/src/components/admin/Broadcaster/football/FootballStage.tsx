@@ -10,8 +10,8 @@
 // "active" match for line-ups / stats; 0 = hide everything; letters assignable.
 // On phones the program stays on top and the tools become tabs.
 
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BarChart3, Camera, Check, Clapperboard, EyeOff, Hash, Image as ImageIcon, Keyboard, ListOrdered, Lock, Maximize2, Minimize2, Radio, Sparkles, ToggleRight, Unlock, Upload, X } from "lucide-react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { BarChart3, Camera, Play, Check, Clapperboard, EyeOff, Hash, Image as ImageIcon, Keyboard, ListOrdered, Lock, Maximize2, Minimize2, Radio, Sparkles, ToggleRight, Unlock, Upload, X } from "lucide-react";
 import type { GraphicVariant } from "../graphicExport";
 import type { FootballMatchController } from "./useFootballMatch";
 import { SET_THEME_LABEL, VIRTUAL_SETS, drawVirtualSet, type SetTheme, type VirtualSet } from "./virtualSets";
@@ -19,6 +19,8 @@ import { BACKGROUND_LABEL, type BackgroundTheme } from "./backgrounds";
 import { readMultiSelection, writeMultiSelection, type BoardMatch } from "./liveBoard";
 import { MatchRail } from "./MatchRail";
 import { DataDeck } from "./DataDeck";
+import { AutoShowPanel, type AutoShowHandlers } from "./AutoShowPanel";
+import { yyyymmdd } from "./recap";
 
 export interface MatchRef { league: string; id: string }
 export type MatchWhat = "pro" | "lineups" | "stats";
@@ -89,6 +91,7 @@ interface Props {
   cameraCount: number;
   onDataAir: (variant: GraphicVariant, options?: { title?: string; subtitle?: string }, seconds?: number) => void;
   onAdvanced: () => void;
+  autoShow: AutoShowHandlers;
 }
 
 function themeFor(league?: string, teams: string[] = []): SetTheme {
@@ -126,8 +129,9 @@ const keyCap = "inline-grid min-w-[18px] place-items-center rounded border borde
 
 export function FootballStage(props: Props) {
   const { fm, monitor, live, board } = props;
-  const [mobileTab, setMobileTab] = useState<"graficos" | "hoy" | "escenas" | "fondos" | "calendario" | "datos">("graficos");
-  const [bottomTab, setBottomTab] = useState<"hoy" | "calendario" | "datos">("hoy");
+  const [mobileTab, setMobileTab] = useState<"graficos" | "hoy" | "escenas" | "fondos" | "calendario" | "datos" | "auto">("graficos");
+  const [showDate, setShowDate] = useState<string | null>(null);
+  const [bottomTab, setBottomTab] = useState<"hoy" | "calendario" | "datos" | "auto">("hoy");
   const [theme, setTheme] = useState<SetTheme>("nexus");
   const [desktop, setDesktop] = useState(true);
   const [keys, setKeys] = useState<Record<Action, string>>(DEFAULT_KEYS);
@@ -155,6 +159,17 @@ export function FootballStage(props: Props) {
   const pickSize = (v: "s" | "m" | "l") => { setSize(v); try { localStorage.setItem("nexus.broadcast.monitor", v); } catch { /* ignore */ } };
   const monitorH = size === "s" ? "max(160px, calc(100dvh - 620px))" : size === "m" ? "max(200px, calc(100dvh - 520px))" : "max(240px, calc(100dvh - 380px))";
 
+  // Local calendar day relative to today: 0 today, -1 yesterday, 1 tomorrow…
+  const dayDiff = (m: BoardMatch) => {
+    if (!m.date) return 0;
+    const d = new Date(m.date);
+    const a = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const n = new Date();
+    return Math.round((a - new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime()) / 86400000);
+  };
+  const todayBoard = useMemo(() => board.filter((m) => isLive(m) || dayDiff(m) === 0), [board]); // eslint-disable-line react-hooks/exhaustive-deps
+  const upcomingBoard = useMemo(() => board.filter((m) => !isLive(m) && dayDiff(m) > 0), [board]); // eslint-disable-line react-hooks/exhaustive-deps
+  const yesterdayBoard = useMemo(() => board.filter((m) => !isLive(m) && dayDiff(m) === -1), [board]); // eslint-disable-line react-hooks/exhaustive-deps
   const byId = useMemo(() => new Map(board.map((m) => [m.id, m])), [board]);
   const saveSlots = (next: MatchRef[]) => { setSlots(next); try { localStorage.setItem(SLOTS_STORE, JSON.stringify(next)); } catch { /* ignore */ } };
   // Numbers: matches that no longer exist drop out; with none assigned, the live games (then today's next ones) get 1, 2, 3…
@@ -162,7 +177,7 @@ export function FootballStage(props: Props) {
     if (!board.length) return;
     const kept = slots.filter((s) => byId.has(s.id)); // numbers given by hand stay, even after the final whistle
     if (kept.length) { if (kept.length !== slots.length) saveSlots(kept); return; }
-    const auto = [...board.filter(isLive), ...board.filter((m) => m.status === "scheduled").sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))].slice(0, 9).map(refOf);
+    const auto = [...todayBoard.filter(isLive), ...todayBoard.filter((m) => m.status === "scheduled"), ...upcomingBoard.sort((a, b) => (a.date ?? "").localeCompare(b.date ?? ""))].slice(0, 9).map(refOf);
     if (auto.length) saveSlots(auto);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [board]);
@@ -371,8 +386,10 @@ export function FootballStage(props: Props) {
   // Today's matches: number them, choose the multi-screen (one or many), and air any template of any of them.
   const todayList = useMemo(() => {
     const order = (m: BoardMatch) => (isLive(m) ? 0 : m.status === "scheduled" ? 1 : 2);
-    return [...board].sort((a, b) => order(a) - order(b) || (a.date ?? "").localeCompare(b.date ?? ""));
-  }, [board]);
+    const byDate = (a: BoardMatch, b: BoardMatch) => (a.date ?? "").localeCompare(b.date ?? "");
+    return [...[...todayBoard].sort((a, b) => order(a) - order(b) || byDate(a, b)), ...[...upcomingBoard].sort(byDate)];
+  }, [todayBoard, upcomingBoard]);
+  const openShow = (date: string) => { setShowDate(date); setBottomTab("auto"); setMobileTab("auto"); };
   const todayPanel = (
     <div className="p-2">
       <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10.5px]">
@@ -383,14 +400,17 @@ export function FootballStage(props: Props) {
         <span className="ml-auto text-neutral-500">{multiSel.length ? `${multiSel.length} elegidos` : "sin terminados"}</span>
         <button type="button" onClick={() => saveSlots(todayList.filter(isLive).slice(0, 9).map(refOf))} className="rounded-md border border-white/10 px-2 py-1 font-semibold text-neutral-300"><Hash size={10} className="inline" /> Numerar los en vivo</button>
       </div>
-      {todayList.length === 0 && <p className="p-3 text-[12px] text-neutral-500">Cargando partidos de hoy…</p>}
+      {todayBoard.length === 0 && <p className="p-3 text-[12px] text-neutral-500">{board.length ? "Hoy no hay partidos en las ligas seguidas." : "Cargando partidos de hoy…"}</p>}
       <ul className="grid gap-1.5 sm:grid-cols-2 2xl:grid-cols-3">
-        {todayList.map((m) => {
+        {todayList.map((m, i) => {
           const ref = refOf(m);
+          const firstUpcoming = dayDiff(m) > 0 && (i === 0 || dayDiff(todayList[i - 1]) <= 0 || isLive(todayList[i - 1]));
           const n = slotOf(m.id);
           const inMulti = multiSel.includes(m.id);
           return (
-            <li key={m.id} className={`rounded-xl border p-2 ${active?.id === m.id ? "border-emerald-400/60 bg-emerald-400/[0.05]" : "border-white/[0.06] bg-white/[0.02]"} ${m.status === "finished" ? "opacity-60" : ""}`}>
+            <Fragment key={m.id}>
+            {firstUpcoming && <li className="col-span-full pt-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-400">Próximos días</li>}
+            <li className={`rounded-xl border p-2 ${active?.id === m.id ? "border-emerald-400/60 bg-emerald-400/[0.05]" : "border-white/[0.06] bg-white/[0.02]"} ${m.status === "finished" ? "opacity-60" : ""}`}>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => toggleSlot(m.id)} title={n >= 0 ? "Quitar el número" : "Asignar el siguiente número"}
                   className={`grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-[13px] font-black ${n >= 0 ? "bg-white text-black" : "border border-dashed border-white/20 text-neutral-500 hover:text-white"}`}>{n >= 0 ? n + 1 : "#"}</button>
@@ -401,7 +421,7 @@ export function FootballStage(props: Props) {
               </div>
               <p className="mt-1 flex items-center gap-2 text-[10px] text-neutral-500">
                 <span className="truncate">{m.leagueName}</span>
-                <span className={`ml-auto flex-shrink-0 font-semibold ${isLive(m) ? "text-red-400" : ""}`}>{isLive(m) ? `● ${m.statusDetail ?? ""}` : m.status === "finished" ? "Final" : m.date ? new Date(m.date).toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" }) : ""}</span>
+                <span className={`ml-auto flex-shrink-0 font-semibold ${isLive(m) ? "text-red-400" : ""}`}>{isLive(m) ? `● ${m.statusDetail ?? ""}` : m.status === "finished" ? "Final" : m.date ? new Date(m.date).toLocaleString("es-CO", dayDiff(m) > 0 ? { weekday: "short", hour: "numeric", minute: "2-digit" } : { hour: "numeric", minute: "2-digit" }) : ""}</span>
               </p>
               <div className="mt-1.5 grid grid-cols-4 gap-1">
                 {([["pro", "Marcador"], ["lineups", "Alineac."], ["stats", "Stats"]] as const).map(([w, label]) => {
@@ -415,14 +435,29 @@ export function FootballStage(props: Props) {
                   className={`rounded-md px-1 py-1 text-[10.5px] font-bold ${inMulti ? "bg-yellow-400 text-black" : "border border-white/10 text-neutral-400 hover:text-white"}`}>{inMulti ? "Multi ✓" : "Multi"}</button>
               </div>
             </li>
+            </Fragment>
           );
         })}
       </ul>
+      <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-400">Jornada de ayer · {yesterdayBoard.length} {yesterdayBoard.length === 1 ? "resultado" : "resultados"}</p>
+          <button type="button" onClick={() => openShow(yyyymmdd(new Date(Date.now() - 86400000)))} className="ml-auto inline-flex items-center gap-1 rounded-lg bg-red-500 px-2.5 py-1.5 text-[11px] font-black text-white hover:bg-red-400">▶ Programa automático con la jornada de ayer</button>
+        </div>
+        <div className="mt-1.5 flex flex-wrap gap-1">
+          {yesterdayBoard.slice(0, 16).map((m) => (
+            <span key={m.id} className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] text-neutral-300">
+              <Crest src={m.homeLogo} name={m.homeTeam} />{short(m.homeTeam)} <b className="tabular-nums text-white">{m.homeScore ?? 0}-{m.awayScore ?? 0}</b> {short(m.awayTeam)}<Crest src={m.awayLogo} name={m.awayTeam} />
+            </span>
+          ))}
+        </div>
+      </div>
     </div>
   );
 
   const calendar = <MatchRail fm={fm} onAirMatch={(ref, what) => { setTarget(ref); props.onMatch(ref, what); }} embedded />;
   const data = <DataDeck fm={fm} onAir={props.onDataAir} embedded />;
+  const autoPanel = <AutoShowPanel handlers={props.autoShow} presetDate={showDate} />;
 
   // The program monitor: tap a graphic to hide it; quick buttons on its edges.
   const quick: { label: string; action: Action }[] = [
@@ -470,11 +505,11 @@ export function FootballStage(props: Props) {
   const bottomTabs = (
     <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-white/[0.07] bg-[#0b0f15]">
       <div className="flex gap-1 border-b border-white/[0.07] p-1">
-        {([["hoy", "Partidos de hoy"], ["calendario", "Calendario"], ["datos", "Datos para narrar y debatir"]] as const).map(([id, label]) => (
+        {([["hoy", "Partidos de hoy"], ["auto", "▶ Programa automático"], ["calendario", "Calendario"], ["datos", "Datos para narrar y debatir"]] as const).map(([id, label]) => (
           <button key={id} type="button" onClick={() => setBottomTab(id)} className={`rounded-lg px-3 py-1 text-[12px] font-semibold ${bottomTab === id ? "bg-white text-black" : "text-neutral-400 hover:text-white"}`}>{label}</button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">{bottomTab === "hoy" ? todayPanel : bottomTab === "calendario" ? calendar : data}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto">{bottomTab === "hoy" ? todayPanel : bottomTab === "auto" ? autoPanel : bottomTab === "calendario" ? calendar : data}</div>
     </div>
   );
 
@@ -497,7 +532,7 @@ export function FootballStage(props: Props) {
   }
   const tabs = [
     ["graficos", "Gráficos", ToggleRight], ["hoy", "Partidos", ListOrdered], ["escenas", "Escenas", Clapperboard],
-    ["fondos", "Fondos", ImageIcon], ["datos", "Datos", BarChart3],
+    ["auto", "Auto", Play], ["fondos", "Fondos", ImageIcon], ["datos", "Datos", BarChart3],
   ] as const;
   return (
     <div className="flex min-h-0 flex-1 flex-col bg-black">
@@ -514,10 +549,11 @@ export function FootballStage(props: Props) {
           {mobileTab === "fondos" && backgroundsPanel}
           {mobileTab === "calendario" && calendar}
           {mobileTab === "datos" && data}
+          {mobileTab === "auto" && autoPanel}
           {mobileTab === "hoy" && <div className="mt-2 rounded-xl border border-white/[0.07]"><p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-500">Calendario</p>{calendar}</div>}
         </div>
       </div>
-      <nav className="grid flex-none grid-cols-5 border-t border-white/10 bg-[#07090d] pb-[env(safe-area-inset-bottom)]">
+      <nav className="grid flex-none grid-cols-6 border-t border-white/10 bg-[#07090d] pb-[env(safe-area-inset-bottom)]">
         {tabs.map(([id, label, Icon]) => (
           <button key={id} type="button" onClick={() => setMobileTab(id)} className={`flex flex-col items-center gap-0.5 py-2 text-[10.5px] font-semibold ${mobileTab === id ? "text-yellow-300" : "text-neutral-400"}`}>
             <Icon size={18} />{label}

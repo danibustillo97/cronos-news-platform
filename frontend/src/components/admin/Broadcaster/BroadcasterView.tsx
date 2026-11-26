@@ -28,7 +28,10 @@ import { SETS_VERSION, VIRTUAL_SETS, cameraRects, drawVirtualSet, type SetTheme,
 import { onAirPollId } from "./football/pollBoard";
 import { OnAirStrip } from "./football/OnAirStrip";
 import { findFreeSpot, rectAt, settle, type Rect } from "./football/placement";
-import { advanceCinta, renderFootballDesign, setCintaFacts, setGoalCard } from "./football/designs";
+import { advanceCinta, renderFootballDesign, setCintaFacts, setGoalCard, setRecapSlide } from "./football/designs";
+import { SHOW_SCREEN, SHOW_TOWER } from "./football/virtualSets";
+import { music } from "./football/music";
+import type { AutoShowHandlers } from "./football/AutoShowPanel";
 import { toScoreboard, type MatchRef } from "./football/matchBinding";
 import { logoToDataUrl } from "./football/raster";
 import type { BackgroundTheme } from "./football/backgrounds";
@@ -149,7 +152,7 @@ function isScenes(value: unknown): value is BroadcastScene[] {
     typeof scene.id === "string" && typeof scene.name === "string"
     && Array.isArray(scene.inputIds) && (scene.graphicId === null || typeof scene.graphicId === "string")
     && (scene.graphicIds === undefined || Array.isArray(scene.graphicIds))
-    && (scene.layout === undefined || ["auto", "single", "split", "triple", "pip", "set-left", "set-center", "set-duo", "set-desk", "set-wall", "set-arena"].includes(scene.layout)));
+    && (scene.layout === undefined || ["auto", "single", "split", "triple", "pip", "set-left", "set-center", "set-duo", "set-desk", "set-wall", "set-arena", "set-show"].includes(scene.layout)));
 }
 
 function isGraphics(value: unknown): value is BroadcastGraphic[] {
@@ -880,13 +883,13 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     elite: { x: 3, y: 4 }, compact: { x: 3, y: 4 }, editorial: { x: 3, y: 4 }, live: { x: 19, y: 86 },
     goal: { x: 21.5, y: 66 }, lower: { x: 4, y: 78 }, var: { x: 3, y: 18 }, events: { x: 4, y: 82 },
     prematch: { x: 23, y: 26 }, "lineup-home": { x: 3, y: 17 }, "lineup-away": { x: 74, y: 17 }, stats: { x: 3, y: 17 },
-    pro: { x: 2.5, y: 3.5 }, "goal-pro": { x: 19, y: 62 }, cinta: { x: 0, y: 94.07 }, multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
+    pro: { x: 2.5, y: 3.5 }, "goal-pro": { x: 19, y: 62 }, cinta: { x: 0, y: 94.07 }, recap: { x: (SHOW_SCREEN.x / 1920) * 100, y: (SHOW_SCREEN.y / 1080) * 100 }, ad: { x: (SHOW_TOWER.x / 1920) * 100, y: (SHOW_TOWER.y / 1080) * 100 }, multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
   };
   const FOOTBALL_NAMES: Record<string, string> = {
     elite: "NEXUS Elite", compact: "NEXUS Compact", editorial: "NEXUS Editorial", live: "NEXUS Live", goal: "NEXUS Goal",
     lower: "NEXUS Lower Third", var: "NEXUS VAR", events: "NEXUS Match Events", prematch: "NEXUS Previa",
     "lineup-home": "Alineación local", "lineup-away": "Alineación visitante", stats: "NEXUS Estadísticas",
-    pro: "Marcador Pro", "goal-pro": "Gol", cinta: "Cinta de datos", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
+    pro: "Marcador Pro", "goal-pro": "Gol", cinta: "Cinta de datos", recap: "Programa automático", ad: "Publicidad", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
   };
 
   const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string; title?: string; subtitle?: string }) => {
@@ -1580,6 +1583,38 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     .slice(-11).map((item) => ({ id: item.id, name: item.name, url: URL.createObjectURL(item.blob) })), [mediaLibrary]);
   useEffect(() => () => backgroundThumbs.forEach((b) => URL.revokeObjectURL(b.url)), [backgroundThumbs]);
 
+  // ---- Automatic show (no presenter): LED studio in the league's theme + recap slides + ticker + music.
+  const showTheme = (league?: string): SetTheme => (league === "uefa.champions" ? "champions" : league === "col.1" ? "betplay" : league?.startsWith("conmebol") ? "libertadores" : "nexus");
+  const ledSet = VIRTUAL_SETS.find((v) => v.layout === "set-show")!;
+  const SHOW_KEEP = new Set(["recap", "cinta", "ad", "goal-pro"]);
+  const attachMusic = () => { const mixer = mixerRef.current; if (mixer) music.attach(mixer.context, mixer.master); };
+  useEffect(() => {
+    const timer = window.setInterval(() => { if (music.playing) attachMusic(); }, 2000); // going live later still carries the music
+    return () => window.clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const autoShow: AutoShowHandlers = {
+    onStart: (league, withAd) => {
+      retireAllProgram(); // nothing from before stays stuck on screen
+      if (!bgLocked) void applyVirtualSet(ledSet, showTheme(league));
+      window.setTimeout(() => {
+        airPersist("recap", { position: FOOTBALL_POSITIONS.recap });
+        airPersist("cinta");
+        if (withAd) airPersist("ad", { position: FOOTBALL_POSITIONS.ad });
+      }, 200);
+    },
+    onSlide: (slide, logos, step, leagueChanged) => {
+      setRecapSlide(slide, logos, step);
+      if (leagueChanged && slide.league && !bgLocked) void applyVirtualSet(ledSet, showTheme(slide.league));
+      // the show owns the screen: only its pieces (and live goal cards) stay
+      if (programRef.current.some((g) => !SHOW_KEEP.has(g.variant ?? ""))) exitProgram((g) => !SHOW_KEEP.has(g.variant ?? ""));
+      if (!programRef.current.some((g) => g.variant === "recap")) airPersist("recap", { position: FOOTBALL_POSITIONS.recap });
+    },
+    onAd: (on) => { if (on) airPersist("ad", { position: FOOTBALL_POSITIONS.ad }); else exitProgram((g) => g.variant === "ad"); },
+    onEnd: () => { exitProgram((g) => g.variant === "recap" || g.variant === "ad"); setRecapSlide(null); },
+    attachMusic,
+  };
+
   // Any match: is its scoreboard / line-ups / stats on air? Pressing again takes it off.
   const matchFamily = (g: BroadcastGraphic, ref: MatchRef, what: "pro" | "lineups" | "stats") => g.matchRef?.id === ref.id
     && (what === "pro" ? g.variant === "pro" : what === "stats" ? g.variant === "stats" : g.variant === "lineup-home" || g.variant === "lineup-away");
@@ -1974,6 +2009,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             cameraCount={inputs.filter((input) => input.kind === "camera").length}
             onDataAir={(variant, options, seconds) => airTemp(variant, options, seconds ?? 8)}
             onAdvanced={() => setAdvancedOpen(true)}
+            autoShow={autoShow}
           />
         )}
         <aside className={`flex max-h-[34vh] min-h-[170px] flex-col border-b border-white/[0.08] bg-[#0d1117] xl:max-h-none xl:flex-shrink-0 xl:border-b-0 xl:border-r ${activePane === "football" ? (advancedOpen ? "absolute bottom-0 left-0 top-0 z-40 w-full max-h-none shadow-2xl shadow-black xl:left-[340px] xl:w-[380px]" : "hidden") : "xl:w-[250px]"}`}>

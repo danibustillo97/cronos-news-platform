@@ -8,7 +8,7 @@ import { getDesignImage } from "./football/raster";
 // Draws Preview and Program: sources, layouts, graphics and transitions on a 1920×1080 canvas.
 
 export type InputKind = "camera" | "screen" | "video" | "image" | "audio";
-export type SceneLayout = "auto" | "single" | "split" | "triple" | "pip" | "set-left" | "set-center" | "set-duo" | "set-desk" | "set-wall" | "set-arena";
+export type SceneLayout = "auto" | "single" | "split" | "triple" | "pip" | "set-left" | "set-center" | "set-duo" | "set-desk" | "set-wall" | "set-arena" | "set-show";
 export type TransitionMode = "cut" | "fade" | "wipe" | "dip";
 
 export interface BroadcastInput {
@@ -67,7 +67,7 @@ export function footballDesignFor(graphic: BroadcastGraphic): DesignOutput {
   const seconds = !bound && liveFootballMatch ? liveClock() : source.clockSeconds;
   const variant = footballDefaultVariant(graphic);
   const cached = designCache.get(graphic.id);
-  const multi = variant === "multi" || variant === "poll" || variant === "goal-pro" || variant === "cinta" ? getMultiVersion() : 0;
+  const multi = variant === "multi" || variant === "poll" || variant === "goal-pro" || variant === "cinta" || variant === "recap" || variant === "ad" ? getMultiVersion() : 0;
   if (cached && cached.source === source && cached.seconds === seconds && cached.variant === variant && cached.multi === multi
     && cached.title === graphic.title && cached.subtitle === graphic.subtitle && cached.style === graphic.style) {
     return cached.design;

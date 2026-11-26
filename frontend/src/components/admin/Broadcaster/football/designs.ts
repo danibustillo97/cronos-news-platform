@@ -1,3 +1,4 @@
+import type { Slide as RecapSlide, RecapMatch } from "./recap";
 import type { DesignStyle, FootballScoreboard, FootballTeamPlayer, GraphicVariant } from "../graphicExport";
 import { COMPETITIONS, getCompetition } from "./competitions";
 
@@ -7,7 +8,7 @@ export interface DesignOutput {
   height: number;
 }
 
-export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro", "goal-pro", "cinta"];
+export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro", "goal-pro", "cinta", "recap", "ad"];
 
 /** Other matches shown at once by the "multi" panel (fed by useLiveBoard). */
 export interface MultiScore {
@@ -35,6 +36,29 @@ export interface GoalCard { teamName: string; teamLogo?: string; teamColor?: str
 let goalCard: GoalCard | null = null;
 export function setGoalCard(card: GoalCard | null) {
   goalCard = card;
+  multiVersion += 1;
+}
+
+/** Automatic show: the slide on screen + crests as data URLs (keyed by the remote URL). */
+let recapSlide: RecapSlide | null = null;
+let recapLogos: Record<string, string> = {};
+let recapStep = "";
+export function setRecapSlide(slide: RecapSlide | null, logos: Record<string, string> = recapLogos, step = "") {
+  recapSlide = slide;
+  recapLogos = logos;
+  recapStep = step;
+  multiVersion += 1;
+}
+
+/** Advertising box shown next to the show (image as data URL). */
+let adImage: { src: string; name: string } | null = null;
+export function setAdImage(ad: { src: string; name: string } | null) { adImage = ad; multiVersion += 1; }
+/** Own messages for the ticker ("Síguenos en…", promos). */
+let cintaExtra: string[] = [];
+export function setCintaExtra(lines: string[]) {
+  const next = lines.map((l) => l.trim()).filter(Boolean).slice(0, 10);
+  if (JSON.stringify(next) === JSON.stringify(cintaExtra)) return;
+  cintaExtra = next;
   multiVersion += 1;
 }
 
@@ -506,10 +530,158 @@ function goalPro(p: Palette): DesignOutput {
   return { html, width: 1180, height: g.fact ? 262 : 196 };
 }
 
+const RECAP_ACCENT: Record<string, string> = { "uefa.champions": "#9cc0ff", "col.1": "#ffd400", "conmebol.libertadores": "#f5c542", "conmebol.sudamericana": "#4fc3f7", "uefa.europa": "#ff8a00" };
+
+function adBox(): DesignOutput {
+  const W = 400;
+  const H = 560;
+  const inner = adImage
+    ? `<img src="${esc(adImage.src)}" alt="" style="width:${W}px;height:${H - 34}px;object-fit:cover;display:block" />`
+    : `<div style="height:${H - 34}px;display:grid;place-items:center;text-align:center;padding:24px;${NUM};font-size:30px;font-weight:900;color:rgba(255,255,255,.85)">TU MARCA<br/>AQUÍ<div style="font:600 18px 'Segoe UI',Arial;color:rgba(255,255,255,.55);margin-top:10px">Espacio publicitario</div></div>`;
+  return { html: `<div class="nx" style="width:${W}px;height:${H}px;border-radius:14px;overflow:hidden;background:${SURFACE};box-shadow:0 20px 50px rgba(0,0,0,.6),inset 0 0 0 2px rgba(255,255,255,.18)">
+    <div style="height:34px;display:flex;align-items:center;justify-content:center;font:800 14px 'Segoe UI',Arial;letter-spacing:.3em;color:rgba(255,255,255,.7);background:rgba(255,255,255,.06)">PUBLICIDAD</div>${inner}</div>`, width: W, height: H };
+}
+
+function recap(): DesignOutput {
+  const W = 1380;
+  const H = 770;
+  const s = recapSlide;
+  if (!s) return { html: `<div class="nx" style="width:${W}px;height:${H}px;display:grid;place-items:center;color:rgba(255,255,255,.7);${FONT_TXT};font-size:30px;background:${SURFACE};border-radius:16px">Programa automático: elige la jornada y pulsa ▶</div>`, width: W, height: H };
+  const accent = RECAP_ACCENT[s.league ?? ""] ?? "#facc15";
+  const logo = (url?: string) => (url ? recapLogos[url] : undefined);
+  const crest = (t: RecapMatch["home"], size: number) => multiCrest(logo(t.logo), t.short || t.name, size);
+  const title = (text: string) => `<div style="font:900 22px 'Segoe UI',Arial;letter-spacing:.28em;text-transform:uppercase;color:${accent}">${esc(text)}</div>`;
+  const header = `<div style="height:64px;display:flex;align-items:center;gap:16px;padding:0 34px;border-bottom:2px solid ${accent};background:linear-gradient(90deg,${accent}22,transparent)">
+    <span style="${NUM};font-size:24px;font-weight:900;letter-spacing:.1em">⚡ NEXUS</span>
+    <span style="font:800 18px 'Segoe UI',Arial;letter-spacing:.22em;color:rgba(255,255,255,.75)">RESUMEN DE LA JORNADA</span>
+    <span style="margin-left:auto;font:800 18px 'Segoe UI',Arial;letter-spacing:.12em;color:${accent}">${esc(s.leagueName ?? "")}</span>
+    ${recapStep ? `<span style="font:700 15px 'Segoe UI',Arial;color:rgba(255,255,255,.5)">${esc(recapStep)}</span>` : ""}
+  </div>`;
+  const row = (m: RecapMatch, big = false) => `<div style="display:flex;align-items:center;gap:14px;padding:${big ? 14 : 9}px 22px;border-radius:10px;background:rgba(255,255,255,.05)">
+      ${crest(m.home, big ? 46 : 34)}<span style="flex:1;text-align:right;${NUM};font-size:${big ? 28 : 22}px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.home.name)}</span>
+      <span style="min-width:${big ? 120 : 96}px;text-align:center;${NUM};font-size:${big ? 36 : 28}px;font-weight:900;background:${accent};color:${onColor(accent)};border-radius:8px;padding:2px 10px">${m.home.score}-${m.away.score}</span>
+      <span style="flex:1;${NUM};font-size:${big ? 28 : 22}px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(m.away.name)}</span>${crest(m.away, big ? 46 : 34)}
+    </div>`;
+  let body = "";
+  const m = s.match;
+  if (s.kind === "intro" || s.kind === "outro") {
+    const list = (s.matches ?? []).slice(0, 6);
+    body = `<div style="padding:34px 60px;display:flex;flex-direction:column;gap:16px">
+      ${title(s.kind === "intro" ? "Bienvenidos" : "Cierre")}
+      <div style="${NUM};font-size:64px;font-weight:900;line-height:1">${esc(s.title ?? "")}</div>
+      ${(s.lines ?? []).map((l) => `<div style="font:600 26px 'Segoe UI',Arial;color:rgba(255,255,255,.85)">${esc(l)}</div>`).join("")}
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">${list.map((x) => row(x)).join("")}</div>
+    </div>`;
+  } else if (s.kind === "league") {
+    const list = (s.matches ?? []).slice(0, 8);
+    body = `<div style="padding:30px 60px;display:flex;flex-direction:column;gap:12px">
+      ${title("Ahora")}
+      <div style="${NUM};font-size:70px;font-weight:900;line-height:1;color:#fff;text-shadow:0 0 30px ${accent}88">${esc(s.leagueName ?? "")}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:12px">${list.map((x) => row(x)).join("")}</div>
+    </div>`;
+  } else if (m && s.kind === "result") {
+    const side = (t: RecapMatch["home"], goals: RecapMatch["goals"]["home"]) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:14px">
+        ${crest(t, 190)}
+        <div style="${NUM};font-size:46px;font-weight:900;text-align:center;line-height:1.05">${esc(t.name)}</div>
+        <div style="font:600 21px 'Segoe UI',Arial;color:rgba(255,255,255,.8);text-align:center;min-height:30px">${goals.map((g) => `⚽ ${esc(g.player.split(" ").slice(-1)[0])} ${esc(g.minute)}${g.kind === "penalty" ? " (p)" : g.kind === "own" ? " (e.c.)" : ""}`).join("&#160;&#160; ")}</div>
+      </div>`;
+    body = `<div style="padding:30px 50px 0;display:flex;flex-direction:column;align-items:center">
+      ${title("Final")}
+      <div style="display:flex;align-items:center;width:100%;margin-top:18px">
+        ${side(m.home, m.goals.home)}
+        <div style="${NUM};font-size:150px;font-weight:900;line-height:1;padding:0 30px;color:#fff;text-shadow:0 0 40px ${accent}">${m.home.score}<span style="color:${accent}">-</span>${m.away.score}</div>
+        ${side(m.away, m.goals.away)}
+      </div>
+      <div style="margin-top:26px;padding:14px 30px;border-radius:12px;background:${accent};color:${onColor(accent)};${NUM};font-size:34px;font-weight:900;text-align:center">${esc(m.headline)}</div>
+    </div>`;
+  } else if (m && s.kind === "stats") {
+    const visible = (c: string | undefined, fallback: string) => (c && luminance(c) > 0.12 ? c : fallback);
+    const hc = visible(m.home.color, accent);
+    const ac = visible(m.away.color === m.home.color ? undefined : m.away.color, "#e5e7eb");
+    const bars = m.stats.slice(0, 6).map((st) => {
+      const total = st.home + st.away || 1;
+      const hp = Math.round((st.home / total) * 100);
+      return `<div style="display:grid;grid-template-columns:90px 1fr 90px;align-items:center;gap:18px">
+        <span style="${NUM};font-size:34px;font-weight:900;text-align:right">${st.home}${st.percent ? "%" : ""}</span>
+        <div><div style="font:800 17px 'Segoe UI',Arial;letter-spacing:.2em;text-transform:uppercase;text-align:center;color:rgba(255,255,255,.7);margin-bottom:6px">${esc(st.label)}</div>
+          <div style="display:flex;height:14px;border-radius:7px;overflow:hidden;background:rgba(255,255,255,.1)"><div style="width:${hp}%;background:${hc}"></div><div style="flex:1;background:${ac}"></div></div></div>
+        <span style="${NUM};font-size:34px;font-weight:900">${st.away}${st.percent ? "%" : ""}</span>
+      </div>`;
+    }).join("");
+    body = `<div style="padding:24px 60px;display:flex;flex-direction:column;gap:16px">
+      ${row(m, true)}
+      ${title("Estadísticas")}
+      <div style="display:flex;flex-direction:column;gap:16px">${bars}</div>
+    </div>`;
+  } else if (m && (s.kind === "analysis" || s.kind === "impact")) {
+    const lines = (s.lines ?? []).map((l) => `<div style="display:flex;gap:16px;align-items:flex-start;font:600 30px/1.3 'Segoe UI',Arial"><span style="color:${accent};font-weight:900">▸</span><span>${esc(l)}</span></div>`).join("");
+    const table = s.kind === "impact" && m.table.length ? (() => {
+      const ids = new Set([m.home.id, m.away.id]);
+      const idx = m.table.map((r, i) => (ids.has(r.teamId) ? i : -1)).filter((i) => i >= 0);
+      const pick = new Set<number>([0, 1, 2]);
+      idx.forEach((i) => { pick.add(i - 1); pick.add(i); pick.add(i + 1); });
+      const rows = [...pick].filter((i) => i >= 0 && i < m.table.length).sort((a, b) => a - b).slice(0, 9).map((i) => m.table[i]);
+      return `<div style="width:470px;flex-shrink:0;border-radius:12px;overflow:hidden;background:rgba(255,255,255,.04)">
+        <div style="padding:10px 18px;font:800 16px 'Segoe UI',Arial;letter-spacing:.2em;color:${accent};text-transform:uppercase">${esc(m.tableName ?? `Tabla · ${s.leagueName ?? ""}`)}</div>
+        ${rows.map((r) => `<div style="display:grid;grid-template-columns:44px 1fr 60px 60px;align-items:center;padding:7px 18px;${ids.has(r.teamId) ? `background:${accent};color:${onColor(accent)};font-weight:900;` : "border-top:1px solid rgba(255,255,255,.06);"}${NUM};font-size:22px">
+          <span>${r.pos}</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(r.team)}</span><span style="text-align:right;opacity:.7">${r.played}</span><span style="text-align:right;font-weight:900">${r.points}</span></div>`).join("")}
+      </div>`;
+    })() : "";
+    body = `<div style="padding:24px 50px;display:flex;flex-direction:column;gap:18px">
+      ${row(m, true)}
+      ${title(s.kind === "analysis" ? "Análisis" : "Así queda la tabla")}
+      <div style="display:flex;gap:34px;align-items:flex-start"><div style="flex:1;display:flex;flex-direction:column;gap:18px">${lines}</div>${table}</div>
+    </div>`;
+  }
+  if (s.kind === "numbers" && s.numbers) {
+    const n = s.numbers;
+    const tile = (label: string, value: string) => `<div style="flex:1;padding:16px 20px;border-radius:12px;background:rgba(255,255,255,.05);box-shadow:inset 0 -3px 0 ${accent}">
+      <div style="${NUM};font-size:58px;font-weight:900;line-height:1">${esc(value)}</div><div style="font:800 15px 'Segoe UI',Arial;letter-spacing:.2em;color:rgba(255,255,255,.6);text-transform:uppercase;margin-top:6px">${esc(label)}</div></div>`;
+    const total = Math.max(1, n.homeWins + n.draws + n.awayWins);
+    const seg = (v: number, color: string, label: string) => (v ? `<div style="width:${(v / total) * 100}%;background:${color};display:flex;align-items:center;justify-content:center;${NUM};font-size:22px;font-weight:900;color:${onColor(color)}">${v} ${label}</div>` : "");
+    const maxGoals = Math.max(1, ...n.byLeague.map((l) => l.goals));
+    const bars = n.byLeague.map((l) => `<div style="display:grid;grid-template-columns:190px 1fr 60px;align-items:center;gap:12px">
+      <span style="font:700 19px 'Segoe UI',Arial;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(l.name)}</span>
+      <div style="height:24px;border-radius:6px;background:rgba(255,255,255,.06);overflow:hidden"><div style="height:100%;width:${(l.goals / maxGoals) * 100}%;background:linear-gradient(90deg,${accent},${accent}88)"></div></div>
+      <span style="${NUM};font-size:24px;font-weight:900;text-align:right">${l.goals}</span></div>`).join("");
+    const scorers = n.scorers.map((p, i) => `<div style="display:flex;align-items:center;gap:12px;padding:8px 14px;border-radius:8px;background:${i === 0 ? accent : "rgba(255,255,255,.05)"};color:${i === 0 ? onColor(accent) : "#fff"}">
+      <span style="${NUM};font-size:26px;font-weight:900;width:34px">${p.goals}</span><span style="flex:1;min-width:0"><b style="font:800 20px 'Segoe UI',Arial">${esc(p.player)}</b><br/><span style="font:600 15px 'Segoe UI',Arial;opacity:.7">${esc(p.team)}</span></span>⚽</div>`).join("");
+    body = `<div style="padding:24px 44px;display:grid;grid-template-columns:1fr 400px;gap:30px">
+      <div style="display:flex;flex-direction:column;gap:18px">
+        ${title("La jornada en números")}
+        <div style="display:flex;gap:14px">${tile("partidos", String(n.matches))}${tile("goles", String(n.goals))}${tile("goles por partido", (n.goals / Math.max(1, n.matches)).toFixed(1))}</div>
+        <div><div style="font:800 15px 'Segoe UI',Arial;letter-spacing:.2em;color:rgba(255,255,255,.6);margin-bottom:8px">¿QUIÉN GANÓ MÁS?</div>
+          <div style="display:flex;height:46px;border-radius:10px;overflow:hidden">${seg(n.homeWins, accent, "local")}${seg(n.draws, "#6b7280", "empate")}${seg(n.awayWins, "#e5e7eb", "visita")}</div></div>
+        <div style="display:flex;flex-direction:column;gap:10px"><div style="font:800 15px 'Segoe UI',Arial;letter-spacing:.2em;color:rgba(255,255,255,.6)">GOLES POR LIGA</div>${bars}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:10px">${title("Goleadores")}${scorers || `<div style="opacity:.6;font:600 20px 'Segoe UI',Arial">Sin goles registrados</div>`}</div>
+    </div>`;
+  } else if (s.kind === "parlays" && s.parlays) {
+    const money = (v: number) => `$${Math.round(v).toLocaleString("es-CO")}`;
+    const card = (pl: NonNullable<RecapSlide["parlays"]>[number], hot: boolean) => `<div style="flex:1;border-radius:14px;overflow:hidden;background:rgba(255,255,255,.05);box-shadow:inset 0 0 0 2px ${hot ? "#ff3b3b" : accent}">
+      <div style="padding:12px 20px;display:flex;align-items:center;gap:10px;background:${hot ? "#ff3b3b" : accent};color:${onColor(hot ? "#ff3b3b" : accent)};${NUM};font-size:28px;font-weight:900">${hot ? "💣" : "✅"} ${esc(pl.name.toUpperCase())}<span style="margin-left:auto">x${pl.odds.toFixed(2)}</span></div>
+      <div style="padding:14px 20px;display:flex;flex-direction:column;gap:10px">${pl.picks.map((p) => `<div style="display:flex;align-items:center;gap:12px">
+        <span style="color:#22c55e;font-size:24px">✔</span><span style="flex:1;min-width:0"><b style="font:800 21px 'Segoe UI',Arial">${esc(p.pick)}</b><br/><span style="font:600 16px 'Segoe UI',Arial;opacity:.65">${esc(p.match)}</span></span>
+        <span style="${NUM};font-size:26px;font-weight:900">${p.odds.toFixed(2)}</span></div>`).join("")}</div>
+      <div style="margin:0 20px 16px;padding:12px 16px;border-radius:10px;background:rgba(0,0,0,.35);font:700 21px 'Segoe UI',Arial">Con $10.000 pagaba <b style="${NUM};font-size:30px;color:${hot ? "#ff6b6b" : accent}">${money(10000 * pl.odds)}</b></div>
+    </div>`;
+    const top = (s.picks ?? []).slice(0, 4).map((p) => `<span style="padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.07);font:700 17px 'Segoe UI',Arial">${esc(p.pick)} · <b style="color:${accent}">${p.odds.toFixed(2)}</b></span>`).join("");
+    body = `<div style="padding:22px 44px;display:flex;flex-direction:column;gap:16px">
+      ${title("Los parleys ganadores de la jornada")}
+      <div style="display:flex;gap:22px">${s.parlays.map((pl) => card(pl, pl.name === "Parley bomba")).join("")}</div>
+      <div style="display:flex;flex-wrap:wrap;gap:8px;align-items:center"><span style="font:800 15px 'Segoe UI',Arial;letter-spacing:.2em;color:rgba(255,255,255,.6)">LOS QUE MÁS PAGARON:</span>${top}</div>
+      <div style="font:600 14px 'Segoe UI',Arial;color:rgba(255,255,255,.45)">Cuotas de referencia previas al partido (${esc(s.parlays[0]?.picks[0] ? "DraftKings vía ESPN" : "")}). +18 · Juega con responsabilidad.</div>
+    </div>`;
+  }
+  const html = `<div class="nx" style="width:${W}px;height:${H}px;color:#fff;${FONT_TXT};background:linear-gradient(160deg,rgba(10,12,18,.985),rgba(4,5,8,.985));border-radius:16px;overflow:hidden;box-shadow:0 30px 80px rgba(0,0,0,.6),inset 0 0 0 2px ${accent}55">${header}${body}</div>`;
+  return { html, width: W, height: H };
+}
+
 function cinta(p: Palette): DesignOutput {
   const per = 4;
   const scorePages = Math.ceil(multiScores.length / per);
-  const pages = scorePages + cintaFacts.length;
+  const facts = [...cintaExtra, ...cintaFacts];
+  const pages = scorePages + facts.length;
   const page = pages ? cintaPage % pages : 0;
   const item = (m: MultiScore) => {
     const live = m.status === "live" || m.status === "halftime";
@@ -526,7 +698,12 @@ function cinta(p: Palette): DesignOutput {
   let label = "EN VIVO";
   if (!pages) body = `<div style="flex:1;padding:0 24px;font:600 22px 'Segoe UI',Arial;color:rgba(255,255,255,.75)">NEXUS · Fútbol en vivo</div>`;
   else if (page < scorePages) body = multiScores.slice(page * per, page * per + per).map(item).join("");
-  else { label = "DATO"; body = `<div style="flex:1;min-width:0;padding:0 24px;font:600 24px 'Segoe UI',Arial;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">📊 ${esc(cintaFacts[page - scorePages])}</div>`; }
+  else {
+    const i = page - scorePages;
+    const own = i < cintaExtra.length;
+    label = own ? "NEXUS" : "DATO";
+    body = `<div style="flex:1;min-width:0;padding:0 24px;font:600 24px 'Segoe UI',Arial;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${own ? "📣" : "📊"} ${esc(facts[i])}</div>`;
+  }
   const html = `<div class="nx" style="width:1920px;height:64px;display:flex;align-items:center;color:#fff;${FONT_TXT};background:${SURFACE};box-shadow:0 -2px 0 ${p.accent}">
     <div style="height:64px;width:210px;flex-shrink:0;display:flex;align-items:center;justify-content:center;gap:10px;background:${p.accent};color:${onColor(p.accent)};${NUM};font-size:24px;font-weight:900;letter-spacing:.12em">${label === "EN VIVO" ? `<i style="width:10px;height:10px;border-radius:50%;background:#ff3b3b;display:inline-block"></i>` : ""}${label}</div>
     <div style="flex:1;min-width:0;height:64px;display:flex;align-items:center">${body}</div>
@@ -835,6 +1012,8 @@ function renderBase(variant: GraphicVariant, match: FootballScoreboard, title: s
     case "pro": return proBoard(match, p);
     case "goal-pro": return goalPro(p);
     case "cinta": return cinta(p);
+    case "recap": return recap();
+    case "ad": return adBox();
     default: return elite(match, p);
   }
 }
@@ -859,6 +1038,8 @@ export const FOOTBALL_VARIANT_LABEL: Record<string, string> = {
   pro: "Marcador Pro (por competición)",
   "goal-pro": "Gol (tarjeta completa)",
   cinta: "Cinta de datos (abajo)",
+  recap: "Programa automático (resumen)",
+  ad: "Publicidad (imagen)",
 };
 
 export function footballDesignDocument(design: DesignOutput, position: { x: number; y: number }, scale: number): string {

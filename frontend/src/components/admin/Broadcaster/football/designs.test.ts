@@ -71,3 +71,10 @@ describe("football broadcast designs", () => {
     writeFileSync(`${dir}/gallery.html`, `<!doctype html><body style="margin:0;background:#2a6b3a;display:flex;flex-wrap:wrap;width:2000px"><style>.nx{position:relative}</style>${cells}</body>`);
   });
 });
+
+describe("designs are valid XML for the rasterizer", () => {
+  it("never uses HTML-only entities like &nbsp;", async () => {
+    const src = (await import("node:fs")).readFileSync(new URL("./designs.ts", import.meta.url), "utf8");
+    expect(src).not.toMatch(/&(nbsp|copy|mdash|ndash|hellip);/);
+  });
+});
