@@ -11,11 +11,12 @@ import { portalFont } from './fonts'
 import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { ChevronDown, Menu, Moon, Search, Sun, X, Zap } from 'lucide-react'
+import { ChevronDown, Menu, Moon, Search, Sun, X } from 'lucide-react'
 import { AnimatePresence, motion } from 'framer-motion'
 import { usePortalTheme } from '@/context/ThemeContext'
 import GlobalSearch from './GlobalSearch'
 import SheetStack from './SheetStack'
+import BrandLockup from '@/components/brand/BrandLockup'
 
 interface NavItem { label: string; href: string; match: (path: string) => boolean }
 
@@ -84,12 +85,12 @@ export default function PortalNavbar() {
     <div className={`nx-portal ${portalFont.className}`} data-theme={theme} style={{ background: 'transparent' }}>
       <header className="border-b border-[var(--nx-line)] bg-[var(--nx-bg)]/95 backdrop-blur-md">
         <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-4 px-4 sm:px-6 lg:px-8">
-          <Link href="/" aria-label="NEXUS News, inicio" className="flex shrink-0 items-center gap-2">
-            <Zap size={22} className="fill-[#FACC15] text-[#FACC15]" strokeWidth={0} aria-hidden="true" />
-            <span className="flex flex-col leading-none">
-              <span className="text-[17px] font-extrabold tracking-tight text-[var(--nx-ink)]">NEXUS</span>
-              <span className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.22em] text-[var(--nx-muted)]">Fútbol</span>
-            </span>
+          <Link href="/" aria-label="NEXUS News, inicio" className="flex shrink-0 items-center">
+            <BrandLockup
+              size={30}
+              nameClassName="text-[17px] font-extrabold tracking-tight text-[var(--nx-ink)]"
+              subLabelClassName="mt-0.5 text-[8px] font-bold uppercase tracking-[0.22em] text-[var(--nx-muted)]"
+            />
           </Link>
 
           <nav aria-label="Principal" className="ml-4 hidden min-w-0 items-center gap-1 lg:flex">
