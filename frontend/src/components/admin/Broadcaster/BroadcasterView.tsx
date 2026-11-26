@@ -28,7 +28,8 @@ import { SETS_VERSION, VIRTUAL_SETS, cameraRects, drawVirtualSet, type SetTheme,
 import { onAirPollId } from "./football/pollBoard";
 import { OnAirStrip } from "./football/OnAirStrip";
 import { findFreeSpot, rectAt, settle, type Rect } from "./football/placement";
-import { advanceCinta, renderFootballDesign, setCintaFacts, setGoalCard, setRecapSlide } from "./football/designs";
+import { advanceCinta, getPollBoard, renderFootballDesign, setCintaFacts, setGoalCard, setGraphicData, setRecapSlide } from "./football/designs";
+import { bookingFromEvent, duelFrom, lastEvent, pollResult, subFromEvent, timelineFrom, type MatchDetailLite, type PlayerInsight } from "./football/eventGraphics";
 import { SHOW_SCREEN, SHOW_TOWER } from "./football/virtualSets";
 import { music } from "./football/music";
 import { ui } from "./football/ui";
@@ -884,13 +885,13 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     elite: { x: 3, y: 4 }, compact: { x: 3, y: 4 }, editorial: { x: 3, y: 4 }, live: { x: 19, y: 86 },
     goal: { x: 21.5, y: 66 }, lower: { x: 4, y: 78 }, var: { x: 3, y: 18 }, events: { x: 4, y: 82 },
     prematch: { x: 23, y: 26 }, "lineup-home": { x: 3, y: 17 }, "lineup-away": { x: 74, y: 17 }, stats: { x: 3, y: 17 },
-    pro: { x: 2.5, y: 3.5 }, "goal-pro": { x: 19, y: 62 }, cinta: { x: 0, y: 94.07 }, recap: { x: (SHOW_SCREEN.x / 1920) * 100, y: (SHOW_SCREEN.y / 1080) * 100 }, ad: { x: (SHOW_TOWER.x / 1920) * 100, y: (SHOW_TOWER.y / 1080) * 100 }, multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
+    pro: { x: 2.5, y: 3.5 }, "goal-pro": { x: 19, y: 62 }, cinta: { x: 0, y: 94.07 }, recap: { x: (SHOW_SCREEN.x / 1920) * 100, y: (SHOW_SCREEN.y / 1080) * 100 }, ad: { x: (SHOW_TOWER.x / 1920) * 100, y: (SHOW_TOWER.y / 1080) * 100 }, sub: { x: 4, y: 77 }, card: { x: 4, y: 78 }, timeline: { x: 8.3, y: 71 }, duel: { x: 15.6, y: 15 }, "poll-result": { x: 21.3, y: 18 }, multi: { x: 17.7, y: 12 }, "goal-alert": { x: 26.5, y: 74 }, poll: { x: 26, y: 50 }, dato: { x: 24.5, y: 66 },
   };
   const FOOTBALL_NAMES: Record<string, string> = {
     elite: "NEXUS Elite", compact: "NEXUS Compact", editorial: "NEXUS Editorial", live: "NEXUS Live", goal: "NEXUS Goal",
     lower: "NEXUS Lower Third", var: "NEXUS VAR", events: "NEXUS Match Events", prematch: "NEXUS Previa",
     "lineup-home": "Alineación local", "lineup-away": "Alineación visitante", stats: "NEXUS Estadísticas",
-    pro: "Marcador Pro", "goal-pro": "Gol", cinta: "Cinta de datos", recap: "Programa automático", ad: "Publicidad", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
+    pro: "Marcador Pro", "goal-pro": "Gol", cinta: "Cinta de datos", recap: "Programa automático", ad: "Publicidad", sub: "Cambio", card: "Tarjeta", timeline: "Línea de tiempo", duel: "Duelo", "poll-result": "Resultado del debate", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
   };
 
   const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string; title?: string; subtitle?: string }) => {
@@ -1018,7 +1019,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       accent: getCompetition(fm.match.competitionId ?? "custom").accent,
       variant,
       scale: 1,
-      position: freeSpot(variant, options.title ?? "", options.subtitle ?? ""),
+      position: onProgram(() => freeSpot(variant, options.title ?? "", options.subtitle ?? "")),
     };
     setProgramGraphicsSnapshot((current) => [...current, graphic]);
     const timer = window.setTimeout(() => {
@@ -1090,6 +1091,64 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       toast.error(err instanceof Error ? err.message : "No se pudo poner al aire");
     }
   };
+  // ---- Phase 3: advanced graphics from real data, for any match, on the bus being worked on ----
+  const airData = (variant: GraphicVariant, data: unknown, label: string, seconds?: number, bus: Bus = currentBus()) => {
+    const key = `gfx:${variant}:${Date.now()}`;
+    setGraphicData(key, data);
+    const graphic: BroadcastGraphic = {
+      id: `data-${variant}-${Date.now()}`, mode: "football", name: `${FOOTBALL_NAMES[variant] ?? variant}${label ? ` · ${label}` : ""}`, kind: "ticker",
+      title: key, subtitle: "", accent: getCompetition(fm.match.competitionId ?? "custom").accent, variant, scale: 1,
+      position: bus === "program" ? onProgram(() => freeSpot(variant, key)) : freeSpot(variant, key),
+    };
+    addToProgram(graphic, seconds, bus);
+  };
+  const detailWithCrests = async (ref: MatchRef): Promise<MatchDetailLite> => {
+    const res = await fetch(`/api/matches/${encodeURIComponent(ref.league)}/${encodeURIComponent(ref.id)}`);
+    if (!res.ok) throw new Error("No se pudieron leer los datos del partido");
+    const d = await res.json() as MatchDetailLite;
+    const [h, a] = await Promise.all([logoData(d.home?.logo), logoData(d.away?.logo)]);
+    return { ...d, home: { ...d.home, logo: h }, away: { ...d.away, logo: a } };
+  };
+  const airMatchGraphic = async (ref: MatchRef | null, what: "sub" | "card" | "timeline") => {
+    if (!ref) { toast.info("Elige un partido (número o «Partidos de hoy»)"); return; }
+    const bus = currentBus();
+    try {
+      const d = await detailWithCrests(ref);
+      const label = `${d.home.short || d.home.name} vs ${d.away.short || d.away.name}`;
+      if (what === "timeline") { airData("timeline", timelineFrom(d), label, 15, bus); return; }
+      const e = lastEvent(d, what === "sub" ? ["sub"] : ["yellow", "red"]);
+      const data = e ? (what === "sub" ? subFromEvent(d, e) : bookingFromEvent(d, e)) : null;
+      if (!data) { toast.info(what === "sub" ? "Ese partido todavía no tiene cambios" : "Ese partido todavía no tiene tarjetas"); return; }
+      airData(what, data, label, 9, bus);
+    } catch (err) { toast.error(err instanceof Error ? err.message : "No se pudo armar el gráfico"); }
+  };
+  const loadLineups = async (ref: MatchRef) => {
+    const res = await fetch(`/api/matches/${encodeURIComponent(ref.league)}/${encodeURIComponent(ref.id)}`);
+    if (!res.ok) throw new Error("No se pudieron leer las alineaciones");
+    const d = await res.json() as { home: { name: string }; away: { name: string }; lineups?: { home?: { id: string; name: string; starter?: boolean; position?: string | null }[]; away?: { id: string; name: string; starter?: boolean; position?: string | null }[] } };
+    return { home: d.home.name, away: d.away.name, homePlayers: d.lineups?.home ?? [], awayPlayers: d.lineups?.away ?? [] };
+  };
+  const airDuel = async (a: string, b: string) => {
+    const bus = currentBus();
+    try {
+      const [ia, ib] = await Promise.all([a, b].map(async (id) => {
+        const res = await fetch(`/api/matches/insights/player/${encodeURIComponent(id)}`);
+        if (!res.ok) throw new Error("No hay datos de ese jugador");
+        const ins = await res.json() as PlayerInsight;
+        const image = await logoData(ins.player.image);
+        return { ...ins, player: { ...ins.player, image } };
+      }));
+      const duel = duelFrom(ia, ib);
+      if (!duel.rows.length) { toast.info("Esos jugadores no tienen estadísticas comparables"); return; }
+      airData("duel", duel, `${ia.player.name.split(" ").slice(-1)[0]} vs ${ib.player.name.split(" ").slice(-1)[0]}`, undefined, bus);
+    } catch (err) { toast.error(err instanceof Error ? err.message : "No se pudo armar el duelo"); }
+  };
+  const airPollResult = () => {
+    const board = getPollBoard();
+    if (!board || !board.options.length) { toast.info("Primero lanza una votación o debate (pestaña Datos)"); return; }
+    airData("poll-result", pollResult(board), "", undefined);
+  };
+
   // Template buttons: line-ups leave by themselves after 20 s; the rest stays until removed.
   const templatePersist = (variant: GraphicVariant, options: { title?: string; subtitle?: string } = {}) => {
     if (variant === "lineup-home" || variant === "lineup-away") {
@@ -1223,6 +1282,21 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
           scorer: highlight.player, minute, assist: highlight.detail, score: `${m.homeScore}-${m.awayScore}`, competition: m.competition,
         }, scorerId);
       })();
+      return;
+    }
+    if (highlight.kind === "yellow" || highlight.kind === "red" || highlight.kind === "sub") {
+      const m = fm.match;
+      const home = highlight.team === "home";
+      const team = { name: home ? m.homeTeam : m.awayTeam, short: (home ? m.homeShort : m.awayShort) || (home ? m.homeTeam : m.awayTeam).slice(0, 3).toUpperCase(), logo: home ? m.homeLogo : m.awayLogo, color: home ? m.homeColor : m.awayColor };
+      const minute = `${highlight.minute}'`;
+      const key = `gfx:auto:${Date.now()}`;
+      if (highlight.kind === "sub") {
+        setGraphicData(key, { team, minute, playerIn: highlight.player, playerOut: highlight.detail?.replace(/^Sale\s+/i, "") || undefined, injury: false, competition: m.competition });
+        airTempRef.current("sub", { title: key }, 8);
+      } else {
+        setGraphicData(key, { team, minute, player: highlight.player, color: highlight.kind, competition: m.competition });
+        airTempRef.current("card", { title: key }, 7);
+      }
       return;
     }
     const variant: GraphicVariant = highlight.kind === "var" ? "var" : "events";
@@ -2108,6 +2182,10 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             onTransition={setTransitionMode}
             onCopyToPreview={copyProgramToPreview}
             onClearPreview={() => setPvwGraphics([])}
+            onMatchGraphic={(ref, what) => void airMatchGraphic(ref, what)}
+            loadLineups={loadLineups}
+            onDuel={(a, b) => void airDuel(a, b)}
+            onPollResult={airPollResult}
             onToggle={(variant, target) => stageToggle(variant, target)}
             isMatchOn={isMatchOn}
             onMatch={toggleMatch}

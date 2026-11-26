@@ -13,7 +13,7 @@
 // On phones the program stays on top and the tools become tabs.
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { ArrowRightLeft, BarChart3, Camera, ChevronDown, Copy, Trash2, Clapperboard, Expand, EyeOff, Hash, Image as ImageIcon, Keyboard, ListOrdered, Lock, Maximize2, Minimize2, MonitorUp, Palette, Play, Radio, Sparkles, ToggleRight, Unlock, Upload, UserPlus, Video, X } from "lucide-react";
+import { ArrowRightLeft, BarChart3, Swords, Shirt, ListOrdered as Timeline, Trophy, Square, Camera, ChevronDown, Copy, Trash2, Clapperboard, Expand, EyeOff, Hash, Image as ImageIcon, Keyboard, ListOrdered, Lock, Maximize2, Minimize2, MonitorUp, Palette, Play, Radio, Sparkles, ToggleRight, Unlock, Upload, UserPlus, Video, X } from "lucide-react";
 import type { GraphicVariant } from "../graphicExport";
 import type { TransitionMode } from "../compositor";
 import type { FootballMatchController } from "./useFootballMatch";
@@ -24,6 +24,7 @@ import { MatchRail } from "./MatchRail";
 import { DataDeck } from "./DataDeck";
 import { AutoShowPanel, type AutoShowHandlers } from "./AutoShowPanel";
 import { yyyymmdd } from "./recap";
+import { duelDefault } from "./eventGraphics";
 import { ui } from "./ui";
 
 export interface MatchRef { league: string; id: string }
@@ -90,6 +91,11 @@ interface Props {
   onTransition: (mode: TransitionMode) => void;
   onCopyToPreview: () => void;
   onClearPreview: () => void;
+  /** Phase 3 graphics from real data (any match; honours Directo / Preparar). */
+  onMatchGraphic: (ref: MatchRef | null, what: "sub" | "card" | "timeline") => void;
+  loadLineups: (ref: MatchRef) => Promise<{ home: string; away: string; homePlayers: { id: string; name: string; starter?: boolean; position?: string | null }[]; awayPlayers: { id: string; name: string; starter?: boolean; position?: string | null }[] }>;
+  onDuel: (playerA: string, playerB: string) => void;
+  onPollResult: () => void;
   onToggle: (variant: GraphicVariant, target: MatchRef | null) => void;
   isMatchOn: (ref: MatchRef, what: MatchWhat) => boolean;
   onMatch: (ref: MatchRef, what: MatchWhat) => void;
@@ -192,6 +198,9 @@ export function FootballStage(props: Props) {
   const [target, setTarget] = useState<MatchRef | null>(null);
   const [multiSel, setMultiSel] = useState<string[]>([]);
   const [context, setContext] = useState<StageScene["group"] | "show">("partido");
+  const [duelOpen, setDuelOpen] = useState(false);
+  const [lineups, setLineups] = useState<Awaited<ReturnType<Props["loadLineups"]>> | null>(null);
+  const [duelPick, setDuelPick] = useState<{ a: string; b: string }>({ a: "", b: "" });
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1280px)");
@@ -436,6 +445,37 @@ export function FootballStage(props: Props) {
           </p>
         )}
       </div>
+      <div className={panel}>
+        <p className={head}><Shirt size={12} className="text-[var(--nx-gold)]" /> Gráficos del partido</p>
+        <p className="mb-1.5 px-0.5 text-[10px] text-[var(--nx-dim)]">Del partido activo, con datos reales{props.prepare ? " · van a Preview" : ""}.</p>
+        <div className="grid grid-cols-2 gap-1">
+          <button type="button" onClick={() => props.onMatchGraphic(active, "sub")} className={`${ui.btnGhost} py-1.5 text-[11px]`}><ArrowRightLeft size={12} /> Último cambio</button>
+          <button type="button" onClick={() => props.onMatchGraphic(active, "card")} className={`${ui.btnGhost} py-1.5 text-[11px]`}><Square size={11} className="fill-[var(--nx-gold)] text-[var(--nx-gold)]" /> Última tarjeta</button>
+          <button type="button" onClick={() => props.onMatchGraphic(active, "timeline")} className={`${ui.btnGhost} py-1.5 text-[11px]`}><Timeline size={12} /> Línea de tiempo</button>
+          <button type="button" onClick={() => {
+            if (!active) return;
+            setDuelOpen((o) => !o);
+            if (!duelOpen) void props.loadLineups(active).then((l) => { setLineups(l); setDuelPick({ a: duelDefault(l.homePlayers), b: duelDefault(l.awayPlayers) }); }).catch(() => setLineups(null));
+          }} disabled={!active} className={`${duelOpen ? ui.cardOn : ui.btnGhost} inline-flex items-center justify-center gap-1.5 py-1.5 text-[11px]`}><Swords size={12} /> Duelo</button>
+          <button type="button" onClick={props.onPollResult} className={`${ui.btnGhost} col-span-2 py-1.5 text-[11px]`}><Trophy size={12} /> Resultado del debate / votación</button>
+        </div>
+        {duelOpen && (
+          <div className="mt-1.5 space-y-1 rounded-[var(--nx-r-sm)] bg-[var(--nx-s2)] p-1.5">
+            {!lineups && <p className="text-[10.5px] text-[var(--nx-dim)]">Cargando alineaciones…</p>}
+            {lineups && !lineups.homePlayers.length && <p className="text-[10.5px] text-[var(--nx-dim)]">Las alineaciones de ese partido aún no están publicadas.</p>}
+            {lineups && lineups.homePlayers.length > 0 && (["a", "b"] as const).map((k) => (
+              <label key={k} className="block text-[10px] text-[var(--nx-muted)]">{k === "a" ? lineups.home : lineups.away}
+                <select value={duelPick[k]} onChange={(e) => setDuelPick({ ...duelPick, [k]: e.target.value })} className="mt-0.5 w-full rounded border border-[var(--nx-line-2)] bg-black/40 px-1.5 py-1 text-[11px] text-[var(--nx-text)]">
+                  {(k === "a" ? lineups.homePlayers : lineups.awayPlayers).map((pl) => <option key={pl.id} value={pl.id}>{pl.name}{pl.starter ? "" : " (suplente)"}</option>)}
+                </select>
+              </label>
+            ))}
+            {lineups && lineups.homePlayers.length > 0 && (
+              <button type="button" disabled={!duelPick.a || !duelPick.b} onClick={() => props.onDuel(duelPick.a, duelPick.b)} className={`${ui.btnPrimary} w-full py-1.5 text-[11px]`}><Swords size={12} /> {props.prepare ? "Preparar duelo" : "Duelo al aire"}</button>
+            )}
+          </div>
+        )}
+      </div>
       {props.prepare && (
         <div className={panel}>
           <p className={head}><span className="h-2 w-2 rounded-full bg-[var(--nx-ok)]" /> En preview
@@ -561,9 +601,10 @@ export function FootballStage(props: Props) {
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1">
           {yesterdayBoard.slice(0, 16).map((m) => (
-            <span key={m.id} className="inline-flex items-center gap-1 rounded-md bg-white/[0.04] px-1.5 py-0.5 text-[10.5px] text-neutral-300">
-              <Crest src={m.homeLogo} name={m.homeTeam} />{short(m.homeTeam)} <b className="tabular-nums text-white">{m.homeScore ?? 0}-{m.awayScore ?? 0}</b> {short(m.awayTeam)}<Crest src={m.awayLogo} name={m.awayTeam} />
-            </span>
+            <button key={m.id} type="button" onClick={() => { setTarget(refOf(m)); setContext("partido"); }} title="Hacerlo el partido activo (línea de tiempo, tarjetas, duelo, estadísticas)"
+              className={`inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10.5px] ${active?.id === m.id ? "bg-[var(--nx-gold)] text-[var(--nx-gold-ink)]" : "bg-[var(--nx-s3)] text-[var(--nx-muted)] hover:text-[var(--nx-text)]"}`}>
+              <Crest src={m.homeLogo} name={m.homeTeam} />{short(m.homeTeam)} <b className="tabular-nums">{m.homeScore ?? 0}-{m.awayScore ?? 0}</b> {short(m.awayTeam)}<Crest src={m.awayLogo} name={m.awayTeam} />
+            </button>
           ))}
         </div>
       </div>

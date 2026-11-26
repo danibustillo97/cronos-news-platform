@@ -1,4 +1,5 @@
 import type { Slide as RecapSlide, RecapMatch } from "./recap";
+import type { BookingCard, Duel, PollResult, SubCard, Timeline } from "./eventGraphics";
 import type { DesignStyle, FootballScoreboard, FootballTeamPlayer, GraphicVariant } from "../graphicExport";
 import { COMPETITIONS, getCompetition } from "./competitions";
 
@@ -8,7 +9,7 @@ export interface DesignOutput {
   height: number;
 }
 
-export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro", "goal-pro", "cinta", "recap", "ad"];
+export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro", "goal-pro", "cinta", "recap", "ad", "sub", "card", "timeline", "duel", "poll-result"];
 
 /** Other matches shown at once by the "multi" panel (fed by useLiveBoard). */
 export interface MultiScore {
@@ -72,6 +73,15 @@ export function setCintaFacts(facts: string[]) {
   cintaFacts = next;
   multiVersion += 1;
 }
+
+/** Data of the Phase 3 graphics, keyed by the graphic's title ("gfx:…"), so Preview and Program can differ. */
+const graphicData = new Map<string, unknown>();
+export function setGraphicData(key: string, data: unknown) {
+  graphicData.set(key, data);
+  if (graphicData.size > 60) graphicData.delete(graphicData.keys().next().value as string);
+  multiVersion += 1;
+}
+export const getPollBoard = () => pollBoard;
 
 export function setPollBoard(board: PollBoard | null) {
   const next = JSON.stringify(board);
@@ -531,6 +541,138 @@ function goalPro(p: Palette): DesignOutput {
 }
 
 const RECAP_ACCENT: Record<string, string> = { "uefa.champions": "#9cc0ff", "col.1": "#ffd400", "conmebol.libertadores": "#f5c542", "conmebol.sudamericana": "#4fc3f7", "uefa.europa": "#ff8a00" };
+
+// ---------------------------------------------------------------- Phase 3 graphics
+const crestImg = (src: string | undefined, label: string, size: number) => multiCrest(safeSrc(src) || undefined, label, size);
+const teamTint = (c: string | undefined, fallback: string) => (isHex(c) && luminance(c!) > 0.08 ? c! : fallback);
+const empty = (w: number, h: number, text: string) => ({ html: `<div class="nx" style="width:${w}px;height:${h}px;display:grid;place-items:center;color:rgba(255,255,255,.7);${FONT_TXT};font-size:24px;background:${SURFACE};border-radius:10px">${esc(text)}</div>`, width: w, height: h });
+
+function subCard(d: SubCard | undefined, p: Palette): DesignOutput {
+  const W = 1000; const H = 172;
+  if (!d) return empty(W, H, "Cambio: sin datos del partido");
+  const tint = teamTint(d.team.color, p.accent);
+  const row = (dir: "in" | "out", name: string) => `<div style="display:flex;align-items:center;gap:14px">
+      <span style="width:30px;height:30px;border-radius:6px;display:grid;place-items:center;background:${dir === "in" ? "#16a34a" : "#dc2626"};font:900 18px 'Segoe UI',Arial">${dir === "in" ? "▲" : "▼"}</span>
+      <span style="font:800 13px 'Segoe UI',Arial;letter-spacing:.2em;color:rgba(255,255,255,.6);width:64px">${dir === "in" ? "ENTRA" : "SALE"}</span>
+      <span style="${NUM};font-size:${dir === "in" ? 36 : 28}px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${dir === "out" ? "color:rgba(255,255,255,.75)" : ""}">${esc(name)}</span></div>`;
+  const html = `<div class="nx" style="width:${W}px;height:${H}px;display:flex;color:#fff;${FONT_TXT};border-radius:10px;overflow:hidden;background:${SURFACE};box-shadow:0 18px 40px rgba(0,0,0,.55),inset 0 0 0 2px ${p.accent}55">
+    <div style="width:170px;flex-shrink:0;display:grid;place-items:center;background:linear-gradient(135deg,${tint},${tint}55)">${crestImg(d.team.logo, d.team.short, 120)}</div>
+    <div style="flex:1;min-width:0;padding:16px 26px;display:flex;flex-direction:column;justify-content:center;gap:8px">
+      <div style="display:flex;align-items:center;gap:12px;font:800 15px 'Segoe UI',Arial;letter-spacing:.24em;color:${p.accent}">CAMBIO · ${esc(d.team.name.toUpperCase())}${d.injury ? `<span style="padding:2px 8px;border-radius:4px;background:#dc2626;color:#fff;letter-spacing:.12em">POR LESIÓN</span>` : ""}</div>
+      ${row("in", d.playerIn)}
+      ${d.playerOut ? row("out", d.playerOut) : ""}
+    </div>
+    <div style="width:130px;flex-shrink:0;display:grid;place-items:center;background:${p.accent};color:${onColor(p.accent)};${NUM};font-size:46px;font-weight:900">${esc(d.minute)}</div>
+  </div>`;
+  return { html, width: W, height: H };
+}
+
+function bookingCard(d: BookingCard | undefined, p: Palette): DesignOutput {
+  const W = 920; const H = 150;
+  if (!d) return empty(W, H, "Tarjeta: sin datos del partido");
+  const color = d.color === "red" ? "#e11d2e" : "#facc15";
+  const html = `<div class="nx" style="width:${W}px;height:${H}px;display:flex;align-items:stretch;color:#fff;${FONT_TXT};border-radius:10px;overflow:hidden;background:${SURFACE};box-shadow:0 18px 40px rgba(0,0,0,.55),inset 0 0 0 2px ${color}88">
+    <div style="width:150px;flex-shrink:0;display:grid;place-items:center;background:rgba(255,255,255,.04)">
+      <div style="width:62px;height:88px;border-radius:7px;background:${color};transform:rotate(-12deg);box-shadow:0 10px 24px ${color}66,inset 0 -8px 0 rgba(0,0,0,.12)"></div>
+    </div>
+    <div style="flex:1;min-width:0;padding:18px 24px;display:flex;flex-direction:column;justify-content:center;gap:6px">
+      <div style="font:800 15px 'Segoe UI',Arial;letter-spacing:.24em;color:${color}">TARJETA ${d.color === "red" ? "ROJA" : "AMARILLA"}</div>
+      <div style="${NUM};font-size:42px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(d.player)}</div>
+      <div style="display:flex;align-items:center;gap:10px;font:600 19px 'Segoe UI',Arial;color:rgba(255,255,255,.8)">${crestImg(d.team.logo, d.team.short, 28)} ${esc(d.team.name)}</div>
+    </div>
+    <div style="width:120px;flex-shrink:0;display:grid;place-items:center;background:${color};color:${onColor(color)};${NUM};font-size:42px;font-weight:900">${esc(d.minute)}</div>
+  </div>`;
+  return { html, width: W, height: H };
+}
+
+function timelineBar(d: Timeline | undefined, p: Palette): DesignOutput {
+  const W = 1600; const H = 250;
+  if (!d) return empty(W, H, "Línea de tiempo: sin datos del partido");
+  const L = 60; const R = W - 60; const axisY = 160;
+  const x = (min: number) => L + ((R - L) * Math.min(min, d.end)) / d.end;
+  const icon = (t: Timeline["events"][number]["type"]) => t === "goal" ? `<span style="font-size:22px">⚽</span>`
+    : t === "sub" ? `<span style="font:900 16px 'Segoe UI',Arial;color:#4ade80">⇄</span>`
+    : `<span style="display:inline-block;width:13px;height:18px;border-radius:2px;background:${t === "red" ? "#e11d2e" : "#facc15"}"></span>`;
+  const ticks = [0, 15, 30, 45, 60, 75, 90].filter((m) => m <= d.end).map((m) => `<div style="position:absolute;left:${x(m)}px;top:${axisY - 6}px;width:2px;height:12px;background:rgba(255,255,255,.35)"></div>
+    <div style="position:absolute;left:${x(m) - 20}px;width:40px;top:${axisY + 10}px;text-align:center;font:700 13px 'Segoe UI',Arial;color:rgba(255,255,255,.5)">${m === 45 ? "ET" : `${m}'`}</div>`).join("");
+  // events stacked when they share the minute
+  const used = new Map<string, number>();
+  const marks = d.events.filter((e) => e.type !== "sub" || d.events.length < 26).map((e) => {
+    const key = `${e.team}:${Math.round(e.minute / 3)}`;
+    const n = used.get(key) ?? 0;
+    used.set(key, n + 1);
+    const top = e.team === "home" ? axisY - 44 - n * 30 : axisY + 34 + n * 30;
+    const big = e.type === "goal";
+    return `<div style="position:absolute;left:${x(e.minute) - 15}px;top:${top}px;width:30px;height:28px;display:grid;place-items:center" title="${esc(e.player)}">${icon(e.type)}</div>
+      ${big ? `<div style="position:absolute;left:${x(e.minute) - 70}px;width:140px;top:${e.team === "home" ? top - 22 : top + 28}px;text-align:center;font:700 13px 'Segoe UI',Arial;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(e.player.split(" ").slice(-1)[0])} ${esc(e.label)}</div>` : ""}`;
+  }).join("");
+  const html = `<div class="nx" style="width:${W}px;height:${H}px;position:relative;color:#fff;${FONT_TXT};border-radius:12px;overflow:hidden;background:${SURFACE};box-shadow:0 18px 40px rgba(0,0,0,.55),inset 0 0 0 2px ${p.accent}44">
+    <div style="position:absolute;left:0;right:0;top:0;height:52px;display:flex;align-items:center;gap:14px;padding:0 22px;border-bottom:1px solid ${HAIR}">
+      ${crestImg(d.home.logo, d.home.short, 32)}<span style="${NUM};font-size:24px;font-weight:800">${esc(d.home.name)}</span>
+      <span style="${NUM};font-size:28px;font-weight:900;padding:0 12px;background:${p.accent};color:${onColor(p.accent)};border-radius:6px">${esc(d.score)}</span>
+      <span style="${NUM};font-size:24px;font-weight:800">${esc(d.away.name)}</span>${crestImg(d.away.logo, d.away.short, 32)}
+      <span style="margin-left:auto;font:800 14px 'Segoe UI',Arial;letter-spacing:.2em;color:${p.accent}">LÍNEA DE TIEMPO · ${esc(d.status)}</span>
+    </div>
+    <div style="position:absolute;left:${L}px;width:${R - L}px;top:${axisY - 2}px;height:4px;border-radius:2px;background:linear-gradient(90deg,${teamTint(d.home.color, p.accent)},${teamTint(d.away.color, "#e5e7eb")})"></div>
+    <div style="position:absolute;left:14px;top:${axisY - 40}px;font:800 12px 'Segoe UI',Arial;color:rgba(255,255,255,.55)">${esc(d.home.short)}</div>
+    <div style="position:absolute;left:14px;top:${axisY + 26}px;font:800 12px 'Segoe UI',Arial;color:rgba(255,255,255,.55)">${esc(d.away.short)}</div>
+    ${ticks}${marks}
+  </div>`;
+  return { html, width: W, height: H };
+}
+
+function duelBoard(d: Duel | undefined, p: Palette): DesignOutput {
+  const W = 1320;
+  if (!d) return empty(W, 640, "Duelo: elige dos jugadores");
+  const H = 58 + 26 + Math.max(330, Math.min(7, d.rows.length) * 64) + 50;
+  const head = (pl: Duel["a"], align: "left" | "right") => `<div style="display:flex;flex-direction:column;align-items:center;gap:10px;width:300px">
+      <div style="width:190px;height:190px;border-radius:50%;overflow:hidden;background:rgba(255,255,255,.06);box-shadow:inset 0 0 0 3px ${p.accent}">${pl.image && safeSrc(pl.image) ? `<img src="${esc(pl.image)}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:top" />` : `<div style="height:100%;display:grid;place-items:center;${NUM};font-size:64px;font-weight:900">${esc(pl.name.split(" ").map((w) => w[0]).join("").slice(0, 2))}</div>`}</div>
+      <div style="${NUM};font-size:32px;font-weight:900;text-align:center;line-height:1.05">${esc(pl.name)}</div>
+      <div style="font:600 18px 'Segoe UI',Arial;color:rgba(255,255,255,.7);text-align:${align === "left" ? "center" : "center"}">${esc([pl.team, pl.position].filter(Boolean).join(" · "))}</div>
+    </div>`;
+  const rows = d.rows.slice(0, 7).map((r) => {
+    const total = r.a + r.b || 1;
+    const better = r.a === r.b ? "none" : r.a > r.b ? "a" : "b";
+    return `<div style="display:grid;grid-template-columns:90px 1fr 90px;align-items:center;gap:14px">
+      <span style="${NUM};font-size:32px;font-weight:900;text-align:right;color:${better === "a" ? p.accent : "#fff"}">${r.a}${r.suffix ?? ""}</span>
+      <div><div style="font:800 14px 'Segoe UI',Arial;letter-spacing:.2em;text-transform:uppercase;text-align:center;color:rgba(255,255,255,.6);margin-bottom:5px">${esc(r.label)}</div>
+        <div style="display:flex;height:12px;border-radius:6px;overflow:hidden;background:rgba(255,255,255,.08)"><div style="width:${(r.a / total) * 100}%;background:${better === "b" ? "rgba(255,255,255,.35)" : p.accent}"></div><div style="flex:1;background:${better === "a" ? "rgba(255,255,255,.35)" : "#e5e7eb"}"></div></div></div>
+      <span style="${NUM};font-size:32px;font-weight:900;color:${better === "b" ? p.accent : "#fff"}">${r.b}${r.suffix ?? ""}</span>
+    </div>`;
+  }).join("");
+  const note = [d.a.competition, d.b.competition].filter(Boolean);
+  const html = `<div class="nx" style="width:${W}px;height:${H}px;color:#fff;${FONT_TXT};border-radius:14px;overflow:hidden;background:linear-gradient(160deg,rgba(10,12,18,.97),rgba(4,5,8,.97));box-shadow:0 26px 70px rgba(0,0,0,.6),inset 0 0 0 2px ${p.accent}55">
+    <div style="height:58px;display:flex;align-items:center;justify-content:center;gap:12px;border-bottom:2px solid ${p.accent};font:900 20px 'Segoe UI',Arial;letter-spacing:.3em">⚔ DUELO</div>
+    <div style="display:flex;align-items:flex-start;gap:20px;padding:26px 30px 0">
+      ${head(d.a, "left")}
+      <div style="flex:1;display:flex;flex-direction:column;gap:12px;padding-top:6px">${rows || `<div style="text-align:center;opacity:.6">Sin estadísticas comparables</div>`}</div>
+      ${head(d.b, "right")}
+    </div>
+    ${note.length ? `<div style="padding:14px 30px 0;font:600 14px 'Segoe UI',Arial;color:rgba(255,255,255,.45);text-align:center">Temporada: ${esc([...new Set(note)].join(" / "))} · datos ESPN</div>` : ""}
+  </div>`;
+  return { html, width: W, height: H };
+}
+
+function pollResultBoard(d: PollResult | undefined, p: Palette): DesignOutput {
+  const W = 1100;
+  if (!d) return empty(W, 200, "Resultado: lanza una votación primero");
+  const H = 190 + d.options.length * 74;
+  const rows = d.options.map((o) => `<div style="position:relative;height:60px;border-radius:10px;overflow:hidden;background:rgba(255,255,255,.06);${o.winner ? `box-shadow:inset 0 0 0 2px ${p.accent}` : ""}">
+      <div style="position:absolute;inset:0;width:${o.pct}%;background:${o.winner ? p.accent : "rgba(255,255,255,.18)"}"></div>
+      <div style="position:relative;height:100%;display:flex;align-items:center;gap:14px;padding:0 20px;color:${o.winner ? onColor(p.accent) : "#fff"}">
+        ${o.winner ? `<span style="font-size:24px">🏆</span>` : ""}<span style="flex:1;${NUM};font-size:26px;font-weight:800;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;${!o.winner ? "" : ""}">${esc(o.label)}</span>
+        <span style="${NUM};font-size:32px;font-weight:900">${o.pct}%</span>
+      </div></div>`).join("");
+  const html = `<div class="nx" style="width:${W}px;height:${H}px;color:#fff;${FONT_TXT};border-radius:14px;overflow:hidden;background:${SURFACE};box-shadow:0 22px 60px rgba(0,0,0,.6),inset 0 0 0 2px ${p.accent}55">
+    <div style="padding:22px 30px 10px">
+      <div style="font:800 15px 'Segoe UI',Arial;letter-spacing:.26em;color:${p.accent}">RESULTADO ${d.kind === "debate" ? "DEL DEBATE" : "DE LA VOTACIÓN"}</div>
+      <div style="${NUM};font-size:38px;font-weight:900;margin-top:6px;line-height:1.1">${esc(d.question)}</div>
+    </div>
+    <div style="padding:8px 30px;display:flex;flex-direction:column;gap:14px">${rows}</div>
+    <div style="padding:6px 30px;font:600 16px 'Segoe UI',Arial;color:rgba(255,255,255,.6)">${d.total.toLocaleString("es-CO")} ${d.total === 1 ? "voto" : "votos"} de la comunidad NEXUS</div>
+  </div>`;
+  return { html, width: W, height: H };
+}
 
 function adBox(): DesignOutput {
   const W = 400;
@@ -1014,6 +1156,11 @@ function renderBase(variant: GraphicVariant, match: FootballScoreboard, title: s
     case "cinta": return cinta(p);
     case "recap": return recap();
     case "ad": return adBox();
+    case "sub": return subCard(graphicData.get(title) as SubCard | undefined, p);
+    case "card": return bookingCard(graphicData.get(title) as BookingCard | undefined, p);
+    case "timeline": return timelineBar(graphicData.get(title) as Timeline | undefined, p);
+    case "duel": return duelBoard(graphicData.get(title) as Duel | undefined, p);
+    case "poll-result": return pollResultBoard(graphicData.get(title) as PollResult | undefined, p);
     default: return elite(match, p);
   }
 }
@@ -1040,6 +1187,11 @@ export const FOOTBALL_VARIANT_LABEL: Record<string, string> = {
   cinta: "Cinta de datos (abajo)",
   recap: "Programa automático (resumen)",
   ad: "Publicidad (imagen)",
+  sub: "Cambio",
+  card: "Tarjeta",
+  timeline: "Línea de tiempo",
+  duel: "Duelo de jugadores",
+  "poll-result": "Resultado del debate",
 };
 
 export function footballDesignDocument(design: DesignOutput, position: { x: number; y: number }, scale: number): string {

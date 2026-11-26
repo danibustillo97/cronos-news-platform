@@ -79,3 +79,33 @@ until a real rigged `noris.glb` exists, so nothing is drawn. Unit-tested.
 **Validated** — tsc, eslint (0 errors), vitest (all), and in a real browser: Preparar → scene only in Preview while
 Program unchanged → Space → Program; ticker + key 1 prepared → TAKE (Corte) → Program; Directo → Estadísticas straight
 to Program.
+
+## Phase 3 — advanced sports graphics (done)
+
+All content comes from real data; nothing is estimated. Pure builders in `football/eventGraphics.ts` (tested against a
+real Champions match, Sabah FK 1-4 Barcelona), designs in `football/designs.ts`.
+
+| Graphic | Source | Notes |
+|---|---|---|
+| **Cambio** (`sub`) | match-detail `sub` events; "X replaces Y (because of an injury)" | Entra / Sale, minute, crest, "por lesión" tag. |
+| **Tarjeta** (`card`) | `yellow` / `red` events | Card drawn in its colour, player, team, minute. |
+| **Línea de tiempo** (`timeline`) | goals, cards, subs with minutes | Home above / away below the axis, half-time mark, scorers labelled. |
+| **Duelo** (`duel`) | `/api/matches/insights/player/{id}` (ESPN season stats + last games) | Only rows both players have: goals, assists, starts, shots, on target, shot accuracy, goals in last 5. Defaults to starting attackers (`duelDefault`). |
+| **Resultado del debate** (`poll-result`) | the portal poll on air (`getPollBoard`) | Percentages, winner highlighted, total votes. |
+
+- **Automatic**: when the main match (auto sync) registers a card or a substitution, the full card/sub graphic goes on air
+  (instead of the generic "último evento").
+- **Manual**: right panel → *Gráficos del partido* for the active match (number key, a card in *Partidos de hoy*, or any
+  result of *Jornada de ayer*, now clickable). They honour Directo / Preparar like everything else.
+- Each graphic carries its own data (`setGraphicData`, keyed by the graphic's title), so Preview and Program can show
+  different substitutions or duels at the same time; the compositor cache is invalidated through the data version.
+
+**Validated** — tsc, eslint (0 errors), vitest (all, incl. 6 new data tests), real browser on the real match: timeline,
+last substitution (Fariñas ↔ Gavi 86'), last booking (Lepinjica 69'), duel (season stats). *Not exercised live*: the
+debate result needs a poll launched from the admin (authenticated); the builder and design are unit-tested.
+
+## Phase 4 — Noris 3D presenter: **blocked on the real model**
+
+Verified on this machine (26-nov-2026): only `Downloads/noris_front_fullbody_reference.png` and a Blender blockout
+script exist; there is **no `noris.glb`**. Phase 4 starts when a rigged GLB with idle / walk / run clips is provided.
+Ready for it: `presenterLayer.ts` (compositor layer, Program/Preview), Three.js + R3F + drei already installed.
