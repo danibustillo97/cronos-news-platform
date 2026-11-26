@@ -26,12 +26,12 @@ export function toMultiScores(matches: BoardMatch[], max = 10, opts: {
   selected?: string[]; flashes?: Record<string, Flash>; logos?: Map<string, string>; now?: number;
 } = {}): MultiScore[] {
   const now = opts.now ?? Date.now();
-  const chosen = opts.selected?.length ? matches.filter((m) => opts.selected!.includes(m.id)) : [];
-  // Default: what is being played (+ kick-offs in the next 3 h). Finished games only when chosen by hand.
-  let pool = chosen.length ? chosen : matches.filter((m) => m.status === "live" || m.status === "halftime" || (m.status === "scheduled" && isSoon(m.date)));
-  if (!pool.length) pool = matches.filter((m) => m.status === "scheduled" && m.date && new Date(m.date).getTime() > now && new Date(m.date).toDateString() === new Date(now).toDateString());
-  return [...pool]
-    .sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9))
+  // The multi-screen is LIVE production: only matches the provider confirms as being played.
+  // With a selection it shows the selected live matches in the operator's order; otherwise all live ones.
+  const live = matches.filter((m) => m.status === "live" || m.status === "halftime");
+  const chosen = (opts.selected ?? []).map((id) => live.find((m) => m.id === id)).filter((m): m is BoardMatch => Boolean(m));
+  const ordered = chosen.length ? chosen : [...live].sort((a, b) => (STATUS_ORDER[a.status] ?? 9) - (STATUS_ORDER[b.status] ?? 9));
+  return ordered
     .slice(0, max)
     .map((m) => ({
       id: m.id, league: m.leagueName ?? m.league ?? "", leagueSlug: m.league, home: m.homeTeam, away: m.awayTeam,
@@ -40,7 +40,7 @@ export function toMultiScores(matches: BoardMatch[], max = 10, opts: {
         ? { kind: opts.flashes[m.id].kind, text: opts.flashes[m.id].text, side: opts.flashes[m.id].side } : null,
       homeScore: m.status === "scheduled" ? null : m.homeScore ?? 0, awayScore: m.status === "scheduled" ? null : m.awayScore ?? 0,
       status: (["live", "halftime", "finished"].includes(m.status) ? m.status : "scheduled") as MultiScore["status"],
-      detail: m.status === "finished" ? "Final" : m.status === "halftime" ? "ET" : m.status === "scheduled" && m.date
+      detail: m.status === "finished" ? "Final" : m.status === "halftime" ? "DESCANSO" : m.statusDetail === "PAUSA" ? "PAUSA" : m.status === "scheduled" && m.date
         ? new Date(m.date).toLocaleTimeString("es-CO", { hour: "numeric", minute: "2-digit" }) : m.statusDetail ?? "",
     }));
 }
@@ -103,7 +103,7 @@ export function useGoalAlertsPref(): boolean {
 }
 
 /** Polls scoreboard + moments while enabled; calls onGoal for each new goal in other matches. */
-export function useLiveBoard(enabled: boolean, onAirMatchId: string | null, onGoal: (goal: GoalMoment) => void) {
+export function useLiveBoard(enabled: boolean, onAirMatchId: string | null, onGoal: (goal: GoalMoment) => void, external: BoardMatch[] | null = null) {
   const [matches, setMatches] = useState<BoardMatch[]>([]);
   const seen = useRef<Set<string> | null>(null);
   const flashes = useRef<Record<string, Flash>>({});
@@ -113,18 +113,24 @@ export function useLiveBoard(enabled: boolean, onAirMatchId: string | null, onGo
   onGoalRef.current = onGoal;
   const airRef = useRef(onAirMatchId);
   airRef.current = onAirMatchId;
+  // Matches from the Live Match Engine (real status, Colombia day). The legacy date-less scoreboard is only a fallback.
+  const externalRef = useRef(external);
+  externalRef.current = external;
+  const publishRef = useRef<(list: BoardMatch[]) => void>(() => {});
+  useEffect(() => { if (external) publishRef.current(external); }, [external]);
 
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
     selection.current = readMultiSelection();
     const publish = (list: BoardMatch[]) => setMultiScores(toMultiScores(list, 10, { selected: selection.current, flashes: flashes.current, logos: logos.current }));
+    publishRef.current = (list) => { latest.current = list; setMatches(list); publish(list); };
     const onSelection = (e: Event) => { selection.current = (e as CustomEvent).detail as string[]; publish(latest.current); };
     window.addEventListener("nexus:multi-selection", onSelection);
     const latest = { current: [] as BoardMatch[] };
     const tick = async () => {
       const [board, moments] = await Promise.all([
-        fetch("/api/sports/scoreboard").then((r) => (r.ok ? r.json() : [])).catch(() => []),
+        externalRef.current ? Promise.resolve(externalRef.current) : fetch("/api/sports/scoreboard").then((r) => (r.ok ? r.json() : [])).catch(() => []),
         fetch("/api/matches/moments").then((r) => (r.ok ? r.json() : { moments: [] })).catch(() => ({ moments: [] })),
       ]);
       if (!alive) return;

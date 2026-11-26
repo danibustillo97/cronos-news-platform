@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { normalizeStatus } from "@/components/admin/Broadcaster/engine/matchStatus";
 
 const ESPN = "https://site.api.espn.com/apis/site/v2/sports/soccer";
 // A 30-day search fans out one request per day; keep the burst on ESPN bounded.
@@ -74,6 +75,11 @@ export async function GET(request: Request) {
         date: event.date,
         state: event.status?.type?.state ?? "pre",
         detail: event.status?.type?.shortDetail ?? "",
+        // canonical real state (Live Match Engine) + provider name, clock and period
+        status: normalizeStatus(event.status?.type),
+        statusName: event.status?.type?.name ?? "",
+        clock: event.status?.displayClock ?? "",
+        period: Number(event.status?.period ?? 0) || 0,
         venue: competition?.venue?.fullName ?? "",
         home: team(home),
         away: team(away),

@@ -179,3 +179,27 @@ export const EVENT_LABEL: Record<EventType, string> = {
   goal: "Gol", "penalty-goal": "Gol de penal", "own-goal": "Autogol", yellow: "Amarilla", red: "Roja", sub: "Cambio", var: "VAR",
   kickoff: "Inicio", "half-time": "Descanso", "second-half": "Segundo tiempo", "full-time": "Final", lineups: "Alineaciones confirmadas",
 };
+
+// ---------------------------------------------------------------- multi-match timeline
+export interface TimelineMatch { matchId: string; league: string; label: string; homeLogo?: string; awayLogo?: string; kickoff?: string; finished: boolean }
+export interface TimelineItem extends SportsEvent { match: TimelineMatch; at: number }
+
+/**
+ * One timeline for several matches: every event keeps its own match (never mixed), events are ordered by
+ * real match time (kick-off + minute, then reception), retracted ones stay visible as retracted, and the
+ * events of finished matches go to `history` instead of `active`.
+ */
+export function mergeTimeline(sources: { match: TimelineMatch; events: SportsEvent[] }[]): { active: TimelineItem[]; history: TimelineItem[] } {
+  const active: TimelineItem[] = [];
+  const history: TimelineItem[] = [];
+  for (const { match, events } of sources) {
+    const base = match.kickoff ? new Date(match.kickoff).getTime() : 0;
+    for (const e of events) {
+      if (e.matchId !== match.matchId) continue; // an event can only belong to its own match
+      const item: TimelineItem = { ...e, match, at: base ? base + e.minuteValue * 60_000 : e.firstSeen };
+      (match.finished ? history : active).push(item);
+    }
+  }
+  const order = (a: TimelineItem, b: TimelineItem) => b.at - a.at || b.firstSeen - a.firstSeen;
+  return { active: active.sort(order), history: history.sort(order) };
+}

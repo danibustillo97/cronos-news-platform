@@ -33,3 +33,18 @@ tablet room, ≥ 1280 the desktop room.
 - An **admin session** (Supabase Auth) for poll creation/closing and comment moderation, and for the cross-device
   Realtime channel (without a session the remote control works between tabs of the same device).
 - The local **MediaMTX/WHIP gateway** and stream keys for real transmission (unchanged; not exercised).
+
+## Live Match Engine (critical fix) — required cases
+Automated (`engine/liveMatch.test.ts`, 14 tests, all passing): 1 yesterday's finished match never in EN VIVO ·
+2 scheduled → PRÓXIMOS · 3 being played → EN VIVO · 4 half-time stays eligible and shows DESCANSO · 5 finished leaves
+EN VIVO · 6 three matches selected / removed / reordered · 7 changing the main match keeps the others · 8 multi-screen
+shows exactly the selected live matches in order · 9 events of different matches never mix · 10 no duplicates on refresh ·
+11 Colombia time zone (e.g. 01:40 UTC of the 27th is the 26th) · 12 selection survives refreshes; finished matches leave
+the live selection · 13 a non-eligible match cannot pass TAKE · 14 a disconnection never turns an old match into a live one.
+
+Browser, with real Europa League matches (26-nov-2026, 16:00 Colombia):
+EN VIVO AHORA (10, all DESCANSO, then 46'–48' after the restart), FINALIZADOS HOY (8), PRÓXIMOS (7), ANTERIORES (11),
+the 21-nov match gone; 3 matches selected + main changed, kept after switching panels and a data refresh; multi-screen
+showed exactly those 3; timeline with one filter per match detected "Segundo tiempo" live; key `E` on a not-started
+main match refused centrally ("El partido no ha comenzado"); TAKE of the live multi-screen; selection from a phone
+(390 px) reached the PC studio.

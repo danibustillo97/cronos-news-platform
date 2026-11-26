@@ -9,12 +9,10 @@ describe("liveBoard", () => {
       { id: "3", leagueName: "Serie A", homeTeam: "Inter", awayTeam: "Milan", status: "scheduled", date: "2099-01-01T00:00:00Z" },
     ];
     const out = toMultiScores(matches);
-    expect(out.map((m) => m.id)).toEqual(["2"]); // finished and far-future matches are left out by default
+    expect(out.map((m) => m.id)).toEqual(["2"]); // only live: finished and scheduled never enter the live multi-screen
     expect(out[0]).toMatchObject({ homeScore: 1, awayScore: 0, status: "live", detail: "63'" });
-    const chosen = toMultiScores(matches, 10, { selected: ["1"] });
-    expect(chosen.map((m) => m.id)).toEqual(["1"]); // a finished game only when chosen by hand
-    expect(chosen[0].detail).toBe("Final");
-    expect(toMultiScores(matches, 10, { selected: ["gone"] }).map((m) => m.id)).toEqual(["2"]); // stale choice -> default
+    expect(toMultiScores(matches, 10, { selected: ["1"] }).map((m) => m.id)).toEqual(["2"]); // a finished match can't be forced in
+    expect(toMultiScores(matches, 10, { selected: ["gone"] }).map((m) => m.id)).toEqual(["2"]); // stale choice -> all live
   });
 
   it("alerts only new goals from other matches", () => {

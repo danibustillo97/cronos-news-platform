@@ -189,19 +189,48 @@ export function DataCenter({ p }: { p: Production }) {
           ))}
         </>}
       </Panel>
-      <Panel title="Monitor de eventos" icon={<Radio size={12} className="text-[var(--nx-live)]" />}>
-        {!p.events.length && <p className="text-[11px] text-[var(--nx-dim)]">Sin acontecimientos todavía.</p>}
-        <ul className="max-h-64 space-y-0.5 overflow-y-auto">
-          {[...p.events].reverse().map((e) => (
-            <li key={e.id} className="flex items-center gap-2 text-[11px]">
-              <span className="w-10 flex-shrink-0 font-mono text-[var(--nx-dim)]">{e.minute}</span>
-              <span className="min-w-0 flex-1 truncate text-[var(--nx-text)]">{EVENT_LABEL[e.type]}{e.player ? ` · ${e.player.name}` : ""}{e.playerOut ? ` (sale ${e.playerOut})` : ""}</span>
-              <span className={`flex-shrink-0 text-[9.5px] font-bold uppercase ${EV_CLS[e.status]}`}>{e.status === "confirmed" ? "confirmado" : e.status === "pending" ? "pendiente" : "retirado"}</span>
-            </li>
-          ))}
-        </ul>
-      </Panel>
+      <EventTimeline p={p} />
     </div>
+  );
+}
+
+/** Timeline of the main match + selected live matches: each event with its match, never mixed; finished matches → history. */
+function EventTimeline({ p }: { p: Production }) {
+  const [filter, setFilter] = useState<string | null>(null);
+  const [showHistory, setShowHistory] = useState(false);
+  const { active, history, matches } = p.timeline;
+  const pass = (e: { match: { matchId: string } }) => !filter || e.match.matchId === filter;
+  const row = (e: (typeof active)[number]) => (
+    <li key={`${e.match.matchId}:${e.id}`} className="flex items-center gap-2 rounded-[var(--nx-r-sm)] bg-[var(--nx-s2)] px-2 py-1 text-[11px]">
+      <span className="flex flex-shrink-0 items-center gap-0.5">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {e.match.homeLogo ? <img src={e.match.homeLogo} alt="" className="h-3.5 w-3.5 object-contain" /> : null}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        {e.match.awayLogo ? <img src={e.match.awayLogo} alt="" className="h-3.5 w-3.5 object-contain" /> : null}
+      </span>
+      <span className="w-20 flex-shrink-0 truncate text-[10px] font-bold text-[var(--nx-muted)]">{e.match.label}</span>
+      <span className="w-9 flex-shrink-0 font-mono text-[var(--nx-dim)]">{e.minute}</span>
+      <span className="min-w-0 flex-1 truncate text-[var(--nx-text)]">{EVENT_LABEL[e.type]}{e.player ? ` · ${e.player.name}` : ""}{e.playerOut ? ` (sale ${e.playerOut})` : ""}</span>
+      <span className="flex-shrink-0 text-[9.5px] text-[var(--nx-dim)]" title="Hora de recepción (Colombia)">{new Date(e.firstSeen).toLocaleTimeString("es-CO", { timeZone: "America/Bogota", hour: "numeric", minute: "2-digit", second: "2-digit" })}</span>
+      <span className={`w-16 flex-shrink-0 text-right text-[9.5px] font-bold uppercase ${EV_CLS[e.status]}`}>{e.status === "confirmed" ? (e.baseline ? "historial" : "confirmado") : e.status === "pending" ? "pendiente" : "retirado"}</span>
+    </li>
+  );
+  return (
+    <Panel title="Línea de tiempo en vivo" icon={<Radio size={12} className="text-[var(--nx-live)]" />} extra={<span className="text-[10px] text-[var(--nx-dim)]">{matches.length} {matches.length === 1 ? "partido" : "partidos"}</span>}>
+      <div className="mb-1.5 flex flex-wrap gap-1">
+        <button type="button" onClick={() => setFilter(null)} className={`${!filter ? ui.chipOn : ui.chip} !px-2 !py-0.5 !text-[10px]`}>Todos</button>
+        {matches.map((m) => <button key={m.matchId} type="button" onClick={() => setFilter(m.matchId)} className={`${filter === m.matchId ? ui.chipOn : ui.chip} !px-2 !py-0.5 !text-[10px]`}>{m.label}{m.finished ? " · FIN" : ""}</button>)}
+      </div>
+      {!matches.length && <p className="text-[11px] text-[var(--nx-dim)]">Elige el partido principal o selecciona partidos en vivo.</p>}
+      {matches.length > 0 && !active.filter(pass).length && <p className="text-[11px] text-[var(--nx-dim)]">Sin acontecimientos activos.</p>}
+      <ul className="max-h-64 space-y-0.5 overflow-y-auto">{active.filter(pass).map(row)}</ul>
+      {history.length > 0 && (
+        <div className="mt-2">
+          <button type="button" onClick={() => setShowHistory((v) => !v)} className="text-[10.5px] font-semibold text-[var(--nx-muted)] hover:text-[var(--nx-text)]">{showHistory ? "▾" : "▸"} Historial · partidos finalizados ({history.filter(pass).length})</button>
+          {showHistory && <ul className="mt-1 max-h-48 space-y-0.5 overflow-y-auto opacity-80">{history.filter(pass).map(row)}</ul>}
+        </div>
+      )}
+    </Panel>
   );
 }
 
@@ -249,7 +278,7 @@ export function AudienceDesk({ p, onAirPoll, onResult, onMessage }: { p: Product
 
 // ---------------------------------------------------------------- mobile control
 export function MobileControl({ state, send, source, onSource, remoteAvailable }: { state: ControlState | null; send: (c: ControlCommand) => void; source: "local" | "remote"; onSource: (s: "local" | "remote") => void; remoteAvailable: boolean }) {
-  const [tab, setTab] = useState<"inicio" | "escaleta" | "eventos" | "graficos" | "audiencia">("inicio");
+  const [tab, setTab] = useState<"inicio" | "partidos" | "escaleta" | "eventos" | "graficos" | "audiencia">("inicio");
   if (!state) return <div className="p-4 text-center text-[13px] text-[var(--nx-muted)]">Conectando con el estudio…</div>;
   const btn = "min-h-[44px] rounded-[var(--nx-r)] px-3 text-[13px] font-bold";
   return (
@@ -303,6 +332,31 @@ export function MobileControl({ state, send, source, onSource, remoteAvailable }
             <div className="grid grid-cols-2 gap-2">{state.scenes.map((s) => <button key={s.id} type="button" onClick={() => send({ type: "scene", id: s.id })} className={`${btn} border border-[var(--nx-line-2)] text-left text-[12px] text-[var(--nx-text)]`}>{s.label}</button>)}</div>
           </div>
         )}
+        {tab === "partidos" && (
+          <div className="space-y-3">
+            {(["live", "upcoming", "finished"] as const).map((g) => {
+              const list = (state.matches ?? []).filter((x) => x.group === g);
+              return (
+                <div key={g}>
+                  <p className={`mb-1 text-[11px] font-black uppercase tracking-wider ${g === "live" ? "text-[var(--nx-live)]" : "text-[var(--nx-muted)]"}`}>{g === "live" ? "En vivo ahora" : g === "upcoming" ? "Próximos" : "Finalizados hoy"} ({list.length})</p>
+                  {!list.length && <p className="text-[12px] text-[var(--nx-dim)]">{g === "live" ? "No hay partidos en vivo ahora." : "—"}</p>}
+                  {list.map((x) => (
+                    <div key={x.id} className={`mb-1.5 rounded-[var(--nx-r)] p-2 ${x.selected ? "bg-[color-mix(in_srgb,var(--nx-live)_14%,var(--nx-s1))] ring-1 ring-[var(--nx-live)]" : "bg-[var(--nx-s1)]"}`}>
+                      <p className="text-[13px] font-semibold text-[var(--nx-text)]">{x.label}</p>
+                      <p className="text-[11px] text-[var(--nx-muted)]">{x.minute}{x.active ? " · ★ principal" : ""}</p>
+                      <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                        {x.eligible
+                          ? <button type="button" onClick={() => send({ type: "match", op: "toggle", id: x.id })} className={`${btn} ${x.selected ? "bg-[var(--nx-live)] text-white" : "border border-[var(--nx-line-2)] text-[var(--nx-text)]"}`}>{x.selected ? "✓ Seleccionado" : "Seleccionar"}</button>
+                          : <span className="grid min-h-[44px] place-items-center rounded-[var(--nx-r)] border border-dashed border-[var(--nx-line)] text-[11px] text-[var(--nx-dim)]">{g === "upcoming" ? "Solo previa" : "Solo postpartido"}</span>}
+                        <button type="button" onClick={() => send({ type: "match", op: "active", id: x.id })} className={`${btn} ${x.active ? "bg-[var(--nx-gold)] text-black" : "border border-[var(--nx-line-2)] text-[var(--nx-text)]"}`}>{x.active ? "★ Principal" : "Hacer principal"}</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
+          </div>
+        )}
         {tab === "escaleta" && (
           <div className="space-y-1.5">
             <div className="grid grid-cols-2 gap-2">
@@ -344,8 +398,8 @@ export function MobileControl({ state, send, source, onSource, remoteAvailable }
           </div>
         )}
       </div>
-      <nav className="grid flex-none grid-cols-5 border-t border-[var(--nx-line-2)] bg-[var(--nx-s1)] pb-[env(safe-area-inset-bottom)]">
-        {([["inicio", "Control"], ["escaleta", "Escaleta"], ["eventos", "Eventos"], ["graficos", "Gráficos"], ["audiencia", "Audiencia"]] as const).map(([id, label]) => (
+      <nav className="grid flex-none grid-cols-6 border-t border-[var(--nx-line-2)] bg-[var(--nx-s1)] pb-[env(safe-area-inset-bottom)]">
+        {([["inicio", "Control"], ["partidos", "Partidos"], ["escaleta", "Escaleta"], ["eventos", "Eventos"], ["graficos", "Gráficos"], ["audiencia", "Audiencia"]] as const).map(([id, label]) => (
           <button key={id} type="button" onClick={() => setTab(id)} className={`min-h-[52px] text-[11px] font-bold ${tab === id ? "text-[var(--nx-gold)]" : "text-[var(--nx-muted)]"}`}>{label}</button>
         ))}
       </nav>

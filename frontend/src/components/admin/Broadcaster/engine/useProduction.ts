@@ -8,18 +8,20 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AutomationEngine, defaultRules, type EngineState, type Executor, type RuleMode } from "./automation";
-import { EVENT_LABEL, MatchEventStore, type Freshness, type MatchSnapshot, type SourceDetail, type SportsEvent } from "./sportsEvents";
+import { EVENT_LABEL, MatchEventStore, mergeTimeline, type Freshness, type MatchSnapshot, type SourceDetail, type SportsEvent } from "./sportsEvents";
 import { custom, evaluate, generateRundown, phaseOf, remove, reorder, repeat, runnerStep, setStatus, startPhase, type Block, type Phase, type RundownContext } from "./rundown";
 import { createMatchPoll, listAudienceMessages, listMatchPolls, moderate, pollFromTemplate, setPollStatus, type AudienceMessage, type MatchPoll, type PollTemplate } from "./audience";
 import { loadWorkspace, saveWorkspace, type ProductionWorkspace } from "./productionStore";
 import { commandFor, createTransport, type ControlCommand, type ControlState, type Transport } from "./remoteControl";
 
 export interface MatchRef { league: string; id: string }
-type StudioPart = Pick<ControlState, "live" | "recording" | "prepare" | "signal" | "onAir" | "preview" | "graphics" | "scenes">;
+type StudioPart = Pick<ControlState, "live" | "recording" | "prepare" | "signal" | "onAir" | "preview" | "graphics" | "scenes" | "matches">;
 
 export interface ProductionOptions {
   active: boolean;
   match: MatchRef | null;
+  /** Other matches followed live (selected): their events feed the timeline, each in its own store. */
+  follow?: MatchRef[];
   /** What each task kind does on air (graphics, scenes…), supplied by the studio. */
   executors: Record<string, Executor>;
   /** Studio commands from the phone / other tab (take, graphic, scene…). */
@@ -160,6 +162,44 @@ export function useProduction(opts: ProductionOptions) {
     const f = window.setInterval(() => setFreshness(s.freshness(Date.now())), 5000);
     return () => { alive = false; window.clearInterval(t); window.clearInterval(f); };
   }, [opts.active, matchKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ---------------------------------------------------------------- secondary matches (selected live ones)
+  const [followTick, setFollowTick] = useState(0);
+  const followKey = (opts.follow ?? []).map(keyOf).filter((k) => k !== matchKey).join(",");
+  useEffect(() => {
+    const refs = (o.current.follow ?? []).filter((r) => keyOf(r) !== matchKey);
+    if (!opts.active || !refs.length) return;
+    let alive = true;
+    const read = async () => {
+      await Promise.all(refs.map(async (r) => {
+        const k = keyOf(r);
+        let s = stores.current.get(k);
+        if (!s) { s = new MatchEventStore(r.id); stores.current.set(k, s); }
+        try {
+          const res = await fetch(`/api/matches/${encodeURIComponent(r.league)}/${encodeURIComponent(r.id)}`);
+          if (!res.ok) throw new Error(String(res.status));
+          s.ingest(await res.json() as SourceDetail, Date.now());
+        } catch { s.markFailure(Date.now()); }
+      }));
+      if (alive) setFollowTick((t) => t + 1);
+    };
+    void read();
+    const t = window.setInterval(() => void read(), FEED_MS);
+    return () => { alive = false; window.clearInterval(t); };
+  }, [opts.active, followKey, matchKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** One timeline for the main match + the selected live matches; finished matches go to history. */
+  const timeline = useMemo(() => {
+    const keys = [...new Set([...(matchKey ? [matchKey] : []), ...(opts.follow ?? []).map(keyOf)])];
+    const sources = keys.map((k) => stores.current.get(k)).filter((s): s is MatchEventStore => Boolean(s)).map((s) => {
+      const snap = s.getSnapshot();
+      return {
+        match: { matchId: s.matchId, league: snap?.league ?? "", label: snap ? `${snap.home.short} vs ${snap.away.short}` : s.matchId, homeLogo: snap?.home.logo, awayLogo: snap?.away.logo, kickoff: snap?.kickoff, finished: snap?.state === "post" },
+        events: s.getEvents(),
+      };
+    });
+    return { ...mergeTimeline(sources), matches: sources.map((x) => x.match) };
+  }, [matchKey, followKey, followTick, events]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // standings available for this match?
   useEffect(() => {
@@ -316,7 +356,7 @@ export function useProduction(opts: ProductionOptions) {
   }, [controlState]);
 
   return {
-    snapshot, events, freshness, feedError, lastOk,
+    snapshot, events, freshness, feedError, lastOk, timeline,
     engineState, rules: engine.getRules(), setRuleMode: (id: string, m: RuleMode) => engine.setMode(id, m),
     approve: (id: string) => engine.approve(id), reject: (id: string) => engine.reject(id), cancel: (id: string) => engine.cancel(id),
     automationOn, setAutomationOn,

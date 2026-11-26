@@ -31,6 +31,10 @@ import { findFreeSpot, rectAt, settle, type Rect } from "./football/placement";
 import { advanceCinta, getPollBoard, renderFootballDesign, setCintaFacts, setGoalCard, setGraphicData, setRecapSlide } from "./football/designs";
 import { bookingFromEvent, duelDefault, duelFrom, featuredPlayerId, lastEvent, playerCardFrom, pollResult, resultFrom, subFromEvent, timelineFrom, type MatchDetailLite, type PlayerInsight } from "./football/eventGraphics";
 import { useProduction } from "./engine/useProduction";
+import { useMatchCenter } from "./engine/useMatchCenter";
+import { checkTake, graphicAllowed, liveEligible as liveEligibleMatch, liveLabel, statusFromDetail, type CenterMatch, type MatchStatus } from "./engine/matchStatus";
+import { prune, setActive as setActiveMatchId, toggle as toggleSelection, updateSelection, useSelection } from "./engine/matchSelection";
+import type { BoardMatch } from "./football/liveBoard";
 import { arbitrate, entryOf } from "./engine/graphicsCatalog";
 import type { Executor, Task } from "./engine/automation";
 import type { ControlCommand } from "./engine/remoteControl";
@@ -932,6 +936,9 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
 
   const [autoReact, setAutoReact] = useState(true);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // Live Match Engine (real states, Colombia day) + central match selection (main + live selected)
+  const center = useMatchCenter(studioMode === "football" && active);
+  const selection = useSelection();
   // ---- Football PREVIEW bus (Phase 2): "Preparar" builds the next look + graphics here; TAKE sends it to Program.
   const [prepareMode, setPrepareModeState] = useState(false);
   const [pvwScene, setPvwScene] = useState<BroadcastScene>(INITIAL_SCENES[2]);
@@ -1062,11 +1069,16 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     const res = await fetch(`/api/matches/${encodeURIComponent(ref.league)}/${encodeURIComponent(ref.id)}`);
     if (!res.ok) throw new Error("No se pudieron leer los datos del partido");
     const detail = await res.json();
+    detailStatus.current.set(ref.id, statusFromDetail(detail.state, detail.statusText));
     const [home, away] = await Promise.all([logoData(detail.home?.logo), logoData(detail.away?.logo)]);
     return { detail, board: toScoreboard(detail, { home, away }) };
   };
   // On Program; with `seconds` it leaves by itself (each graphic has its own timer).
   const addToProgram = (input: BroadcastGraphic, seconds?: number, bus: Bus = currentBus()) => {
+    if (input.matchRef) {
+      const verdict = graphicAllowed(input.variant ?? "", statusOf(input.matchRef.id));
+      if (!verdict.ok) { toast.error(verdict.reason ?? "Partido no elegible"); throw new Error(verdict.reason); }
+    }
     const scoreboardVariants = ["elite", "compact", "editorial", "live", "pro"];
     const isBoard = scoreboardVariants.includes(input.variant ?? "");
     // In Preview a timed graphic only remembers its duration; the clock starts when it goes on air (TAKE).
@@ -1094,7 +1106,8 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
         addToProgram({ ...boundGraphic("lineup-away", ref, board), position: FOOTBALL_POSITIONS["lineup-away"] }, 20, bus);
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo poner al aire");
+      const msg = err instanceof Error ? err.message : "No se pudo poner al aire";
+      if (!/no ha comenzado|aplazado|cancelado|no verificado|no se emite/i.test(msg)) toast.error(msg);
     }
   };
   // ---- Phase 3: advanced graphics from real data, for any match, on the bus being worked on ----
@@ -1112,6 +1125,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     const res = await fetch(`/api/matches/${encodeURIComponent(ref.league)}/${encodeURIComponent(ref.id)}`);
     if (!res.ok) throw new Error("No se pudieron leer los datos del partido");
     const d = await res.json() as MatchDetailLite;
+    detailStatus.current.set(ref.id, statusFromDetail(d.state, d.statusText));
     const [h, a] = await Promise.all([logoData(d.home?.logo), logoData(d.away?.logo)]);
     return { ...d, home: { ...d.home, logo: h }, away: { ...d.away, logo: a } };
   };
@@ -1156,7 +1170,16 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   };
 
   // ======================================================================== PRODUCTION (engines)
-  const [productionMatch, setProductionMatch] = useState<MatchRef | null>(null);
+  // main match: central selection (kept across panels and reloads); league from the match centre or the last ref set
+  const [manualActive, setManualActive] = useState<MatchRef | null>(null);
+  const productionMatch: MatchRef | null = useMemo(() => {
+    const id = selection.activeMatchId;
+    if (!id) return null;
+    const m = center.matches.get(id);
+    if (m) return { league: m.league, id };
+    return manualActive?.id === id ? manualActive : null;
+  }, [selection.activeMatchId, center.matches, manualActive]);
+  const setProductionMatch = (ref: MatchRef | null) => { if (ref) setManualActive(ref); updateSelection((sel) => setActiveMatchId(sel, ref?.id ?? null)); };
   const productionCoversRef = useRef(false);
   const prodRef = useRef<ReturnType<typeof useProduction> | null>(null);
   const needMatch = () => { if (!productionMatch) throw new Error("Sin partido activo"); return productionMatch; };
@@ -1281,6 +1304,13 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   const graphicList: [GraphicVariant, string][] = [["pro", "Marcador"], ["multi", "Multipantalla"], ["cinta", "Cinta"], ["lineup-home", "Alineaciones"], ["stats", "Estadísticas"], ["prematch", "Previa"], ["poll", "Votación"]];
   const onStudioCommand = (cmd: ControlCommand) => {
     if (cmd.type === "take") { if (prepareMode) takeFootball(); return; }
+    if (cmd.type === "match") {
+      const m = center.matches.get(cmd.id);
+      if (!m) return;
+      if (cmd.op === "toggle") updateSelection((sel) => toggleSelection(sel, m.id, liveEligibleMatch(m)));
+      else setProductionMatch({ league: m.league, id: m.id });
+      return;
+    }
     if (cmd.type === "hide-all") { onProgram(retireAllProgram); return; }
     if (cmd.type === "prepare") { setPrepareMode(cmd.on); return; }
     if (cmd.type === "graphic") { stageToggle(cmd.variant as GraphicVariant, productionMatch); return; }
@@ -1293,6 +1323,8 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   const production = useProduction({
     active: active && studioMode === "football",
     match: productionMatch,
+    // every live match selected gets its own event store and timeline (never mixed with the others)
+    follow: selection.selectedMatchIds.map((id) => center.matches.get(id)).filter((m): m is CenterMatch => Boolean(m)).map((m) => ({ league: m.league, id: m.id })),
     executors,
     onStudioCommand,
     studioState: () => ({
@@ -1301,6 +1333,12 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       onAir: programGraphicsSnapshot.map((g) => ({ id: g.id, name: g.name })), preview: pvwGraphics.map((g) => ({ id: g.id, name: g.name })),
       graphics: graphicList.map(([variant, label]) => ({ variant, label, on: stageToggleOn(variant) })),
       scenes: STAGE_SCENES.map((sc) => ({ id: sc.id, label: sc.label })),
+      matches: [
+        ...center.categories.live.map((m) => ({ m, group: "live" as const })),
+        ...center.categories.upcoming.slice(0, 6).map((m) => ({ m, group: "upcoming" as const })),
+        ...center.categories.finishedToday.slice(0, 6).map((m) => ({ m, group: "finished" as const })),
+      ].map(({ m, group }) => ({ id: m.id, label: `${m.home.name} ${m.status === "SCHEDULED" ? "vs" : `${m.home.score}-${m.away.score}`} ${m.away.name}`, status: m.status, minute: liveLabel(m),
+        eligible: group === "live", selected: selection.selectedMatchIds.includes(m.id), active: selection.activeMatchId === m.id, group })),
     }),
     onRetracted: (e) => { if (e.type.includes("goal")) exitEverywhere((g) => g.variant === "goal-pro" || (g.variant === "player" && g.name.includes(e.player?.name ?? "\u0000"))); },
     notify: (m) => toast.warning(m),
@@ -1362,6 +1400,23 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   const goalAlertsOn = useGoalAlertsPref();
   const goalAlertsRef = useRef(goalAlertsOn);
   goalAlertsRef.current = goalAlertsOn;
+  // ---- Live Match Engine: real states, Colombia day, several matches at once ----
+  const toBoard = (m: CenterMatch): BoardMatch => ({
+    id: m.id, league: m.league, leagueName: m.leagueName, homeTeam: m.home.name, awayTeam: m.away.name, homeLogo: m.home.logo, awayLogo: m.away.logo,
+    homeScore: m.status === "SCHEDULED" ? null : m.home.score, awayScore: m.status === "SCHEDULED" ? null : m.away.score,
+    status: m.status === "LIVE" || m.status === "BREAK" ? "live" : m.status === "HT" ? "halftime" : m.status === "FINISHED" ? "finished" : m.status === "SCHEDULED" ? "scheduled" : "other",
+    statusDetail: m.status === "LIVE" || m.status === "HT" || m.status === "BREAK" ? liveLabel(m) : m.detail, date: m.kickoff,
+  });
+  const centerBoard = useMemo(() => [...center.matches.values()].map(toBoard), [center.matches]); // eslint-disable-line react-hooks/exhaustive-deps
+  // matches that stop being live leave the live selection (the main match stays for the post-match)
+  useEffect(() => {
+    if (!center.lastOk) return;
+    updateSelection((sel) => prune(sel, center.liveIds, new Set(center.matches.keys())));
+  }, [center.matches, center.liveIds, center.lastOk]);
+  // real status of any match used on air: the match centre, else the last match detail read
+  const detailStatus = useRef(new Map<string, MatchStatus>());
+  const statusOf = (id: string): MatchStatus | undefined => center.statusOf(id) ?? detailStatus.current.get(id);
+
   const boardMatches = useLiveBoard(studioMode === "football", fm.fixture?.id ?? null, (goal) => {
     if (!goalAlertsRef.current) return;
     const side = goal.team === "away" ? "away" : "home";
@@ -1375,7 +1430,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
         score: goal.score ? `${goal.score.home}-${goal.score.away}` : "", competition: goal.leagueName ?? text.subtitle,
       }, goal.player?.id);
     })();
-  });
+  }, center.lastOk ? centerBoard : []);
 
   const toggleAir = (variant: GraphicVariant) => {
     const onAir = programGraphicsSnapshot.some((item) => item.variant === variant && !item.leavingAt);
@@ -1970,6 +2025,8 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   useEffect(() => { try { if (localStorage.getItem("nexus.broadcast.prepare") === "1") setPrepareMode(true); } catch { /* ignore */ } }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const takeFootball = (override?: TransitionMode) => {
     if (isTransitioningRef.current) return;
+    const verdict = checkTake(pvwGraphics, statusOf);
+    if (!verdict.ok) { toast.error("TAKE bloqueado", { description: verdict.problems.join(" · ") }); return; }
     const mode = override ?? transitionMode;
     const to: BroadcastScene = { ...pvwScene, inputIds: [...pvwScene.inputIds] };
     const toGraphics = pvwGraphics.map((g) => ({ ...g, leavingAt: undefined }));
@@ -2333,7 +2390,10 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             monitor={<canvas ref={programCanvasRef} width={1920} height={1080} className="block h-full w-full object-contain" />}
             onAir={programGraphicsSnapshot.map((g) => ({ id: g.id, name: g.name, variant: g.variant }))}
             keysActive={active && !advancedOpen}
-            board={boardMatches}
+            board={centerBoard}
+            center={center}
+            selection={selection}
+            activeRef={productionMatch}
             isOn={stageToggleOn}
             isLive={stageLiveOn}
             prepare={prepareMode}

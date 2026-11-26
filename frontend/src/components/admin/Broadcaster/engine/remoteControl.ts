@@ -10,7 +10,8 @@ export type ControlCommand =
   | { type: "graphic"; variant: string } | { type: "scene"; id: string } | { type: "slot"; n: number }
   | { type: "rundown"; op: "run" | "skip" | "next" | "mode"; blockId?: string; mode?: "auto" | "manual" }
   | { type: "automation"; op: "approve" | "reject" | "pause" | "resume"; taskId?: string }
-  | { type: "poll"; op: "launch"; template: "who-wins" | "figure" | "debate" } | { type: "poll"; op: "close" | "show" | "result"; pollId: string };
+  | { type: "poll"; op: "launch"; template: "who-wins" | "figure" | "debate" } | { type: "poll"; op: "close" | "show" | "result"; pollId: string }
+  | { type: "match"; op: "toggle" | "active"; id: string };
 
 export interface ControlState {
   at: number;
@@ -30,6 +31,8 @@ export interface ControlState {
   events: { id: string; label: string; status: string }[];
   polls: { id: string; question: string; status: string; total: number; options: { label: string; votes: number }[] }[];
   alerts: string[];
+  /** Matches of the Colombia day for selection (live first). */
+  matches: { id: string; label: string; status: string; minute: string; eligible: boolean; selected: boolean; active: boolean; group: "live" | "upcoming" | "finished" }[];
 }
 
 export interface Transport { label: string; publish(kind: "state" | "command", payload: unknown): void; subscribe(kind: "state" | "command", cb: (payload: unknown) => void): () => void; close(): void }
@@ -74,5 +77,5 @@ export function commandFor(payload: unknown, studio: string): ControlCommand | n
 export function isCommand(x: unknown): x is ControlCommand {
   if (!x || typeof x !== "object") return false;
   const c = x as { type?: unknown };
-  return typeof c.type === "string" && ["take", "hide-all", "prepare", "graphic", "scene", "slot", "rundown", "automation", "poll"].includes(c.type);
+  return typeof c.type === "string" && ["take", "hide-all", "prepare", "graphic", "scene", "slot", "rundown", "automation", "poll", "match"].includes(c.type);
 }
