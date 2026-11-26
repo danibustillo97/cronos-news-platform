@@ -165,7 +165,7 @@ export function AutoShowPanel({ handlers, presetDate }: { handlers: AutoShowHand
 
       <div className="grid gap-2 lg:grid-cols-2">
         {/* what */}
-        <div className="space-y-2 rounded-xl border border-white/[0.07] bg-[#0f141c] p-2">
+        <div className="space-y-2 rounded-xl border border-[var(--nx-line)] bg-[var(--nx-s1)] p-2">
           <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-400">Jornada</p>
           <div className="flex flex-wrap items-center gap-1">
             <button type="button" onClick={() => setDate(yyyymmdd(yesterday))} className={chip(date === yyyymmdd(yesterday))}>Ayer</button>
@@ -198,7 +198,7 @@ export function AutoShowPanel({ handlers, presetDate }: { handlers: AutoShowHand
         </div>
 
         {/* music + rundown */}
-        <div className="space-y-2 rounded-xl border border-white/[0.07] bg-[#0f141c] p-2">
+        <div className="space-y-2 rounded-xl border border-[var(--nx-line)] bg-[var(--nx-s1)] p-2">
           <p className="flex items-center gap-1.5 text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-400"><Music size={12} /> Música de fondo</p>
           <div className="flex flex-wrap items-center gap-1.5">
             <button type="button" onClick={() => void toggleMusic()} className={`inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-[11.5px] font-bold ${musicOn ? "bg-emerald-400 text-black" : "bg-white/[0.08] text-white"}`}>

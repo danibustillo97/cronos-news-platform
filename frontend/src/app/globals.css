@@ -977,3 +977,28 @@ html.nx-tabbar body { padding-bottom: var(--nx-tabbar-h, 0px); }
 .nx-studio ::-webkit-scrollbar-track { background: transparent; }
 .nx-studio ::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 4px; }
 .nx-studio ::-webkit-scrollbar-thumb:hover { background: rgba(250, 204, 21, 0.5); }
+
+/* NEXUS SPORT Broadcast design system (studio scope). One palette for the whole control room:
+   graphite surfaces, gold accent, restrained red for LIVE/critical, green for good signal. */
+.nx-studio {
+  --nx-bg: #070809;
+  --nx-s1: #0e1013;   /* panels */
+  --nx-s2: #15181c;   /* raised / inputs */
+  --nx-s3: #1d2126;   /* hover */
+  --nx-line: rgba(255, 255, 255, 0.07);
+  --nx-line-2: rgba(255, 255, 255, 0.13);
+  --nx-text: #f1f1ee;
+  --nx-muted: #9b9fa6;
+  --nx-dim: #63676e;
+  --nx-gold: #f5c518;
+  --nx-gold-2: #ffd84d;
+  --nx-gold-ink: #121109;
+  --nx-live: #e5484d;
+  --nx-ok: #30a46c;
+  --nx-r-lg: 12px;
+  --nx-r: 9px;
+  --nx-r-sm: 6px;
+  background: var(--nx-bg);
+  color: var(--nx-text);
+}
+.nx-studio :focus-visible { outline: 2px solid var(--nx-gold); outline-offset: 1px; }

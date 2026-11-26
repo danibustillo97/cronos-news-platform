@@ -31,6 +31,7 @@ import { findFreeSpot, rectAt, settle, type Rect } from "./football/placement";
 import { advanceCinta, renderFootballDesign, setCintaFacts, setGoalCard, setRecapSlide } from "./football/designs";
 import { SHOW_SCREEN, SHOW_TOWER } from "./football/virtualSets";
 import { music } from "./football/music";
+import { ui } from "./football/ui";
 import type { AutoShowHandlers } from "./football/AutoShowPanel";
 import { toScoreboard, type MatchRef } from "./football/matchBinding";
 import { logoToDataUrl } from "./football/raster";
@@ -1929,47 +1930,52 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       {(() => {
         // The studio bar lives in the admin top bar when there is one; in full-screen mode it renders here.
         const bar = (
-        <div className="flex min-w-max items-center gap-1.5 sm:gap-2">
+        <div className="nx-studio flex min-w-max items-center gap-1.5 !bg-transparent sm:gap-2">
           <div className="flex items-center gap-1.5">
-            <span className="hidden items-center gap-1.5 px-1 text-[12px] font-black uppercase tracking-tight text-white lg:flex"><span className="text-yellow-300">NEXUS</span> SPORT <span className="rounded bg-yellow-300 px-1.5 py-0.5 text-[9px] text-black">STUDIO</span></span>
-            <span className="hidden h-5 w-px bg-white/[0.1] lg:block" />
-            <button type="button" onClick={activateNormalMode} className={`rounded-md px-2 py-1.5 text-[10px] font-semibold transition-colors sm:px-2.5 sm:text-[11px] ${studioMode === "normal" ? "bg-yellow-300 text-black" : "text-neutral-400 hover:bg-white/[0.06] hover:text-white"}`}>Modo normal</button>
-            <button type="button" onClick={activateFootballMode} className={`rounded-md px-2 py-1.5 text-[10px] font-semibold transition-colors sm:px-2.5 sm:text-[11px] ${studioMode === "football" ? "bg-yellow-300 text-black" : "text-neutral-400 hover:bg-white/[0.06] hover:text-white"}`}>Modo fútbol</button>
-            <button type="button" onClick={() => openWhipDialog()} className="hidden rounded-md px-2 py-1.5 text-[10px] font-semibold text-neutral-500 hover:bg-white/[0.06] hover:text-white xl:inline-flex">Ajustes</button>
+            <span className="hidden items-center gap-1.5 px-1 text-[13px] font-black uppercase tracking-tight text-[var(--nx-text)] lg:flex"><span className="text-[var(--nx-gold)]">NEXUS</span> SPORT <span className="rounded-[4px] border border-[var(--nx-gold)] px-1.5 py-0.5 text-[9px] tracking-[0.18em] text-[var(--nx-gold)]">BROADCAST</span></span>
+            <span className="hidden h-5 w-px bg-[var(--nx-line-2)] lg:block" />
+            <span className="inline-flex rounded-[var(--nx-r)] border border-[var(--nx-line-2)] bg-[var(--nx-s1)] p-0.5" role="group" aria-label="Modo de producción">
+              <button type="button" onClick={activateNormalMode} aria-pressed={studioMode === "normal"} className={`rounded-[var(--nx-r-sm)] px-2 py-1 text-[10px] font-semibold transition-colors sm:px-2.5 sm:text-[11px] ${studioMode === "normal" ? "bg-[var(--nx-gold)] text-[var(--nx-gold-ink)]" : "text-[var(--nx-muted)] hover:text-[var(--nx-text)]"}`}>Estudio</button>
+              <button type="button" onClick={activateFootballMode} aria-pressed={studioMode === "football"} className={`rounded-[var(--nx-r-sm)] px-2 py-1 text-[10px] font-semibold transition-colors sm:px-2.5 sm:text-[11px] ${studioMode === "football" ? "bg-[var(--nx-gold)] text-[var(--nx-gold-ink)]" : "text-[var(--nx-muted)] hover:text-[var(--nx-text)]"}`}>Fútbol</button>
+            </span>
+            <button type="button" onClick={() => openWhipDialog()} className="hidden rounded-md px-2 py-1.5 text-[10px] font-semibold text-[var(--nx-dim)] hover:text-[var(--nx-text)] xl:inline-flex">Ajustes</button>
           </div>
-          <span className="h-5 w-px bg-white/[0.1]" />
+          <span className="h-5 w-px bg-[var(--nx-line-2)]" />
           {studioMode === "football" && (
             <>
-              <span className="inline-flex items-center gap-2 rounded-lg border border-white/[0.1] bg-black/40 px-2.5 py-1 tabular-nums">
-                <span className="max-w-[70px] truncate text-[11px] font-bold text-white">{fm.match.homeTeam}</span>
-                <span className="text-sm font-black text-yellow-300">{fm.match.homeScore} : {fm.match.awayScore}</span>
-                <span className="max-w-[70px] truncate text-[11px] font-bold text-white">{fm.match.awayTeam}</span>
-                <span className="border-l border-white/10 pl-2 text-[11px] text-emerald-300">{fm.match.period} <MatchClock fm={fm} /></span>
+              <span className="inline-flex items-center gap-2 rounded-[var(--nx-r)] border border-[var(--nx-line-2)] bg-[var(--nx-s1)] px-2.5 py-1 tabular-nums" title="Partido principal">
+                <span className="max-w-[90px] truncate text-[11px] font-bold text-[var(--nx-text)]">{fm.match.homeTeam}</span>
+                <span className="rounded-[4px] bg-[var(--nx-gold)] px-1.5 text-sm font-black text-[var(--nx-gold-ink)]">{fm.match.homeScore}-{fm.match.awayScore}</span>
+                <span className="max-w-[90px] truncate text-[11px] font-bold text-[var(--nx-text)]">{fm.match.awayTeam}</span>
+                <span className="border-l border-[var(--nx-line-2)] pl-2 text-[11px] text-[var(--nx-ok)]">{fm.match.period} <MatchClock fm={fm} /></span>
               </span>
-              <button type="button" onClick={() => void (guestRoom ? copyGuestLink() : openGuestRoom())} className="hidden rounded-md border border-emerald-400/30 px-2 py-1.5 text-[10px] font-semibold text-emerald-200 hover:bg-emerald-400/10 xl:inline-flex">{guestRoom ? "Copiar enlace invitado" : "Invitar"}</button>
-              <span className="h-5 w-px bg-white/[0.1]" />
+              <button type="button" onClick={() => void (guestRoom ? copyGuestLink() : openGuestRoom())} className={`hidden px-2 py-1.5 text-[10px] font-semibold xl:inline-flex ${ui.btnGhost}`}>{guestRoom ? "Copiar enlace invitado" : "Invitar"}</button>
+              <span className="h-5 w-px bg-[var(--nx-line-2)]" />
             </>
           )}
           {controllerName && <span className="hidden items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/[0.07] px-2.5 py-1.5 text-[10px] text-emerald-300 lg:inline-flex"><Gamepad2 size={13} /> Gamepad</span>}
-          <span className="inline-flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-black/20 px-2.5 py-1.5 text-xs tabular-nums text-neutral-300 sm:px-3 sm:py-2">
-            {recording || live ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-300" /> : <Circle size={9} />}
+          <span className={`inline-flex items-center gap-1.5 rounded-[var(--nx-r)] px-2.5 py-1.5 text-[10.5px] font-black uppercase tracking-wider ${live ? "bg-[var(--nx-live)] text-white" : "border border-[var(--nx-line-2)] text-[var(--nx-dim)]"}`} title="Estado de la emisión">
+            {live ? <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" /> : <span className="h-1.5 w-1.5 rounded-full bg-[var(--nx-dim)]" />}{live ? "En vivo" : "Sin señal"}
+          </span>
+          <span className="inline-flex items-center gap-1.5 rounded-[var(--nx-r)] border border-[var(--nx-line-2)] bg-[var(--nx-s1)] px-2.5 py-1.5 text-xs tabular-nums text-[var(--nx-muted)]">
+            {recording ? <span className={ui.liveDot} /> : <Circle size={9} />}
             <SessionClock session={session} />
           </span>
           {recording ? (
-            <button type="button" onClick={stopRecording} aria-label="Detener grabación" className="inline-flex items-center gap-1.5 rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-2.5 py-2 text-[10px] font-semibold text-yellow-300 hover:bg-yellow-500/20 sm:px-3.5 sm:text-xs">
+            <button type="button" onClick={stopRecording} aria-label="Detener grabación" className="inline-flex items-center gap-1.5 rounded-[var(--nx-r)] border border-[var(--nx-live)] px-2.5 py-2 text-[10px] font-semibold text-[var(--nx-live)] hover:bg-[var(--nx-live)]/10 sm:px-3.5 sm:text-xs">
               <Square size={13} fill="currentColor" /><span className="hidden sm:inline">Detener</span>
             </button>
           ) : (
-            <button type="button" onClick={() => void startRecording()} aria-label="Grabar" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-2.5 py-2 text-[10px] font-semibold text-neutral-200 hover:bg-white/[0.06] sm:px-3.5 sm:text-xs">
-              <Circle size={12} className="text-yellow-400" /><span className="hidden sm:inline">Grabar</span>
+            <button type="button" onClick={() => void startRecording()} aria-label="Grabar" className={`px-2.5 py-2 text-[10px] font-semibold sm:px-3.5 sm:text-xs ${ui.btnGhost}`}>
+              <Circle size={12} className="fill-[var(--nx-live)] text-[var(--nx-live)]" /><span className="hidden sm:inline">Grabar</span>
             </button>
           )}
           {live ? (
-            <button type="button" onClick={() => void stopLive()} aria-label="Detener emisión" className="inline-flex items-center gap-1.5 rounded-lg bg-yellow-300 px-2.5 py-2 text-[10px] font-semibold text-black hover:bg-yellow-200 sm:px-3.5 sm:text-xs">
+            <button type="button" onClick={() => void stopLive()} aria-label="Detener emisión" className={`px-2.5 py-2 text-[10px] sm:px-3.5 sm:text-xs ${ui.btnLive}`}>
               <Wifi size={14} /><span className="hidden sm:inline">Detener emisión</span>
             </button>
           ) : (
-            <button type="button" onClick={() => void publishWhip()} aria-label="Emitir" className="inline-flex items-center gap-1.5 rounded-lg bg-yellow-300 px-2.5 py-2 text-[10px] font-semibold text-black shadow-lg shadow-yellow-950/30 hover:bg-yellow-200 sm:px-3.5 sm:text-xs">
+            <button type="button" onClick={() => void publishWhip()} aria-label="Emitir" className={`px-3 py-2 text-[10px] sm:px-4 sm:text-xs ${ui.btnPrimary}`}>
               <Radio size={14} /><span className="hidden sm:inline">Emitir</span>
             </button>
           )}
@@ -1977,7 +1983,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
         );
         return topbarHost
           ? createPortal(bar, topbarHost)
-          : <div className="flex h-12 flex-shrink-0 items-center overflow-x-auto border-b border-white/[0.08] bg-[#0b0d12] px-3 [scrollbar-width:none]">{bar}</div>;
+          : <div className="flex h-12 flex-shrink-0 items-center overflow-x-auto border-b border-[var(--nx-line-2)] bg-[var(--nx-s1)] px-3 [scrollbar-width:none]">{bar}</div>;
       })()}
 
       <div className={`relative flex min-h-0 flex-1 flex-col xl:flex-row ${activePane === "football" ? "overflow-y-auto xl:overflow-hidden" : "overflow-hidden"}`}>
@@ -2010,6 +2016,11 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             onDataAir={(variant, options, seconds) => airTemp(variant, options, seconds ?? 8)}
             onAdvanced={() => setAdvancedOpen(true)}
             autoShow={autoShow}
+            sources={inputs.filter((input) => !input.id.startsWith("lib-") && (input.kind === "camera" || input.kind === "screen")).map((input) => ({ id: input.id, name: input.name, kind: input.kind }))}
+            onScreen={() => void connectScreen()}
+            onInvite={() => void (guestRoom ? copyGuestLink() : openGuestRoom())}
+            inviteLabel={guestRoom ? "Copiar enlace del invitado" : "Invitar a alguien por enlace"}
+            recording={recording}
           />
         )}
         <aside className={`flex max-h-[34vh] min-h-[170px] flex-col border-b border-white/[0.08] bg-[#0d1117] xl:max-h-none xl:flex-shrink-0 xl:border-b-0 xl:border-r ${activePane === "football" ? (advancedOpen ? "absolute bottom-0 left-0 top-0 z-40 w-full max-h-none shadow-2xl shadow-black xl:left-[340px] xl:w-[380px]" : "hidden") : "xl:w-[250px]"}`}>
@@ -2557,30 +2568,30 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
         </aside>}
       </div>
       {activePane === "football" && (
-        <footer className="hidden h-16 flex-shrink-0 xl:flex items-center gap-2 border-t border-white/[0.1] bg-[#090c11] px-3">
+        <footer className="hidden h-16 flex-shrink-0 xl:flex items-center gap-2 border-t border-[var(--nx-line-2)] bg-[var(--nx-s1)] px-3" aria-label="Consola de producción">
           <AudioBar inputs={inputs} programInputIds={programScene?.inputIds ?? []} onUpdateInput={updateInput} masterVolume={masterVolume} onMasterVolume={setMasterVolume} />
-          <div className="h-8 w-px bg-white/[0.1]" />
+          <div className="h-8 w-px bg-[var(--nx-line-2)]" />
           <div className="flex min-w-[96px] flex-col px-2 leading-3">
-            <span className="text-[10px] font-bold uppercase text-white">AL AIRE <span className="text-yellow-300">{programGraphicsSnapshot.length}</span></span>
+            <span className="text-[10px] font-bold uppercase text-[var(--nx-text)]">AL AIRE <span className="text-[var(--nx-gold)]">{programGraphicsSnapshot.length}</span></span>
             <span className="mt-0.5 text-[10px] tabular-nums text-neutral-400"><KickoffCountdown kickoff={fm.match.kickoff} period={fm.match.period} fallback={<>Emisión <SessionClock session={session} /></>} /></span>
             <label className="mt-0.5 flex items-center gap-1 text-[9px] text-neutral-500"><input type="checkbox" checked={autoReact} onChange={(event) => setAutoReact(event.target.checked)} className="accent-emerald-400" /> Gráf. auto</label>
           </div>
-          <div className="h-8 w-px bg-white/[0.1]" />
+          <div className="h-8 w-px bg-[var(--nx-line-2)]" />
           <div className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto" style={{ scrollbarWidth: "none" }}>
             {modeScenes.map((scene, index) => {
               const isProgram = programSceneId === scene.id;
               const isPreview = previewSceneId === scene.id;
-              return <button key={scene.id} type="button" onClick={() => setPreviewSceneId(scene.id)} title={`Preparar «${scene.name}» en Preview (tecla ${index + 1})`} className={`flex-shrink-0 rounded-lg border px-2.5 py-1.5 text-[10px] font-semibold ${isProgram ? "border-yellow-400 bg-yellow-500/20 text-white" : isPreview ? "border-emerald-400 bg-emerald-400/15 text-emerald-100" : "border-white/[0.08] text-neutral-400 hover:text-white"}`}><span className="mr-1 text-neutral-500">{index + 1}</span>{scene.name}</button>;
+              return <button key={scene.id} type="button" onClick={() => setPreviewSceneId(scene.id)} title={`Preparar «${scene.name}» en Preview (tecla ${index + 1})`} className={`flex-shrink-0 rounded-[var(--nx-r)] border px-2.5 py-1.5 text-[10px] font-semibold ${isProgram ? "border-[var(--nx-live)] bg-[var(--nx-live)]/15 text-white" : isPreview ? "border-[var(--nx-ok)] bg-[var(--nx-ok)]/15 text-white" : "border-[var(--nx-line-2)] text-[var(--nx-muted)] hover:text-[var(--nx-text)]"}`}><span className="mr-1 text-neutral-500">{index + 1}</span>{scene.name}</button>;
             })}
           </div>
-          <div className="h-8 w-px bg-white/[0.1]" />
+          <div className="h-8 w-px bg-[var(--nx-line-2)]" />
           <div className="flex items-center gap-1.5 px-1">
-            <button type="button" onClick={() => setSfxOn((value) => !value)} title="Efectos de sonido automáticos en goles y tarjetas" className={`rounded-md border px-2 py-1.5 text-[10px] font-semibold ${sfxOn ? "border-yellow-300/50 text-yellow-200" : "border-white/10 text-neutral-500"}`}>SFX {sfxOn ? "ON" : "OFF"}</button>
-            <input type="range" min={0.1} max={1} step={0.05} value={sfxVolume} onChange={(event) => changeSfxVolume(Number(event.target.value))} aria-label="Volumen de efectos" className="w-16 accent-yellow-300" />
-            <button type="button" onClick={() => playSfx("whistle", sfxVolume, sfxBus())} title="Pitazo" className="rounded-md border border-white/[0.08] px-2 py-1.5 text-[10px] font-semibold text-neutral-300 hover:text-white">Pitazo</button>
-            <button type="button" onClick={() => playSfx("goal", sfxVolume, sfxBus())} title="Probar sonido de gol" className="rounded-md border border-white/[0.08] px-2 py-1.5 text-[10px] font-semibold text-neutral-300 hover:text-white">Gol</button>
+            <button type="button" onClick={() => setSfxOn((value) => !value)} title="Efectos de sonido automáticos en goles y tarjetas" className={`rounded-[var(--nx-r-sm)] border px-2 py-1.5 text-[10px] font-semibold ${sfxOn ? "border-[var(--nx-gold)] text-[var(--nx-gold)]" : "border-[var(--nx-line-2)] text-[var(--nx-dim)]"}`}>SFX {sfxOn ? "ON" : "OFF"}</button>
+            <input type="range" min={0.1} max={1} step={0.05} value={sfxVolume} onChange={(event) => changeSfxVolume(Number(event.target.value))} aria-label="Volumen de efectos" className="w-16 accent-[var(--nx-gold)]" />
+            <button type="button" onClick={() => playSfx("whistle", sfxVolume, sfxBus())} title="Pitazo" className="rounded-[var(--nx-r-sm)] border border-[var(--nx-line-2)] px-2 py-1.5 text-[10px] font-semibold text-[var(--nx-muted)] hover:text-[var(--nx-text)]">Pitazo</button>
+            <button type="button" onClick={() => playSfx("goal", sfxVolume, sfxBus())} title="Probar sonido de gol" className="rounded-[var(--nx-r-sm)] border border-[var(--nx-line-2)] px-2 py-1.5 text-[10px] font-semibold text-[var(--nx-muted)] hover:text-[var(--nx-text)]">Gol</button>
           </div>
-          <div className="h-8 w-px bg-white/[0.1]" />
+          <div className="h-8 w-px bg-[var(--nx-line-2)]" />
           {([
             ["Marcador", "F1", "elite"],
             ["Previa", "F2", "prematch"],
@@ -2589,10 +2600,10 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             ["Stats", "F5", "stats"],
           ] as Array<[string, string, GraphicVariant]>).map(([label, shortcut, variant]) => {
             const onAir = programGraphicsSnapshot.some((item) => item.variant === variant);
-            return <button key={shortcut} type="button" onClick={() => toggleAir(variant)} title={onAir ? "Retirar del aire" : "Sacar al aire"} className={`inline-flex items-center gap-1.5 rounded-lg border px-2 py-1.5 text-[10px] font-semibold ${onAir ? "border-yellow-400 bg-yellow-500/25 text-white" : "border-white/[0.08] bg-white/[0.025] text-neutral-300 hover:border-white/20 hover:text-white"}`}>{onAir && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-yellow-400" />}<span>{label}</span><kbd className="rounded bg-white/10 px-1 py-0.5 text-[9px] text-neutral-400">{shortcut}</kbd></button>;
-          })}          <button type="button" onClick={() => takeScene()} className="rounded-lg bg-emerald-500 px-4 py-2 text-[10px] font-black text-black hover:bg-emerald-400">TAKE <kbd className="ml-1 rounded bg-black/20 px-1">Espacio</kbd></button>
-          <button type="button" onClick={retireAllProgram} className="rounded-lg border border-yellow-400/40 bg-yellow-500/10 px-3 py-2 text-[10px] font-bold text-yellow-200 hover:bg-yellow-500/20">Retirar todo <kbd className="ml-1 rounded bg-black/30 px-1">Esc</kbd></button>
-          <button type="button" onClick={() => document.documentElement.requestFullscreen?.()} aria-label="Pantalla completa" className="rounded-lg border border-white/[0.08] p-2 text-neutral-400 hover:text-white"><RectangleHorizontal size={15} /></button>
+            return <button key={shortcut} type="button" onClick={() => toggleAir(variant)} title={onAir ? "Retirar del aire" : "Sacar al aire"} className={`inline-flex items-center gap-1.5 rounded-[var(--nx-r)] border px-2 py-1.5 text-[10px] font-semibold ${onAir ? "border-[var(--nx-gold)] bg-[var(--nx-gold)]/15 text-white" : "border-[var(--nx-line-2)] text-[var(--nx-muted)] hover:text-[var(--nx-text)]"}`}>{onAir && <span className={ui.liveDot} />}<span>{label}</span><kbd className={ui.kbd}>{shortcut}</kbd></button>;
+          })}          <button type="button" onClick={() => takeScene()} className={`whitespace-nowrap px-4 py-2 text-[10px] font-black ${ui.btnPrimary}`}>TAKE <kbd className="ml-1 rounded bg-black/20 px-1">Espacio</kbd></button>
+          <button type="button" onClick={retireAllProgram} className={`whitespace-nowrap px-3 py-2 text-[10px] font-bold ${ui.btnGhost}`}>Retirar todo <kbd className="ml-1 rounded bg-black/30 px-1">Esc</kbd></button>
+          <button type="button" onClick={() => document.documentElement.requestFullscreen?.()} aria-label="Pantalla completa" className={`p-2 ${ui.btnGhost}`}><RectangleHorizontal size={15} /></button>
         </footer>
       )}
 

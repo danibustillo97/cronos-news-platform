@@ -1,17 +1,19 @@
 "use client";
 
-// THE football studio. The program screen sits in the middle with the tools on
-// each side, all at full height:
-//   left  : complete scenes (with / without camera), virtual sets, backgrounds
-//   center: PROGRAM (tap a graphic to hide it; quick buttons on its edges),
-//           number bar 1-9 (each number = one match), tabs below it
-//   right : graphics as ON/OFF switches with their keys + what is on air
+// THE football control room (design system: football/ui.ts + --nx-* tokens).
+//   left  : PRODUCTION LIBRARY — scenes (match / debate & analysis / no camera),
+//           camera sources, virtual studios, graphic packages, backgrounds
+//   center: PROGRAM canvas (tap a graphic to hide it, quick access on its edge,
+//           fullscreen) + number bar 1-9 (each number = one match) + data tabs
+//   right : CONTEXTUAL CONTROL — graphics as ON/OFF switches with their keys,
+//           what is on air
+// (The top production bar and the bottom production deck live in BroadcasterView.)
 // Keys: 1-9 = scoreboard of that match (press again = hide) and it becomes the
 // "active" match for line-ups / stats; 0 = hide everything; letters assignable.
 // On phones the program stays on top and the tools become tabs.
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { BarChart3, Camera, Play, Check, Clapperboard, EyeOff, Hash, Image as ImageIcon, Keyboard, ListOrdered, Lock, Maximize2, Minimize2, Radio, Sparkles, ToggleRight, Unlock, Upload, X } from "lucide-react";
+import { BarChart3, Camera, ChevronDown, Clapperboard, Expand, EyeOff, Hash, Image as ImageIcon, Keyboard, ListOrdered, Lock, Maximize2, Minimize2, MonitorUp, Palette, Play, Radio, Sparkles, ToggleRight, Unlock, Upload, UserPlus, Video, X } from "lucide-react";
 import type { GraphicVariant } from "../graphicExport";
 import type { FootballMatchController } from "./useFootballMatch";
 import { SET_THEME_LABEL, VIRTUAL_SETS, drawVirtualSet, type SetTheme, type VirtualSet } from "./virtualSets";
@@ -21,22 +23,23 @@ import { MatchRail } from "./MatchRail";
 import { DataDeck } from "./DataDeck";
 import { AutoShowPanel, type AutoShowHandlers } from "./AutoShowPanel";
 import { yyyymmdd } from "./recap";
+import { ui } from "./ui";
 
 export interface MatchRef { league: string; id: string }
 export type MatchWhat = "pro" | "lineups" | "stats";
 
-export interface StageScene { id: string; label: string; hint: string; camera: boolean; set?: VirtualSet["layout"] | null; graphics: GraphicVariant[]; background?: BackgroundTheme }
+export interface StageScene { id: string; label: string; hint: string; camera: boolean; group: "partido" | "analisis" | "sin-camara"; set?: VirtualSet["layout"] | null; graphics: GraphicVariant[]; background?: BackgroundTheme }
 
 export const STAGE_SCENES: StageScene[] = [
-  { id: "partido", label: "Partido en vivo", hint: "Cámara al lado + marcador + resultados", camera: true, set: "set-left", graphics: ["pro", "multi"] },
-  { id: "debate", label: "Debate", hint: "2 cámaras + votación + marcador", camera: true, set: "set-duo", graphics: ["poll", "pro"] },
-  { id: "previa", label: "Previa", hint: "Cámara al centro + previa + cinta", camera: true, set: "set-center", graphics: ["prematch", "cinta"] },
-  { id: "entretiempo", label: "Entretiempo", hint: "Mesa de análisis + estadísticas", camera: true, set: "set-desk", graphics: ["stats", "pro"] },
-  { id: "camara", label: "Solo cámara", hint: "Cámara completa + marcador + cinta", camera: true, set: null, graphics: ["pro", "cinta"] },
-  { id: "jornada-led", label: "Jornada en pantalla LED", hint: "Todos los partidos elegidos + cinta", camera: false, set: "set-wall", graphics: ["multi", "cinta"] },
-  { id: "estadio", label: "Estadio · partido", hint: "Marcador + estadísticas + cinta", camera: false, set: "set-arena", graphics: ["pro", "stats", "cinta"] },
-  { id: "previa-led", label: "Previa sin cámara", hint: "Pantalla LED + previa + marcador", camera: false, set: "set-wall", graphics: ["prematch", "pro"] },
-  { id: "jornada", label: "Jornada clásica", hint: "Fondo de jornada + resultados", camera: false, set: null, background: "jornada", graphics: ["multi"] },
+  { id: "partido", group: "partido", label: "Partido en vivo", hint: "Cámara al lado + marcador + resultados", camera: true, set: "set-left", graphics: ["pro", "multi"] },
+  { id: "debate", group: "analisis", label: "Debate", hint: "2 cámaras + votación + marcador", camera: true, set: "set-duo", graphics: ["poll", "pro"] },
+  { id: "previa", group: "partido", label: "Previa", hint: "Cámara al centro + previa + cinta", camera: true, set: "set-center", graphics: ["prematch", "cinta"] },
+  { id: "entretiempo", group: "analisis", label: "Entretiempo", hint: "Mesa de análisis + estadísticas", camera: true, set: "set-desk", graphics: ["stats", "pro"] },
+  { id: "camara", group: "partido", label: "Solo cámara", hint: "Cámara completa + marcador + cinta", camera: true, set: null, graphics: ["pro", "cinta"] },
+  { id: "jornada-led", group: "sin-camara", label: "Jornada en pantalla LED", hint: "Todos los partidos elegidos + cinta", camera: false, set: "set-wall", graphics: ["multi", "cinta"] },
+  { id: "estadio", group: "sin-camara", label: "Estadio · partido", hint: "Marcador + estadísticas + cinta", camera: false, set: "set-arena", graphics: ["pro", "stats", "cinta"] },
+  { id: "previa-led", group: "sin-camara", label: "Previa sin cámara", hint: "Pantalla LED + previa + marcador", camera: false, set: "set-wall", graphics: ["prematch", "pro"] },
+  { id: "jornada", group: "sin-camara", label: "Jornada clásica", hint: "Fondo de jornada + resultados", camera: false, set: null, background: "jornada", graphics: ["multi"] },
 ];
 
 type Action = "pro" | "multi" | "lineup-home" | "stats" | "prematch" | "poll" | "events" | "cinta" | "hide";
@@ -89,6 +92,12 @@ interface Props {
   onToggleBgLock: () => void;
   onCamera: () => void;
   cameraCount: number;
+  /** Camera sources (cameras, screens, guests) for the library. */
+  sources: { id: string; name: string; kind: string }[];
+  onScreen: () => void;
+  onInvite: () => void;
+  inviteLabel: string;
+  recording: boolean;
   onDataAir: (variant: GraphicVariant, options?: { title?: string; subtitle?: string }, seconds?: number) => void;
   onAdvanced: () => void;
   autoShow: AutoShowHandlers;
@@ -123,9 +132,29 @@ function Crest({ src, name }: { src?: string; name: string }) {
   return src ? <img src={src} alt="" className="h-4 w-4 flex-shrink-0 object-contain" /> : <span className="grid h-4 w-4 flex-shrink-0 place-items-center rounded-full bg-white/10 text-[7px] font-bold">{name.slice(0, 2)}</span>;
 }
 
-const panel = "rounded-xl border border-white/[0.07] bg-[#0f141c] p-2";
-const head = "mb-1.5 flex items-center gap-1.5 px-0.5 text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-400";
-const keyCap = "inline-grid min-w-[18px] place-items-center rounded border border-white/20 bg-black/40 px-1 font-mono text-[10px] font-bold uppercase text-neutral-200";
+const panel = ui.panelPad;
+const head = `mb-1.5 ${ui.title}`;
+const keyCap = ui.kbd;
+const GROUP_LABEL: Record<StageScene["group"], string> = { partido: "Partido", analisis: "Debate y análisis", "sin-camara": "Sin cámara" };
+
+/** Collapsible library section (remembers open/closed). */
+function Section({ id, title, icon, children, defaultOpen = true, extra }: { id: string; title: string; icon: ReactNode; children: ReactNode; defaultOpen?: boolean; extra?: ReactNode }) {
+  const [open, setOpen] = useState(defaultOpen);
+  useEffect(() => { try { const v = localStorage.getItem(`nexus.lib.${id}`); if (v) setOpen(v === "1"); } catch { /* ignore */ } }, [id]);
+  const toggle = () => setOpen((o) => { try { localStorage.setItem(`nexus.lib.${id}`, o ? "0" : "1"); } catch { /* ignore */ } return !o; });
+  return (
+    <section className={ui.panel}>
+      <div className="flex items-center gap-1 px-2 py-1.5">
+        <button type="button" onClick={toggle} aria-expanded={open} className={`${ui.title} flex-1 text-left hover:text-[var(--nx-text)]`}>
+          {icon} {title}
+          <ChevronDown size={12} className={`ml-auto transition ${open ? "" : "-rotate-90"}`} />
+        </button>
+        {extra}
+      </div>
+      {open && <div className="px-2 pb-2">{children}</div>}
+    </section>
+  );
+}
 
 export function FootballStage(props: Props) {
   const { fm, monitor, live, board } = props;
@@ -241,92 +270,119 @@ export function FootballStage(props: Props) {
   const keyBadge = (action: Action) => (
     <span role="button" tabIndex={0} title="Cambiar tecla" onClick={(e) => { e.stopPropagation(); setAssigning(action); }}
       onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); setAssigning(action); } }}
-      className={`${keyCap} cursor-pointer ${assigning === action ? "animate-pulse border-yellow-400 text-yellow-300" : "hover:border-white/50"}`}>
+      className={`${keyCap} cursor-pointer ${assigning === action ? "animate-pulse !border-[var(--nx-gold)] !text-[var(--nx-gold)]" : "hover:!border-[var(--nx-muted)]"}`}>
       {assigning === action ? "?" : keys[action] || "–"}
     </span>
   );
 
-  // ---------------------------------------------------------------- panels
-  const scenesPanel = (
-    <div className="space-y-2">
-      {[true, false].map((cam) => (
-        <div key={String(cam)} className={panel}>
-          <p className={head}><Clapperboard size={12} className="text-yellow-300" /> {cam ? "Escenas con cámara" : "Escenas sin cámara"}</p>
-          <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-1">
-            {STAGE_SCENES.filter((sc) => sc.camera === cam).map((sc) => (
-              <button key={sc.id} type="button" onClick={() => props.onScene(sc, theme)} className="rounded-lg border border-white/[0.08] bg-white/[0.03] px-2.5 py-1.5 text-left hover:border-yellow-400/60 hover:bg-yellow-400/[0.06]">
-                <span className="block text-[12px] font-bold text-white">{sc.label}</span>
-                <span className="block text-[10px] leading-tight text-neutral-500">{sc.hint}</span>
-              </button>
-            ))}
-          </div>
-        </div>
+  // ---------------------------------------------------------------- LEFT: production library
+  const sceneButtons = (group: StageScene["group"]) => (
+    <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-1">
+      {STAGE_SCENES.filter((sc) => sc.group === group).map((sc) => (
+        <button key={sc.id} type="button" onClick={() => props.onScene(sc, theme)} className={`${ui.card} px-2.5 py-1.5 text-left`}>
+          <span className="block text-[12px] font-bold text-[var(--nx-text)]">{sc.label}</span>
+          <span className="block text-[10px] leading-tight text-[var(--nx-dim)]">{sc.hint}</span>
+        </button>
       ))}
-      <div className={panel}>
-        <p className={head}><Sparkles size={12} className="text-sky-300" /> Escenarios virtuales</p>
-        <div className="mb-1.5 flex flex-wrap gap-1">
-          {(Object.keys(SET_THEME_LABEL) as SetTheme[]).map((t) => (
-            <button key={t} type="button" onClick={() => setTheme(t)} className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${theme === t ? "bg-white text-black" : "border border-white/10 text-neutral-400"}`}>{SET_THEME_LABEL[t]}</button>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-1.5">
-          {VIRTUAL_SETS.map((set) => (
-            <button key={set.id} type="button" onClick={() => props.onSet(set, theme)} title={set.hint} className="rounded-lg border border-white/[0.08] p-1 text-left hover:border-sky-400/60">
-              <SetThumb set={set} theme={theme} />
-              <span className="mt-1 block px-0.5 text-[10px] font-semibold leading-tight text-neutral-200">{set.label}</span>
-            </button>
-          ))}
-        </div>
-        {props.cameraCount === 0 && (
-          <button type="button" onClick={props.onCamera} className="mt-1.5 inline-flex w-full items-center justify-center gap-1 rounded-lg bg-white/[0.08] py-1.5 text-[11px] font-semibold text-white hover:bg-white/[0.14]"><Camera size={12} /> Conectar mi cámara</button>
-        )}
-      </div>
     </div>
   );
-
+  const scenesPanel = (
+    <Section id="escenas" title="Escenas" icon={<Clapperboard size={12} className="text-[var(--nx-gold)]" />}>
+      <div className="space-y-2">
+        {(["partido", "analisis", "sin-camara"] as const).map((g) => (
+          <div key={g}>
+            <p className="mb-1 px-0.5 text-[10px] font-semibold text-[var(--nx-dim)]">{GROUP_LABEL[g]}</p>
+            {sceneButtons(g)}
+          </div>
+        ))}
+      </div>
+    </Section>
+  );
+  const sourcesPanel = (
+    <Section id="fuentes" title="Fuentes de cámara" icon={<Video size={12} className="text-[var(--nx-ok)]" />}>
+      <ul className="mb-1.5 space-y-1">
+        {props.sources.length === 0 && <li className="px-1 text-[11px] text-[var(--nx-dim)]">Sin cámaras conectadas.</li>}
+        {props.sources.map((src) => (
+          <li key={src.id} className="flex items-center gap-2 rounded-[var(--nx-r-sm)] bg-[var(--nx-s2)] px-2 py-1 text-[11px] text-[var(--nx-text)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--nx-ok)]" />
+            <span className="min-w-0 flex-1 truncate">{src.name}</span>
+            <span className="text-[9.5px] uppercase text-[var(--nx-dim)]">{src.kind === "screen" ? "pantalla" : src.kind === "camera" ? "cámara" : src.kind}</span>
+          </li>
+        ))}
+      </ul>
+      <div className="grid grid-cols-3 gap-1">
+        <button type="button" onClick={props.onCamera} className={`${ui.btnGhost} py-1.5 text-[10.5px]`}><Camera size={12} /> Cámara</button>
+        <button type="button" onClick={props.onScreen} className={`${ui.btnGhost} py-1.5 text-[10.5px]`}><MonitorUp size={12} /> Pantalla</button>
+        <button type="button" onClick={props.onInvite} className={`${ui.btnGhost} py-1.5 text-[10.5px]`} title={props.inviteLabel}><UserPlus size={12} /> Invitado</button>
+      </div>
+    </Section>
+  );
+  const studiosPanel = (
+    <Section id="estudios" title="Estudios virtuales" icon={<Sparkles size={12} className="text-[var(--nx-gold)]" />}>
+      <div className="grid grid-cols-2 gap-1.5">
+        {VIRTUAL_SETS.map((set) => (
+          <button key={set.id} type="button" onClick={() => props.onSet(set, theme)} title={set.hint} className={`${ui.card} p-1 text-left`}>
+            <SetThumb set={set} theme={theme} />
+            <span className="mt-1 block px-0.5 text-[10px] font-semibold leading-tight text-[var(--nx-text)]">{set.label}</span>
+          </button>
+        ))}
+      </div>
+    </Section>
+  );
+  const packagesPanel = (
+    <Section id="paquetes" title="Paquete gráfico" icon={<Palette size={12} className="text-[var(--nx-gold)]" />}>
+      <div className="flex flex-wrap gap-1">
+        {(Object.keys(SET_THEME_LABEL) as SetTheme[]).map((t) => (
+          <button key={t} type="button" onClick={() => setTheme(t)} className={theme === t ? ui.chipOn : ui.chip}>{SET_THEME_LABEL[t]}</button>
+        ))}
+      </div>
+      <p className="mt-1.5 px-0.5 text-[10px] text-[var(--nx-dim)]">Se elige solo según la liga del partido principal; los estudios y escenas usan este paquete.</p>
+    </Section>
+  );
   const backgroundsPanel = (
-    <div className={panel}>
-      <p className={head}><ImageIcon size={12} className="text-emerald-300" /> Fondos
-        <button type="button" onClick={props.onToggleBgLock} title={props.bgLocked ? "Fondo bloqueado: las escenas no lo cambian" : "Bloquear fondo"} className={`ml-auto inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 normal-case tracking-normal ${props.bgLocked ? "bg-yellow-400 text-black" : "text-neutral-500 hover:text-white"}`}>
+    <Section id="fondos" title="Fondos" icon={<ImageIcon size={12} className="text-[var(--nx-ok)]" />} defaultOpen={false}
+      extra={(
+        <button type="button" onClick={props.onToggleBgLock} title={props.bgLocked ? "Fondo bloqueado: las escenas no lo cambian" : "Bloquear fondo"} className={`inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] ${props.bgLocked ? "bg-[var(--nx-gold)] text-[var(--nx-gold-ink)]" : "text-[var(--nx-dim)] hover:text-[var(--nx-text)]"}`}>
           {props.bgLocked ? <Lock size={11} /> : <Unlock size={11} />} {props.bgLocked ? "Bloqueado" : "Libre"}
         </button>
-      </p>
+      )}>
       <div className="grid grid-cols-3 gap-1">
         {props.backgrounds.map((b) => (
-          <button key={b.id} type="button" onClick={() => props.onBackgroundItem(b.id)} title={b.name} className="overflow-hidden rounded-md border border-white/10 hover:border-emerald-400/70">
+          <button key={b.id} type="button" onClick={() => props.onBackgroundItem(b.id)} title={b.name} className="overflow-hidden rounded-[var(--nx-r-sm)] border border-[var(--nx-line-2)] hover:border-[var(--nx-gold)]">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src={b.url} alt={b.name} className="aspect-video w-full object-cover" />
           </button>
         ))}
-        <label className="grid aspect-video cursor-pointer place-items-center rounded-md border border-dashed border-white/15 text-neutral-400 hover:border-emerald-400/60 hover:text-white" title="Subir tu fondo (1920×1080)">
+        <label className="grid aspect-video cursor-pointer place-items-center rounded-[var(--nx-r-sm)] border border-dashed border-[var(--nx-line-2)] text-[var(--nx-muted)] hover:border-[var(--nx-gold)] hover:text-[var(--nx-text)]" title="Subir tu fondo (1920×1080)">
           <Upload size={14} />
           <input type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) props.onUploadBackground(f); e.target.value = ""; }} />
         </label>
       </div>
       <div className="mt-1.5 flex flex-wrap gap-1">
         {(Object.keys(BACKGROUND_LABEL) as BackgroundTheme[]).map((t) => (
-          <button key={t} type="button" onClick={() => props.onThemeBackground(t)} className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-neutral-300 hover:border-white/30">{BACKGROUND_LABEL[t].split(" · ")[0]}</button>
+          <button key={t} type="button" onClick={() => props.onThemeBackground(t)} className={ui.chip}>{BACKGROUND_LABEL[t].split(" · ")[0]}</button>
         ))}
-        <button type="button" onClick={props.onNoBackground} className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] text-neutral-500 hover:text-white">Sin fondo</button>
+        <button type="button" onClick={props.onNoBackground} className={ui.chip}>Sin fondo</button>
       </div>
-    </div>
+    </Section>
   );
+  const libraryPanel = <div className="space-y-2">{scenesPanel}{sourcesPanel}{studiosPanel}{packagesPanel}{backgroundsPanel}</div>;
 
   const graphicsPanel = (
     <div className="space-y-2">
       <div className={panel}>
-        <p className={head}><ToggleRight size={12} className="text-red-300" /> Gráficos · toca o usa la tecla</p>
-        <p className="mb-1.5 truncate rounded-md bg-white/[0.04] px-2 py-1 text-[10.5px] text-neutral-400">Partido activo: <b className="text-white">{activeName}</b></p>
+        <p className={head}><ToggleRight size={12} className="text-[var(--nx-gold)]" /> Gráficos · toca o usa la tecla</p>
+        <p className="mb-1.5 truncate rounded-[var(--nx-r-sm)] bg-[var(--nx-s2)] px-2 py-1 text-[10.5px] text-[var(--nx-muted)]">Partido activo: <b className="text-[var(--nx-text)]">{activeName}</b></p>
         <div className="grid grid-cols-2 gap-1.5 xl:grid-cols-1">
           {TOGGLES.map((t) => {
             const on = props.isOn(t.variant);
             return (
               <button key={t.variant} type="button" onClick={() => runAction(t.variant)} aria-pressed={on}
-                className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-left transition ${on ? "border-red-500 bg-red-500/15" : "border-white/[0.08] bg-white/[0.03] hover:border-white/25"}`}>
-                <span className={`flex h-5 w-9 flex-shrink-0 items-center rounded-full p-0.5 transition ${on ? "justify-end bg-red-500" : "justify-start bg-white/15"}`}><span className="h-4 w-4 rounded-full bg-white" /></span>
+                className={`flex items-center gap-2 px-2 py-1.5 text-left transition ${on ? ui.cardOn : ui.card}`}>
+                <span className={`flex h-5 w-9 flex-shrink-0 items-center rounded-full p-0.5 transition ${on ? "justify-end bg-[var(--nx-gold)]" : "justify-start bg-white/15"}`}><span className="h-4 w-4 rounded-full bg-white" /></span>
                 <span className="min-w-0 flex-1">
-                  <span className="block text-[12px] font-bold text-white">{t.label}</span>
-                  <span className="block truncate text-[10px] text-neutral-500">{on ? "AL AIRE" : t.hint}</span>
+                  <span className="block text-[12px] font-bold text-[var(--nx-text)]">{t.label}</span>
+                  <span className={`flex items-center gap-1 truncate text-[10px] ${on ? "font-bold text-[var(--nx-live)]" : "text-[var(--nx-dim)]"}`}>{on && <span className={ui.liveDot} />}{on ? "AL AIRE" : t.hint}</span>
                 </span>
                 {desktop && keyBadge(t.variant)}
               </button>
@@ -334,27 +390,27 @@ export function FootballStage(props: Props) {
           })}
         </div>
         {desktop && (
-          <p className="mt-1.5 flex flex-wrap items-center gap-1 px-0.5 text-[10px] text-neutral-500">
+          <p className="mt-1.5 flex flex-wrap items-center gap-1 px-0.5 text-[10px] text-[var(--nx-dim)]">
             <Keyboard size={11} /> <span className={keyCap}>1</span>–<span className={keyCap}>9</span> marcador de ese partido · {keyBadge("hide")} ocultar todo · toca una tecla para cambiarla
           </p>
         )}
       </div>
       <div className={panel}>
-        <p className={head}><Radio size={12} className="text-red-400" /> Al aire ahora
-          {props.onAir.length > 0 && <button type="button" onClick={props.onClear} className="ml-auto inline-flex items-center gap-1 normal-case tracking-normal text-neutral-300 hover:text-red-300"><EyeOff size={11} /> Ocultar todo</button>}
+        <p className={head}><Radio size={12} className="text-[var(--nx-live)]" /> Al aire ahora
+          {props.onAir.length > 0 && <button type="button" onClick={props.onClear} className="ml-auto inline-flex items-center gap-1 normal-case tracking-normal text-[var(--nx-muted)] hover:text-[var(--nx-live)]"><EyeOff size={11} /> Ocultar todo</button>}
         </p>
-        {props.onAir.length === 0 && <p className="px-1 text-[11px] text-neutral-500">Nada encima. Toca un gráfico en la pantalla para quitarlo.</p>}
+        {props.onAir.length === 0 && <p className="px-1 text-[11px] text-[var(--nx-dim)]">Nada encima. Toca un gráfico en la pantalla para quitarlo.</p>}
         <ul className="space-y-1">
           {props.onAir.map((g) => (
-            <li key={g.id} className="flex items-center gap-1.5 rounded-md bg-white/[0.04] py-1 pl-2 pr-1 text-[11px] text-neutral-200">
-              <Check size={11} className="flex-shrink-0 text-red-400" />
+            <li key={g.id} className="flex items-center gap-1.5 rounded-[var(--nx-r-sm)] bg-[var(--nx-s2)] py-1 pl-2 pr-1 text-[11px] text-[var(--nx-text)]">
+              <span className={`${ui.liveDot} flex-shrink-0`} />
               <span className="min-w-0 flex-1 truncate">{g.name}</span>
               <button type="button" onClick={() => props.onRemove(g.id)} aria-label={`Quitar ${g.name}`} className="rounded p-0.5 text-neutral-500 hover:bg-white/10 hover:text-white"><X size={12} /></button>
             </li>
           ))}
         </ul>
       </div>
-      <button type="button" onClick={props.onAdvanced} className="w-full rounded-lg border border-white/10 py-1.5 text-[10.5px] text-neutral-500 hover:border-white/30 hover:text-white">Controles avanzados (manual, widgets, medios)</button>
+      <button type="button" onClick={props.onAdvanced} className={`${ui.btnGhost} w-full py-1.5 text-[10.5px] !text-[var(--nx-muted)]`}>Controles avanzados (manual, widgets, medios)</button>
     </div>
   );
 
@@ -368,8 +424,8 @@ export function FootballStage(props: Props) {
         const isTarget = active?.id === ref.id;
         return (
           <button key={ref.id} type="button" onClick={() => pressSlot(i + 1)} title={m ? `${m.homeTeam} vs ${m.awayTeam} · ${m.leagueName ?? ""}` : ""}
-            className={`flex min-w-[124px] flex-shrink-0 items-center gap-1.5 rounded-lg border px-1.5 py-0.5 text-left ${on ? "border-red-500 bg-red-500/15" : isTarget ? "border-emerald-400/70 bg-emerald-400/[0.07]" : "border-white/[0.08] bg-white/[0.03] hover:border-white/25"}`}>
-            <span className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-md text-[13px] font-black ${on ? "bg-red-500 text-white" : "bg-white text-black"}`}>{i + 1}</span>
+            className={`flex min-w-[124px] flex-shrink-0 items-center gap-1.5 px-1.5 py-0.5 text-left ${on ? ui.cardOn : isTarget ? "rounded-[var(--nx-r)] border border-[var(--nx-ok)] bg-[var(--nx-s2)]" : ui.card}`}>
+            <span className={`grid h-6 w-6 flex-shrink-0 place-items-center rounded-md text-[13px] font-black ${on ? "bg-[var(--nx-gold)] text-[var(--nx-gold-ink)]" : "bg-[var(--nx-text)] text-black"}`}>{i + 1}</span>
             {m ? (
               <span className="min-w-0 flex-1 leading-tight">
                 <span className="flex items-center gap-1 text-[10.5px] font-semibold text-white"><Crest src={m.homeLogo} name={m.homeTeam} />{short(m.homeTeam)}<b className="ml-auto tabular-nums">{m.status === "scheduled" ? "" : m.homeScore ?? 0}</b></span>
@@ -394,7 +450,7 @@ export function FootballStage(props: Props) {
     <div className="p-2">
       <div className="mb-2 flex flex-wrap items-center gap-1.5 text-[10.5px]">
         <span className="font-semibold text-neutral-400">Multipantalla:</span>
-        <button type="button" onClick={() => setMulti([])} className={`rounded-md border px-2 py-1 font-semibold ${multiSel.length === 0 ? "border-yellow-400 bg-yellow-400/15 text-yellow-200" : "border-white/10 text-neutral-300"}`}>Automática (en vivo)</button>
+        <button type="button" onClick={() => setMulti([])} className={`rounded-md border px-2 py-1 font-semibold ${multiSel.length === 0 ? "border-[var(--nx-gold)] bg-[var(--nx-gold)]/15 text-[var(--nx-gold)]" : "border-white/10 text-neutral-300"}`}>Automática (en vivo)</button>
         <button type="button" onClick={() => setMulti(slots.map((s) => s.id))} disabled={!slots.length} className="rounded-md border border-white/10 px-2 py-1 font-semibold text-neutral-300 disabled:opacity-30">Los numerados</button>
         {active && <button type="button" onClick={() => setMulti([active.id])} className="rounded-md border border-white/10 px-2 py-1 font-semibold text-neutral-300">Solo el activo</button>}
         <span className="ml-auto text-neutral-500">{multiSel.length ? `${multiSel.length} elegidos` : "sin terminados"}</span>
@@ -410,7 +466,7 @@ export function FootballStage(props: Props) {
           return (
             <Fragment key={m.id}>
             {firstUpcoming && <li className="col-span-full pt-1 text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-400">Próximos días</li>}
-            <li className={`rounded-xl border p-2 ${active?.id === m.id ? "border-emerald-400/60 bg-emerald-400/[0.05]" : "border-white/[0.06] bg-white/[0.02]"} ${m.status === "finished" ? "opacity-60" : ""}`}>
+            <li className={`rounded-xl border p-2 ${active?.id === m.id ? "border-[var(--nx-ok)] bg-[var(--nx-s2)]" : "border-[var(--nx-line)] bg-[var(--nx-s2)]"} ${m.status === "finished" ? "opacity-60" : ""}`}>
               <div className="flex items-center gap-2">
                 <button type="button" onClick={() => toggleSlot(m.id)} title={n >= 0 ? "Quitar el número" : "Asignar el siguiente número"}
                   className={`grid h-7 w-7 flex-shrink-0 place-items-center rounded-md text-[13px] font-black ${n >= 0 ? "bg-white text-black" : "border border-dashed border-white/20 text-neutral-500 hover:text-white"}`}>{n >= 0 ? n + 1 : "#"}</button>
@@ -428,21 +484,21 @@ export function FootballStage(props: Props) {
                   const on = props.isMatchOn(ref, w);
                   return (
                     <button key={w} type="button" onClick={() => { setTarget(ref); props.onMatch(ref, w); }}
-                      className={`rounded-md px-1 py-1 text-[10.5px] font-bold ${on ? "bg-red-500 text-white ring-2 ring-red-300" : "bg-white/[0.08] text-white hover:bg-white/[0.15]"}`}>{on ? `✕ ${label}` : label}</button>
+                      className={`rounded-md px-1 py-1 text-[10.5px] font-bold ${on ? "bg-[var(--nx-gold)] text-[var(--nx-gold-ink)]" : "bg-white/[0.08] text-white hover:bg-white/[0.15]"}`}>{on ? `✕ ${label}` : label}</button>
                   );
                 })}
                 <button type="button" onClick={() => toggleMulti(m.id)} aria-pressed={inMulti}
-                  className={`rounded-md px-1 py-1 text-[10.5px] font-bold ${inMulti ? "bg-yellow-400 text-black" : "border border-white/10 text-neutral-400 hover:text-white"}`}>{inMulti ? "Multi ✓" : "Multi"}</button>
+                  className={`rounded-md px-1 py-1 text-[10.5px] font-bold ${inMulti ? "bg-[var(--nx-gold)] text-[var(--nx-gold-ink)]" : "border border-white/10 text-neutral-400 hover:text-white"}`}>{inMulti ? "Multi ✓" : "Multi"}</button>
               </div>
             </li>
             </Fragment>
           );
         })}
       </ul>
-      <div className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-2">
+      <div className={`mt-3 ${ui.panelPad}`}>
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-400">Jornada de ayer · {yesterdayBoard.length} {yesterdayBoard.length === 1 ? "resultado" : "resultados"}</p>
-          <button type="button" onClick={() => openShow(yyyymmdd(new Date(Date.now() - 86400000)))} className="ml-auto inline-flex items-center gap-1 rounded-lg bg-red-500 px-2.5 py-1.5 text-[11px] font-black text-white hover:bg-red-400">▶ Programa automático con la jornada de ayer</button>
+          <button type="button" onClick={() => openShow(yyyymmdd(new Date(Date.now() - 86400000)))} className={`ml-auto ${ui.btnPrimary} px-2.5 py-1.5 text-[11px]`}>▶ Programa automático con la jornada de ayer</button>
         </div>
         <div className="mt-1.5 flex flex-wrap gap-1">
           {yesterdayBoard.slice(0, 16).map((m) => (
@@ -464,8 +520,10 @@ export function FootballStage(props: Props) {
     { label: "Marcador", action: "pro" }, { label: "Jornada", action: "multi" }, { label: "Cinta", action: "cinta" },
     { label: "Alineac.", action: "lineup-home" }, { label: "Stats", action: "stats" },
   ];
+  const screenRef = useRef<HTMLDivElement>(null);
+  const fullscreen = () => { const el = screenRef.current; if (!el) return; if (document.fullscreenElement) void document.exitFullscreen(); else void el.requestFullscreen?.(); };
   const screen = (
-    <div className="group relative aspect-video w-full overflow-hidden rounded-lg bg-black"
+    <div ref={screenRef} className="group relative aspect-video w-full overflow-hidden rounded-[var(--nx-r)] bg-black ring-1 ring-[var(--nx-line-2)]"
       style={desktop ? { maxHeight: monitorH, maxWidth: `calc(${monitorH} * 16 / 9)` } : undefined}>
       <div className="h-full w-full cursor-pointer" title="Toca un gráfico para ocultarlo"
         onClick={(e) => { const r = e.currentTarget.getBoundingClientRect(); props.onMonitorTap((e.clientX - r.left) / r.width, (e.clientY - r.top) / r.height); }}>
@@ -475,38 +533,44 @@ export function FootballStage(props: Props) {
       <div className="pointer-events-none absolute inset-y-0 left-0 hidden flex-col xl:flex justify-center gap-1 p-1.5 opacity-70 transition group-hover:opacity-100">
         {quick.map((q) => (
           <button key={q.action} type="button" onClick={() => runAction(q.action)}
-            className={`pointer-events-auto rounded-md px-2 py-1 text-[10px] font-bold backdrop-blur ${props.isOn(q.action as GraphicVariant) ? "bg-red-500 text-white" : "bg-black/60 text-white hover:bg-black/80"}`}>{q.label}</button>
+            className={`pointer-events-auto rounded-md px-2 py-1 text-[10px] font-bold backdrop-blur ${props.isOn(q.action as GraphicVariant) ? "bg-[var(--nx-gold)] text-[var(--nx-gold-ink)]" : "bg-black/60 text-white hover:bg-black/80"}`}>{q.label}</button>
         ))}
       </div>
       <button type="button" onClick={props.onClear} title="Ocultar todo (tecla 0)"
-        className="absolute right-1 top-1 inline-flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] xl:right-1.5 xl:top-1.5 xl:px-2 xl:py-1 xl:text-[10.5px] font-bold text-white opacity-80 backdrop-blur hover:bg-red-500 group-hover:opacity-100">
+        className="absolute right-1 top-1 inline-flex items-center gap-1 rounded-md bg-black/70 px-1.5 py-0.5 text-[10px] xl:right-1.5 xl:top-1.5 xl:px-2 xl:py-1 xl:text-[10.5px] font-bold text-white opacity-80 backdrop-blur hover:bg-[var(--nx-live)] group-hover:opacity-100">
         <EyeOff size={12} /> Ocultar todo
+      </button>
+      <button type="button" onClick={fullscreen} title="Pantalla completa" aria-label="Pantalla completa"
+        className="absolute bottom-1.5 right-1.5 hidden rounded-md bg-black/70 p-1.5 text-white opacity-0 backdrop-blur transition hover:bg-black group-hover:opacity-100 xl:block">
+        <Expand size={13} />
       </button>
     </div>
   );
 
   const programHeader = (
     <div className="flex w-full items-center gap-2 pb-1 text-[11px]">
-      <span className={`inline-flex items-center gap-1.5 rounded px-2 py-0.5 font-black uppercase tracking-wider ${live ? "bg-red-500 text-white" : "bg-white/10 text-neutral-300"}`}>{live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />}{live ? "En vivo" : "Programa"}</span>
-      <span className="truncate text-neutral-400">Activo: {activeName}</span>
+      <span className="hidden rounded bg-[var(--nx-s2)] px-2 py-0.5 font-black uppercase tracking-[0.16em] text-[var(--nx-text)] sm:inline">Program</span>
+      <span className={`inline-flex flex-shrink-0 items-center gap-1.5 whitespace-nowrap rounded px-2 py-0.5 font-black uppercase tracking-wider ${live ? "bg-[var(--nx-live)] text-white" : "border border-[var(--nx-line-2)] text-[var(--nx-dim)]"}`}>{live && <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />}{live ? "Al aire" : "Fuera del aire"}</span>
+      {props.recording && <span className="inline-flex items-center gap-1 rounded border border-[var(--nx-live)] px-1.5 py-0.5 font-bold text-[var(--nx-live)]"><span className={ui.liveDot} /> REC</span>}
+      <span className="truncate text-[var(--nx-muted)]">Activo: {activeName}</span>
       {desktop && (
-        <span className="ml-auto inline-flex items-center gap-0.5 rounded-md border border-white/10 p-0.5" title="Tamaño de la pantalla">
-          <Minimize2 size={11} className="mx-0.5 text-neutral-500" />
+        <span className="ml-auto inline-flex items-center gap-0.5 rounded-md border border-[var(--nx-line-2)] p-0.5" title="Tamaño de la pantalla">
+          <Minimize2 size={11} className="mx-0.5 text-[var(--nx-dim)]" />
           {(["s", "m", "l"] as const).map((v) => (
-            <button key={v} type="button" onClick={() => pickSize(v)} className={`rounded px-1.5 text-[10px] font-bold ${size === v ? "bg-white text-black" : "text-neutral-400 hover:text-white"}`}>{v === "s" ? "S" : v === "m" ? "M" : "L"}</button>
+            <button key={v} type="button" onClick={() => pickSize(v)} className={`rounded px-1.5 text-[10px] font-bold ${size === v ? "bg-[var(--nx-text)] text-black" : "text-[var(--nx-muted)] hover:text-[var(--nx-text)]"}`}>{v === "s" ? "S" : v === "m" ? "M" : "L"}</button>
           ))}
-          <Maximize2 size={11} className="mx-0.5 text-neutral-500" />
+          <Maximize2 size={11} className="mx-0.5 text-[var(--nx-dim)]" />
         </span>
       )}
-      <span className={`${desktop ? "" : "ml-auto"} rounded-full px-2 py-0.5 text-[10px] font-bold ${fm.autoMode ? "bg-emerald-400 text-black" : "bg-neutral-700 text-neutral-200"}`}>{fm.autoMode ? "AUTO" : "MANUAL"}</span>
+      <span className={`${desktop ? "" : "ml-auto"} rounded-full px-2 py-0.5 text-[10px] font-bold ${fm.autoMode ? "bg-[var(--nx-ok)] text-black" : "bg-[var(--nx-s3)] text-[var(--nx-muted)]"}`}>{fm.autoMode ? "AUTO" : "MANUAL"}</span>
     </div>
   );
 
   const bottomTabs = (
-    <div className="flex min-h-0 flex-1 flex-col rounded-xl border border-white/[0.07] bg-[#0b0f15]">
-      <div className="flex gap-1 border-b border-white/[0.07] p-1">
+    <div className={`flex min-h-0 flex-1 flex-col ${ui.panel}`}>
+      <div className="flex gap-1 border-b border-[var(--nx-line)] p-1">
         {([["hoy", "Partidos de hoy"], ["auto", "▶ Programa automático"], ["calendario", "Calendario"], ["datos", "Datos para narrar y debatir"]] as const).map(([id, label]) => (
-          <button key={id} type="button" onClick={() => setBottomTab(id)} className={`rounded-lg px-3 py-1 text-[12px] font-semibold ${bottomTab === id ? "bg-white text-black" : "text-neutral-400 hover:text-white"}`}>{label}</button>
+          <button key={id} type="button" onClick={() => setBottomTab(id)} className={bottomTab === id ? ui.tabOn : ui.tab}>{label}</button>
         ))}
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto">{bottomTab === "hoy" ? todayPanel : bottomTab === "auto" ? autoPanel : bottomTab === "calendario" ? calendar : data}</div>
@@ -516,10 +580,10 @@ export function FootballStage(props: Props) {
   // The canvas is rendered ONCE (it is what goes on air); only the tools around it change.
   if (desktop) {
     return (
-      <div className="grid min-h-0 flex-1 grid-cols-[260px_minmax(0,1fr)_270px] gap-2 overflow-hidden p-2">
-        <div className="min-h-0 space-y-2 overflow-y-auto pr-0.5">{scenesPanel}{backgroundsPanel}</div>
+      <div className="grid min-h-0 flex-1 grid-cols-[264px_minmax(0,1fr)_276px] gap-2 overflow-hidden bg-[var(--nx-bg)] p-2">
+        <div className="min-h-0 overflow-y-auto pr-0.5">{libraryPanel}</div>
         <div className="flex min-h-0 flex-col gap-1.5">
-          <div className="flex flex-none flex-col items-center rounded-xl border border-white/[0.07] bg-black/60 px-2 pb-1 pt-1.5">
+          <div className={`flex flex-none flex-col items-center px-2 pb-1 pt-1.5 ${ui.panel}`}>
             {programHeader}
             {screen}
             {slotBar}
@@ -535,7 +599,7 @@ export function FootballStage(props: Props) {
     ["auto", "Auto", Play], ["fondos", "Fondos", ImageIcon], ["datos", "Datos", BarChart3],
   ] as const;
   return (
-    <div className="flex min-h-0 flex-1 flex-col bg-black">
+    <div className="flex min-h-0 flex-1 flex-col bg-[var(--nx-bg)]">
       <div className="flex-none px-1.5 pt-1">
         {programHeader}
         {screen}
@@ -545,17 +609,17 @@ export function FootballStage(props: Props) {
         <div className="px-1.5 pb-3">
           {mobileTab === "graficos" && graphicsPanel}
           {mobileTab === "hoy" && todayPanel}
-          {mobileTab === "escenas" && <div className="space-y-2">{scenesPanel}</div>}
+          {mobileTab === "escenas" && <div className="space-y-2">{scenesPanel}{sourcesPanel}{studiosPanel}{packagesPanel}</div>}
           {mobileTab === "fondos" && backgroundsPanel}
           {mobileTab === "calendario" && calendar}
           {mobileTab === "datos" && data}
           {mobileTab === "auto" && autoPanel}
-          {mobileTab === "hoy" && <div className="mt-2 rounded-xl border border-white/[0.07]"><p className="px-3 pt-2 text-[10.5px] font-bold uppercase tracking-[0.14em] text-neutral-500">Calendario</p>{calendar}</div>}
+          {mobileTab === "hoy" && <div className={`mt-2 ${ui.panel}`}><p className={`px-3 pt-2 ${ui.title}`}>Calendario</p>{calendar}</div>}
         </div>
       </div>
-      <nav className="grid flex-none grid-cols-6 border-t border-white/10 bg-[#07090d] pb-[env(safe-area-inset-bottom)]">
+      <nav className="grid flex-none grid-cols-6 border-t border-[var(--nx-line-2)] bg-[var(--nx-s1)] pb-[env(safe-area-inset-bottom)]">
         {tabs.map(([id, label, Icon]) => (
-          <button key={id} type="button" onClick={() => setMobileTab(id)} className={`flex flex-col items-center gap-0.5 py-2 text-[10.5px] font-semibold ${mobileTab === id ? "text-yellow-300" : "text-neutral-400"}`}>
+          <button key={id} type="button" onClick={() => setMobileTab(id)} className={`flex flex-col items-center gap-0.5 py-2 text-[10.5px] font-semibold ${mobileTab === id ? "text-[var(--nx-gold)]" : "text-[var(--nx-muted)]"}`}>
             <Icon size={18} />{label}
           </button>
         ))}
