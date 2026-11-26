@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-labelledby="title">
+  <title id="title">NEXUS News — símbolo de convergencia</title>
+  <rect width="128" height="128" rx="30" fill="#0B0D0F"/>
+  <path d="M25 25 L59 59" fill="none" stroke="#F4F4F0" stroke-width="10" stroke-linecap="round"/>
+  <path d="M25 103 L59 69" fill="none" stroke="#F4F4F0" stroke-width="10" stroke-linecap="round"/>
+  <path d="M70 64 H103" fill="none" stroke="#FACC15" stroke-width="10" stroke-linecap="round"/>
+  <circle cx="64" cy="64" r="9" fill="#FACC15"/>
+  <circle cx="64" cy="64" r="3" fill="#0B0D0F"/>
+</svg>
