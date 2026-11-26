@@ -1,5 +1,5 @@
 import type { Slide as RecapSlide, RecapMatch } from "./recap";
-import type { BookingCard, Duel, PollResult, SubCard, Timeline } from "./eventGraphics";
+import type { BookingCard, Duel, PlayerCard, PollResult, ResultCard, SubCard, Timeline } from "./eventGraphics";
 import type { DesignStyle, FootballScoreboard, FootballTeamPlayer, GraphicVariant } from "../graphicExport";
 import { COMPETITIONS, getCompetition } from "./competitions";
 
@@ -9,7 +9,7 @@ export interface DesignOutput {
   height: number;
 }
 
-export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro", "goal-pro", "cinta", "recap", "ad", "sub", "card", "timeline", "duel", "poll-result"];
+export const FOOTBALL_VARIANTS: GraphicVariant[] = ["elite", "compact", "editorial", "live", "goal", "lower", "var", "events", "prematch", "lineup-home", "lineup-away", "stats", "multi", "goal-alert", "poll", "dato", "pro", "goal-pro", "cinta", "recap", "ad", "sub", "card", "timeline", "duel", "poll-result", "standings", "result-card", "player"];
 
 /** Other matches shown at once by the "multi" panel (fed by useLiveBoard). */
 export interface MultiScore {
@@ -674,6 +674,66 @@ function pollResultBoard(d: PollResult | undefined, p: Palette): DesignOutput {
   return { html, width: W, height: H };
 }
 
+export interface StandingsData { name: string; highlight: string[]; rows: { pos: number; teamId: string; team: string; points: number; played: number; gd: number }[] }
+
+function standingsBoard(d: StandingsData | undefined, p: Palette): DesignOutput {
+  const W = 800;
+  if (!d || !d.rows.length) return empty(W, 200, "Tabla: la fuente no publicó posiciones");
+  // around the highlighted teams when the table is long (max 12 rows)
+  let rows = d.rows;
+  if (rows.length > 12) {
+    const keep = new Set<number>([0, 1, 2, 3]);
+    rows.forEach((r, i) => { if (d.highlight.includes(r.teamId)) { keep.add(i - 1); keep.add(i); keep.add(i + 1); } });
+    rows = rows.filter((_, i) => keep.has(i)).slice(0, 12);
+  }
+  const H = 90 + rows.length * 50 + 20;
+  const line = (r: StandingsData["rows"][number]) => {
+    const hl = d.highlight.includes(r.teamId);
+    return `<div style="display:grid;grid-template-columns:56px 1fr 70px 70px 80px;align-items:center;height:46px;padding:0 22px;border-radius:8px;${hl ? `background:${p.accent};color:${onColor(p.accent)};font-weight:900;` : "background:rgba(255,255,255,.04);"}${NUM};font-size:24px">
+      <span>${r.pos}</span><span style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-weight:800">${esc(r.team)}</span>
+      <span style="text-align:right;opacity:.75">${r.played}</span><span style="text-align:right;opacity:.75">${r.gd > 0 ? "+" : ""}${r.gd}</span><span style="text-align:right;font-weight:900">${r.points}</span></div>`;
+  };
+  const html = `<div class="nx" style="width:${W}px;height:${H}px;color:#fff;${FONT_TXT};border-radius:14px;overflow:hidden;background:${SURFACE};box-shadow:0 22px 60px rgba(0,0,0,.6),inset 0 0 0 2px ${p.accent}55">
+    <div style="height:56px;display:flex;align-items:center;gap:12px;padding:0 24px;border-bottom:2px solid ${p.accent}"><span style="font:900 18px 'Segoe UI',Arial;letter-spacing:.24em;color:${p.accent}">TABLA</span><span style="${NUM};font-size:22px;font-weight:800">${esc(d.name)}</span></div>
+    <div style="display:grid;grid-template-columns:56px 1fr 70px 70px 80px;padding:8px 44px 4px;font:800 13px 'Segoe UI',Arial;letter-spacing:.16em;color:rgba(255,255,255,.5)"><span>#</span><span>EQUIPO</span><span style="text-align:right">PJ</span><span style="text-align:right">DG</span><span style="text-align:right">PTS</span></div>
+    <div style="padding:0 22px;display:flex;flex-direction:column;gap:4px">${rows.map(line).join("")}</div>
+  </div>`;
+  return { html, width: W, height: H };
+}
+
+function resultBoard(d: ResultCard | undefined, p: Palette): DesignOutput {
+  const W = 1080; const H = 360;
+  if (!d) return empty(W, H, "Resultado: sin datos del partido");
+  const side = (t: ResultCard["home"], goals: string[]) => `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:10px">
+      ${crestImg(t.logo, t.short, 120)}<div style="${NUM};font-size:34px;font-weight:900;text-align:center">${esc(t.name)}</div>
+      <div style="font:600 17px 'Segoe UI',Arial;color:rgba(255,255,255,.75);text-align:center;min-height:22px">${goals.map(esc).join(" · ")}</div></div>`;
+  const html = `<div class="nx" style="width:${W}px;height:${H}px;color:#fff;${FONT_TXT};border-radius:16px;overflow:hidden;background:linear-gradient(160deg,rgba(10,12,18,.97),rgba(4,5,8,.97));box-shadow:0 26px 70px rgba(0,0,0,.6),inset 0 0 0 2px ${p.accent}66">
+    <div style="height:54px;display:flex;align-items:center;justify-content:center;gap:12px;background:${p.accent};color:${onColor(p.accent)};font:900 22px 'Segoe UI',Arial;letter-spacing:.32em">${esc(d.label)}${d.competition ? `<span style="font:700 14px 'Segoe UI',Arial;letter-spacing:.14em;opacity:.75">· ${esc(d.competition)}</span>` : ""}</div>
+    <div style="display:flex;align-items:center;padding:26px 30px 0">${side(d.home, d.scorers.home)}
+      <div style="${NUM};font-size:110px;font-weight:900;padding:0 26px;line-height:1">${d.score.home}<span style="color:${p.accent}">-</span>${d.score.away}</div>
+      ${side(d.away, d.scorers.away)}</div>
+  </div>`;
+  return { html, width: W, height: H };
+}
+
+function playerBoard(d: PlayerCard | undefined, p: Palette): DesignOutput {
+  const W = 1000; const H = 420;
+  if (!d) return empty(W, H, "Jugador: sin datos de la fuente");
+  const photo = d.image && safeSrc(d.image) ? `<img src="${esc(d.image)}" alt="" style="width:100%;height:100%;object-fit:cover;object-position:top" />`
+    : `<div style="height:100%;display:grid;place-items:center;${NUM};font-size:90px;font-weight:900">${esc(d.name.split(" ").map((w) => w[0]).join("").slice(0, 2))}</div>`;
+  const html = `<div class="nx" style="width:${W}px;height:${H}px;display:flex;color:#fff;${FONT_TXT};border-radius:16px;overflow:hidden;background:${SURFACE};box-shadow:0 26px 70px rgba(0,0,0,.6),inset 0 0 0 2px ${p.accent}55">
+    <div style="width:330px;flex-shrink:0;background:linear-gradient(160deg,${p.accent}55,rgba(255,255,255,.04))">${photo}</div>
+    <div style="flex:1;min-width:0;padding:28px 34px;display:flex;flex-direction:column;gap:12px">
+      <div style="font:800 15px 'Segoe UI',Arial;letter-spacing:.26em;color:${p.accent}">${esc(d.headline.toUpperCase())}</div>
+      <div style="${NUM};font-size:52px;font-weight:900;line-height:1">${esc(d.name)}</div>
+      <div style="font:600 20px 'Segoe UI',Arial;color:rgba(255,255,255,.75)">${esc([d.team, d.position].filter(Boolean).join(" · "))}</div>
+      <div style="display:flex;gap:12px;margin-top:6px">${d.rows.map((r) => `<div style="flex:1;padding:10px 12px;border-radius:10px;background:rgba(255,255,255,.06);box-shadow:inset 0 -3px 0 ${p.accent}"><div style="${NUM};font-size:40px;font-weight:900">${esc(r.value)}</div><div style="font:800 12px 'Segoe UI',Arial;letter-spacing:.16em;color:rgba(255,255,255,.6);text-transform:uppercase">${esc(r.label)}</div></div>`).join("")}</div>
+      ${d.facts.map((f) => `<div style="font:600 18px 'Segoe UI',Arial;color:rgba(255,255,255,.85)">▸ ${esc(f)}</div>`).join("")}
+    </div>
+  </div>`;
+  return { html, width: W, height: H };
+}
+
 function adBox(): DesignOutput {
   const W = 400;
   const H = 560;
@@ -1161,6 +1221,9 @@ function renderBase(variant: GraphicVariant, match: FootballScoreboard, title: s
     case "timeline": return timelineBar(graphicData.get(title) as Timeline | undefined, p);
     case "duel": return duelBoard(graphicData.get(title) as Duel | undefined, p);
     case "poll-result": return pollResultBoard(graphicData.get(title) as PollResult | undefined, p);
+    case "standings": return standingsBoard(graphicData.get(title) as StandingsData | undefined, p);
+    case "result-card": return resultBoard(graphicData.get(title) as ResultCard | undefined, p);
+    case "player": return playerBoard(graphicData.get(title) as PlayerCard | undefined, p);
     default: return elite(match, p);
   }
 }
@@ -1192,6 +1255,9 @@ export const FOOTBALL_VARIANT_LABEL: Record<string, string> = {
   timeline: "Línea de tiempo",
   duel: "Duelo de jugadores",
   "poll-result": "Resultado del debate",
+  standings: "Tabla de posiciones",
+  "result-card": "Resultado (descanso / final)",
+  player: "Jugador destacado",
 };
 
 export function footballDesignDocument(design: DesignOutput, position: { x: number; y: number }, scale: number): string {

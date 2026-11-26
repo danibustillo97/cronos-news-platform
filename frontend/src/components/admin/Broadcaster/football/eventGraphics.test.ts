@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import detail from "./__fixtures__/ucl-detail.json";
 import playerA from "./__fixtures__/player-a.json";
 import playerB from "./__fixtures__/player-b.json";
-import { bookingFromEvent, duelDefault, duelFrom, lastEvent, parseSubText, pollResult, subFromEvent, timelineFrom, type MatchDetailLite, type PlayerInsight } from "./eventGraphics";
+import { bookingFromEvent, duelDefault, duelFrom, featuredPlayerId, playerCardFrom, resultFrom, lastEvent, parseSubText, pollResult, subFromEvent, timelineFrom, type MatchDetailLite, type PlayerInsight } from "./eventGraphics";
 
 const d = detail as unknown as MatchDetailLite;
 
@@ -48,5 +48,16 @@ describe("advanced graphics from real match data", () => {
     expect(r.options.find((o) => o.winner)?.label).toBe("Visita");
     expect(r.options.map((o) => o.pct)).toEqual([30, 10, 60]);
     expect(pollResult({ question: "x", kind: "poll", options: [{ label: "a", votes: 0 }] }).options[0].winner).toBe(false);
+  });
+
+  it("builds the final result with scorers and the featured player only from real goals", () => {
+    const r = resultFrom(d, "FINAL");
+    expect(r.score).toEqual({ home: 1, away: 4 });
+    expect(r.scorers.away).toEqual(["Gordon 31'", "Gordon 51'", "Adeyemi 55'", "Jesus 60'"]);
+    expect(featuredPlayerId(d)).toMatchObject({ name: "Anthony Gordon", goals: 2, team: "away" });
+    expect(featuredPlayerId({ ...d, events: [] })).toBeNull();
+    const card = playerCardFrom(playerA as PlayerInsight & { facts?: string[] }, "Figura del partido");
+    expect(card.rows.find((x) => x.label === "Goles")?.value).toBe("2");
+    expect(card.facts).toHaveLength(2);
   });
 });

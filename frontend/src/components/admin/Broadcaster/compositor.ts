@@ -68,7 +68,7 @@ export function footballDesignFor(graphic: BroadcastGraphic): DesignOutput {
   const seconds = !bound && liveFootballMatch ? liveClock() : source.clockSeconds;
   const variant = footballDefaultVariant(graphic);
   const cached = designCache.get(graphic.id);
-  const multi = variant === "multi" || variant === "poll" || variant === "goal-pro" || variant === "cinta" || variant === "recap" || variant === "ad" || variant === "sub" || variant === "card" || variant === "timeline" || variant === "duel" || variant === "poll-result" ? getMultiVersion() : 0;
+  const multi = variant === "multi" || variant === "poll" || variant === "goal-pro" || variant === "cinta" || variant === "recap" || variant === "ad" || variant === "sub" || variant === "card" || variant === "timeline" || variant === "duel" || variant === "poll-result" || variant === "standings" || variant === "result-card" || variant === "player" ? getMultiVersion() : 0;
   if (cached && cached.source === source && cached.seconds === seconds && cached.variant === variant && cached.multi === multi
     && cached.title === graphic.title && cached.subtitle === graphic.subtitle && cached.style === graphic.style) {
     return cached.design;

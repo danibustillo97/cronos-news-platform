@@ -30,6 +30,9 @@ export const CANDIDATES: Record<string, Spot[]> = {
   timeline: [{ x: 8.3, y: 71 }, { x: 8.3, y: 4 }],
   duel: [{ x: 15.6, y: 15 }],
   "poll-result": [{ x: 21.3, y: 18 }],
+  standings: [{ x: 29.7, y: 12 }, { x: 60, y: 12 }],
+  "result-card": [{ x: 21.9, y: 22 }],
+  player: [{ x: 23.4, y: 16 }],
 };
 
 export function rectAt(spot: Spot, size: { w: number; h: number }, scale = 1): Rect {

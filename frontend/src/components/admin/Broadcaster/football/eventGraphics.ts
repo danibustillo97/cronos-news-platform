@@ -105,3 +105,39 @@ export function pollResult(board: { question: string; kind: "poll" | "debate"; o
   const options = board.options.map((o) => ({ label: o.label, votes: o.votes, pct: total ? Math.round((o.votes / total) * 100) : 0, winner: total > 0 && o.votes === max }));
   return { question: board.question, kind: board.kind, total, options };
 }
+
+// ---------------------------------------------------------------- result card (half-time / full-time)
+export interface ResultCard { label: string; home: TeamSide; away: TeamSide; score: { home: number; away: number }; scorers: { home: string[]; away: string[] }; competition?: string }
+export function resultFrom(d: MatchDetailLite, label: string): ResultCard {
+  const scorers = { home: [] as string[], away: [] as string[] };
+  for (const e of d.events) {
+    if (!e.team || !["goal", "penalty-goal", "own-goal"].includes(e.type)) continue;
+    const who = (e.player?.name ?? "").split(" ").slice(-1)[0];
+    // an own goal counts for the other side
+    const side = e.type === "own-goal" ? (e.team === "home" ? "away" : "home") : e.team;
+    scorers[side].push(`${who}${e.type === "penalty-goal" ? " (p)" : e.type === "own-goal" ? " (e.c.)" : ""} ${e.minute}`);
+  }
+  return { label, home: side(d, "home"), away: side(d, "away"), score: { home: d.home.score ?? 0, away: d.away.score ?? 0 }, scorers, competition: d.leagueName };
+}
+
+// ---------------------------------------------------------------- featured player (only from real numbers)
+/** Top scorer of the match (own goals excluded); tie → the one in the winning team. Null when nobody scored. */
+export function featuredPlayerId(d: MatchDetailLite): { id: string; name: string; goals: number; team: "home" | "away" } | null {
+  const count = new Map<string, { id: string; name: string; goals: number; team: "home" | "away" }>();
+  for (const e of d.events) {
+    if (!e.player || !e.team || (e.type !== "goal" && e.type !== "penalty-goal")) continue;
+    const c = count.get(e.player.id) ?? { id: e.player.id, name: e.player.name, goals: 0, team: e.team };
+    c.goals += 1;
+    count.set(e.player.id, c);
+  }
+  const winner = (d.home.score ?? 0) > (d.away.score ?? 0) ? "home" : (d.away.score ?? 0) > (d.home.score ?? 0) ? "away" : null;
+  return [...count.values()].sort((a, b) => b.goals - a.goals || Number(b.team === winner) - Number(a.team === winner))[0] ?? null;
+}
+export interface PlayerCard { name: string; team?: string; image?: string; position?: string; headline: string; rows: { label: string; value: string }[]; facts: string[] }
+export function playerCardFrom(p: PlayerInsight & { facts?: string[] }, headline: string): PlayerCard {
+  const s = p.season ?? {};
+  const rows: { label: string; value: string }[] = [];
+  const add = (label: string, v?: number) => { if (typeof v === "number") rows.push({ label, value: String(v) }); };
+  add("Goles", s.goals); add("Asistencias", s.assists); add("Titularidades", s.starts); add("Remates al arco", s.shotsOnTarget);
+  return { name: p.player.name, team: p.player.team, image: p.player.image, position: p.player.position, headline: headline || (s.competition ? `${s.competition} ${s.season ?? ""}` : ""), rows, facts: (p.facts ?? []).slice(0, 2) };
+}

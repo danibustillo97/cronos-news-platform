@@ -47,6 +47,26 @@ export async function loadLatestFootballBroadcast<T>(): Promise<StoredFootballBr
   const { data, error } = await supabase
     .from("football_broadcast_matches")
     .select("id,name,competition,payload")
+    .neq("competition", PRODUCTION_COMPETITION) // the production workspace row is not a match workspace
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) throw error;
+  return data as StoredFootballBroadcast<T> | null;
+}
+
+/** Marker of the production-room workspace row (rundowns, rules, history, preferences) in the same table. */
+export const PRODUCTION_COMPETITION = "__nexus_production__";
+
+/** The production workspace of the signed-in user (same table and RLS), or null. */
+export async function loadProductionWorkspace<T>(): Promise<StoredFootballBroadcast<T> | null> {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError) throw userError;
+  if (!userData.user) return null;
+  const { data, error } = await supabase
+    .from("football_broadcast_matches")
+    .select("id,name,competition,payload")
+    .eq("competition", PRODUCTION_COMPETITION)
     .order("updated_at", { ascending: false })
     .limit(1)
     .maybeSingle();

@@ -25,6 +25,9 @@ import { DataDeck } from "./DataDeck";
 import { AutoShowPanel, type AutoShowHandlers } from "./AutoShowPanel";
 import { yyyymmdd } from "./recap";
 import { duelDefault } from "./eventGraphics";
+import type { Production } from "../engine/useProduction";
+import { useRemoteStudio } from "../engine/useProduction";
+import { AudienceDesk, AutomationConsole, DataCenter, MobileControl, RundownPanel, StatusStrip } from "../engine/ProductionRoom";
 import { ui } from "./ui";
 
 export interface MatchRef { league: string; id: string }
@@ -96,6 +99,12 @@ interface Props {
   loadLineups: (ref: MatchRef) => Promise<{ home: string; away: string; homePlayers: { id: string; name: string; starter?: boolean; position?: string | null }[]; awayPlayers: { id: string; name: string; starter?: boolean; position?: string | null }[] }>;
   onDuel: (playerA: string, playerB: string) => void;
   onPollResult: () => void;
+  /** Production engines (event engine, automation, rundown, audience, remote). */
+  production: Production;
+  onActiveChange: (ref: MatchRef | null) => void;
+  onAirPoll: (pollId: string) => void;
+  onPollResultById: (pollId: string) => void;
+  onAudienceMessage: (author: string, body: string) => void;
   onToggle: (variant: GraphicVariant, target: MatchRef | null) => void;
   isMatchOn: (ref: MatchRef, what: MatchWhat) => boolean;
   onMatch: (ref: MatchRef, what: MatchWhat) => void;
@@ -189,7 +198,10 @@ export function FootballStage(props: Props) {
   const { fm, monitor, live, board } = props;
   const [mobileTab, setMobileTab] = useState<"graficos" | "hoy" | "escenas" | "fondos" | "calendario" | "datos" | "auto">("graficos");
   const [showDate, setShowDate] = useState<string | null>(null);
-  const [bottomTab, setBottomTab] = useState<"hoy" | "calendario" | "datos" | "auto">("hoy");
+  const [bottomTab, setBottomTab] = useState<"centro" | "audiencia" | "hoy" | "calendario" | "datos" | "auto">("centro");
+  const [tablet, setTablet] = useState(false);
+  const [sideTab, setSideTab] = useState<"escaleta" | "auto" | "graficos" | "escenas">("escaleta");
+  const [mobileSource, setMobileSource] = useState<"local" | "remote">("local");
   const [theme, setTheme] = useState<SetTheme>("nexus");
   const [desktop, setDesktop] = useState(true);
   const [keys, setKeys] = useState<Record<Action, string>>(DEFAULT_KEYS);
@@ -204,7 +216,9 @@ export function FootballStage(props: Props) {
 
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 1280px)");
-    const update = () => setDesktop(mq.matches);
+    const mt = window.matchMedia("(min-width: 768px)");
+    const update = () => { setDesktop(mq.matches); setTablet(mt.matches && !mq.matches); };
+    mt.addEventListener("change", update);
     update();
     mq.addEventListener("change", update);
     setKeys(readKeys());
@@ -229,9 +243,9 @@ export function FootballStage(props: Props) {
     const n = new Date();
     return Math.round((a - new Date(n.getFullYear(), n.getMonth(), n.getDate()).getTime()) / 86400000);
   };
-  const todayBoard = useMemo(() => board.filter((m) => isLive(m) || dayDiff(m) === 0), [board]); // eslint-disable-line react-hooks/exhaustive-deps
-  const upcomingBoard = useMemo(() => board.filter((m) => !isLive(m) && dayDiff(m) > 0), [board]); // eslint-disable-line react-hooks/exhaustive-deps
-  const yesterdayBoard = useMemo(() => board.filter((m) => !isLive(m) && dayDiff(m) === -1), [board]); // eslint-disable-line react-hooks/exhaustive-deps
+  const todayBoard = useMemo(() => board.filter((m) => isLive(m) || dayDiff(m) === 0), [board]);
+  const upcomingBoard = useMemo(() => board.filter((m) => !isLive(m) && dayDiff(m) > 0), [board]);  
+  const yesterdayBoard = useMemo(() => board.filter((m) => !isLive(m) && dayDiff(m) === -1), [board]);  
   const byId = useMemo(() => new Map(board.map((m) => [m.id, m])), [board]);
   const saveSlots = (next: MatchRef[]) => { setSlots(next); try { localStorage.setItem(SLOTS_STORE, JSON.stringify(next)); } catch { /* ignore */ } };
   // Numbers: matches that no longer exist drop out; with none assigned, the live games (then today's next ones) get 1, 2, 3…
@@ -257,6 +271,8 @@ export function FootballStage(props: Props) {
   const mainRef: MatchRef | null = fm.fixture ? { league: fm.fixture.league, id: fm.fixture.id } : null;
   const active = target ?? mainRef;
   const activeMatch = active ? byId.get(active.id) : undefined;
+  const activeKey = active ? `${active.league}:${active.id}` : "";
+  useEffect(() => { props.onActiveChange(active); }, [activeKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const activeName = activeMatch ? `${activeMatch.homeTeam} vs ${activeMatch.awayTeam}` : fm.fixture ? `${fm.match.homeTeam} vs ${fm.match.awayTeam}` : "Ninguno (elige un número)";
 
   const pressSlot = useCallback((n: number) => {
@@ -614,6 +630,10 @@ export function FootballStage(props: Props) {
   const calendar = <MatchRail fm={fm} onAirMatch={(ref, what) => { setTarget(ref); props.onMatch(ref, what); }} embedded />;
   const data = <DataDeck fm={fm} onAir={props.onDataAir} embedded />;
   const autoPanel = <AutoShowPanel handlers={props.autoShow} presetDate={showDate} />;
+  const P = props.production;
+  const dataCenter = <DataCenter p={P} />;
+  const audienceDesk = <AudienceDesk p={P} onAirPoll={props.onAirPoll} onResult={props.onPollResultById} onMessage={props.onAudienceMessage} />;
+  const remote = useRemoteStudio(!desktop && !tablet, P.studioId);
 
   // The program monitor: tap a graphic to hide it; quick buttons on its edges.
   const quick: { label: string; action: Action }[] = [
@@ -695,66 +715,76 @@ export function FootballStage(props: Props) {
     </div>
   );
 
+  const statusStrip = <div className="w-full pb-1"><StatusStrip p={P} live={live} recording={props.recording} cameras={props.sources.length} /></div>;
   const bottomTabs = (
     <div className={`flex min-h-0 flex-1 flex-col ${ui.panel}`}>
-      <div className="flex gap-1 border-b border-[var(--nx-line)] p-1">
-        {([["hoy", "Partidos de hoy"], ["auto", "▶ Programa automático"], ["calendario", "Calendario"], ["datos", "Datos para narrar y debatir"]] as const).map(([id, label]) => (
+      <div className="flex gap-1 overflow-x-auto whitespace-nowrap border-b border-[var(--nx-line)] p-1 [scrollbar-width:none]">
+        {([["centro", "Centro de datos"], ["audiencia", "Audiencia"], ["hoy", "Partidos de hoy"], ["auto", "▶ Programa automático"], ["calendario", "Calendario"], ["datos", "Datos para narrar"]] as const).map(([id, label]) => (
           <button key={id} type="button" onClick={() => setBottomTab(id)} className={bottomTab === id ? ui.tabOn : ui.tab}>{label}</button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">{bottomTab === "hoy" ? todayPanel : bottomTab === "auto" ? autoPanel : bottomTab === "calendario" ? calendar : data}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto">{bottomTab === "centro" ? dataCenter : bottomTab === "audiencia" ? audienceDesk : bottomTab === "hoy" ? todayPanel : bottomTab === "auto" ? autoPanel : bottomTab === "calendario" ? calendar : data}</div>
     </div>
   );
 
   // The canvas is rendered ONCE (it is what goes on air); only the tools around it change.
   if (desktop) {
     return (
-      <div className="grid min-h-0 flex-1 grid-cols-[264px_minmax(0,1fr)_276px] gap-2 overflow-hidden bg-[var(--nx-bg)] p-2">
-        <div className="min-h-0 overflow-y-auto pr-0.5">{libraryPanel}</div>
+      <div className="grid min-h-0 flex-1 grid-cols-[280px_minmax(0,1fr)_300px] gap-2 overflow-hidden bg-[var(--nx-bg)] p-2">
+        <div className="min-h-0 space-y-2 overflow-y-auto pr-0.5"><RundownPanel p={P} />{libraryPanel}</div>
         <div className="flex min-h-0 flex-col gap-1.5">
           <div className={`flex flex-none flex-col items-center px-2 pb-1 pt-1.5 ${ui.panel}`}>
             {programHeader}
+            {statusStrip}
             {twoUp ? <div className="grid w-full grid-cols-2 items-center gap-2">{previewScreen}{screen}</div> : screen}
             {takeBar}
             {slotBar}
           </div>
           <div className="flex min-h-[230px] flex-1 flex-col">{bottomTabs}</div>
         </div>
-        <div className="min-h-0 overflow-y-auto pl-0.5">{graphicsPanel}</div>
+        <div className="min-h-0 space-y-2 overflow-y-auto pl-0.5"><AutomationConsole p={P} />{graphicsPanel}</div>
       </div>
     );
   }
-  const tabs = [
-    ["graficos", "Gráficos", ToggleRight], ["hoy", "Partidos", ListOrdered], ["escenas", "Escenas", Clapperboard],
-    ["auto", "Auto", Play], ["fondos", "Fondos", ImageIcon], ["datos", "Datos", BarChart3],
-  ] as const;
-  return (
-    <div className="flex min-h-0 flex-1 flex-col bg-[var(--nx-bg)]">
-      <div className="flex-none px-1.5 pt-1">
-        {programHeader}
-        {props.prepare ? <div className="grid grid-cols-2 gap-1">{previewScreen}{screen}</div> : screen}
-        {takeBar}
-      </div>
-      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
-        <div className="px-1.5">{slotBar}</div>
-        <div className="px-1.5 pb-3">
-          {mobileTab === "graficos" && graphicsPanel}
-          {mobileTab === "hoy" && todayPanel}
-          {mobileTab === "escenas" && <div className="space-y-2">{scenesPanel}{sourcesPanel}{studiosPanel}{packagesPanel}</div>}
-          {mobileTab === "fondos" && backgroundsPanel}
-          {mobileTab === "calendario" && calendar}
-          {mobileTab === "datos" && data}
-          {mobileTab === "auto" && autoPanel}
-          {mobileTab === "hoy" && <div className={`mt-2 ${ui.panel}`}><p className={`px-3 pt-2 ${ui.title}`}>Calendario</p>{calendar}</div>}
+  // TABLET: monitors first, one touch side panel with tabs, data below
+  if (tablet) {
+    const sideTabs = [["escaleta", "Escaleta"], ["auto", "Automat."], ["graficos", "Gráficos"], ["escenas", "Escenas"]] as const;
+    return (
+      <div className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_330px] gap-2 overflow-hidden bg-[var(--nx-bg)] p-2">
+        <div className="flex min-h-0 flex-col gap-1.5 overflow-y-auto">
+          <div className={`flex flex-none flex-col items-center px-2 pb-1 pt-1.5 ${ui.panel}`}>
+            {programHeader}
+            {statusStrip}
+            {props.prepare ? <div className="grid w-full grid-cols-2 gap-1.5">{previewScreen}{screen}</div> : screen}
+            {takeBar}
+            {slotBar}
+          </div>
+          <div className="flex min-h-[320px] flex-1 flex-col">{bottomTabs}</div>
+        </div>
+        <div className="flex min-h-0 flex-col gap-1.5">
+          <div className="grid flex-none grid-cols-4 gap-1">
+            {sideTabs.map(([id, label]) => <button key={id} type="button" onClick={() => setSideTab(id)} className={`min-h-[40px] rounded-[var(--nx-r-sm)] text-[11.5px] font-bold ${sideTab === id ? "bg-[var(--nx-text)] text-black" : "bg-[var(--nx-s1)] text-[var(--nx-muted)]"}`}>{label}</button>)}
+          </div>
+          <div className="min-h-0 flex-1 space-y-2 overflow-y-auto">
+            {sideTab === "escaleta" && <RundownPanel p={P} compact />}
+            {sideTab === "auto" && <AutomationConsole p={P} />}
+            {sideTab === "graficos" && graphicsPanel}
+            {sideTab === "escenas" && libraryPanel}
+          </div>
         </div>
       </div>
-      <nav className="grid flex-none grid-cols-6 border-t border-[var(--nx-line-2)] bg-[var(--nx-s1)] pb-[env(safe-area-inset-bottom)]">
-        {tabs.map(([id, label, Icon]) => (
-          <button key={id} type="button" onClick={() => setMobileTab(id)} className={`flex flex-col items-center gap-0.5 py-2 text-[10.5px] font-semibold ${mobileTab === id ? "text-[var(--nx-gold)]" : "text-[var(--nx-muted)]"}`}>
-            <Icon size={18} />{label}
-          </button>
-        ))}
-      </nav>
-    </div>
-  );
+    );
+  }
+  // PHONE: production remote control (this device's studio, or the studio running on the PC)
+  {
+    const useRemote = mobileSource === "remote" && remote.connected;
+    const state = useRemote ? remote.state : P.controlState();
+    const send = useRemote ? remote.send : P.dispatch;
+    return (
+      <div className="flex min-h-0 flex-1 flex-col bg-[var(--nx-bg)]">
+        <div className={useRemote ? "hidden" : "flex-none px-1.5 pt-1"}>{screen}</div>
+        <MobileControl state={state} send={send} source={useRemote ? "remote" : "local"} onSource={setMobileSource} remoteAvailable={remote.connected} />
+      </div>
+    );
+  }
 }

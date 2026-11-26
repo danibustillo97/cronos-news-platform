@@ -23,13 +23,19 @@ import { gatewayEndpoint } from "./live/whip";
 import { kickPlayerUrl, portalEndLive, portalGoLive } from "./live/portalOnAir";
 import { goalAlertText, useGoalAlertsPref, useLiveBoard } from "./football/liveBoard";
 import { MatchRail } from "./football/MatchRail";
-import { FootballStage, type StageScene } from "./football/FootballStage";
+import { FootballStage, STAGE_SCENES, type StageScene } from "./football/FootballStage";
 import { SETS_VERSION, VIRTUAL_SETS, cameraRects, drawVirtualSet, type SetTheme, type VirtualSet } from "./football/virtualSets";
 import { onAirPollId } from "./football/pollBoard";
 import { OnAirStrip } from "./football/OnAirStrip";
 import { findFreeSpot, rectAt, settle, type Rect } from "./football/placement";
 import { advanceCinta, getPollBoard, renderFootballDesign, setCintaFacts, setGoalCard, setGraphicData, setRecapSlide } from "./football/designs";
-import { bookingFromEvent, duelFrom, lastEvent, pollResult, subFromEvent, timelineFrom, type MatchDetailLite, type PlayerInsight } from "./football/eventGraphics";
+import { bookingFromEvent, duelDefault, duelFrom, featuredPlayerId, lastEvent, playerCardFrom, pollResult, resultFrom, subFromEvent, timelineFrom, type MatchDetailLite, type PlayerInsight } from "./football/eventGraphics";
+import { useProduction } from "./engine/useProduction";
+import { arbitrate, entryOf } from "./engine/graphicsCatalog";
+import type { Executor, Task } from "./engine/automation";
+import type { ControlCommand } from "./engine/remoteControl";
+import { listMatchPolls } from "./engine/audience";
+import { startPollBoard } from "./football/pollBoard";
 import { SHOW_SCREEN, SHOW_TOWER } from "./football/virtualSets";
 import { music } from "./football/music";
 import { ui } from "./football/ui";
@@ -891,7 +897,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     elite: "NEXUS Elite", compact: "NEXUS Compact", editorial: "NEXUS Editorial", live: "NEXUS Live", goal: "NEXUS Goal",
     lower: "NEXUS Lower Third", var: "NEXUS VAR", events: "NEXUS Match Events", prematch: "NEXUS Previa",
     "lineup-home": "Alineación local", "lineup-away": "Alineación visitante", stats: "NEXUS Estadísticas",
-    pro: "Marcador Pro", "goal-pro": "Gol", cinta: "Cinta de datos", recap: "Programa automático", ad: "Publicidad", sub: "Cambio", card: "Tarjeta", timeline: "Línea de tiempo", duel: "Duelo", "poll-result": "Resultado del debate", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
+    pro: "Marcador Pro", "goal-pro": "Gol", cinta: "Cinta de datos", recap: "Programa automático", ad: "Publicidad", sub: "Cambio", card: "Tarjeta", timeline: "Línea de tiempo", duel: "Duelo", "poll-result": "Resultado del debate", standings: "Tabla", "result-card": "Resultado", player: "Jugador", multi: "Resultados en vivo", "goal-alert": "Alerta de gol", poll: "Votación en vivo", dato: "Dato grande",
   };
 
   const addFootballWidget = (variant: GraphicVariant, options?: { style?: DesignStyle; scale?: number; position?: { x: number; y: number }; name?: string; title?: string; subtitle?: string }) => {
@@ -1039,10 +1045,10 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       variant, scale: options.scale ?? 1, position: options.position ?? freeSpot(variant, options.title ?? "", options.subtitle ?? ""),
     };
     const scoreboard = graphic.kind === "scoreboard";
-    setBusGraphics(bus, (current) => [
-      ...current.filter((item) => item.variant !== variant && !(scoreboard && ["elite", "compact", "editorial", "live", "pro"].includes(item.variant ?? ""))),
-      graphic,
-    ]);
+    setBusGraphics(bus, (current) => {
+      const { evict } = arbitrate(current, variant, true);
+      return [...current.filter((item) => !evict.includes(item.id) && item.variant !== variant && !(scoreboard && ["elite", "compact", "editorial", "live", "pro"].includes(item.variant ?? ""))), graphic];
+    });
   };
   // --- Graphics bound to ANY match (not only the main one) ---------------------------------
   const logoCache = useRef(new Map<string, string>());
@@ -1065,10 +1071,10 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     const isBoard = scoreboardVariants.includes(input.variant ?? "");
     // In Preview a timed graphic only remembers its duration; the clock starts when it goes on air (TAKE).
     const graphic = seconds && bus === "preview" ? { ...input, autoOut: seconds } : input;
-    setBusGraphics(bus, (current) => [
-      ...current.filter((item) => item.variant !== graphic.variant && !(isBoard && scoreboardVariants.includes(item.variant ?? ""))),
-      graphic,
-    ]);
+    setBusGraphics(bus, (current) => {
+      const { evict } = arbitrate(current, graphic.variant ?? "", true); // operator / approved: layer exclusivity
+      return [...current.filter((item) => !evict.includes(item.id) && item.variant !== graphic.variant && !(isBoard && scoreboardVariants.includes(item.variant ?? ""))), graphic];
+    });
     if (seconds && bus === "program") window.setTimeout(() => exitEverywhere((item) => item.id === graphic.id), seconds * 1000);
   };
   const boundGraphic = (variant: GraphicVariant, ref: MatchRef, board: FootballScoreboard): BroadcastGraphic => ({
@@ -1148,6 +1154,164 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     if (!board || !board.options.length) { toast.info("Primero lanza una votación o debate (pestaña Datos)"); return; }
     airData("poll-result", pollResult(board), "", undefined);
   };
+
+  // ======================================================================== PRODUCTION (engines)
+  const [productionMatch, setProductionMatch] = useState<MatchRef | null>(null);
+  const productionCoversRef = useRef(false);
+  const prodRef = useRef<ReturnType<typeof useProduction> | null>(null);
+  const needMatch = () => { if (!productionMatch) throw new Error("Sin partido activo"); return productionMatch; };
+  const evOf = (t: Task) => prodRef.current?.events.find((e) => e.id === t.eventId) ?? null;
+  /** Rule-driven and automatic (not approved by the operator, not run by the operator from the rundown). */
+  const automatic = (t: Task) => t.mode === "auto" && t.ruleId !== "manual";
+  const busFor = (t: Task): Bus => (automatic(t) ? "program" : currentBus());
+  const runOn = <T,>(t: Task, fn: () => T): T => (automatic(t) ? onProgram(fn) : fn());
+  /** An automatic graphic never covers a more important one: it waits (the engine retries). The operator always goes through. */
+  const guard = (t: Task, variant: string) => {
+    if (!automatic(t)) return;
+    const a = arbitrate(programRef.current, variant, false);
+    if (a.blocked) throw new Error(`Esperando: ${entryOf(a.blocker ?? "").label} al aire`);
+  };
+  const insight = async (id: string) => {
+    const res = await fetch(`/api/matches/insights/player/${encodeURIComponent(id)}`);
+    if (!res.ok) throw new Error("La fuente no tiene la ficha de ese jugador");
+    const ins = await res.json() as PlayerInsight & { facts?: string[] };
+    return { ...ins, player: { ...ins.player, image: await logoData(ins.player.image) } };
+  };
+  const teamOf = (d: MatchDetailLite, side: "home" | "away") => ({ name: d[side].name, short: d[side].short || d[side].name.slice(0, 3).toUpperCase(), logo: d[side].logo, color: d[side].color });
+  const airPollOnScreen = (pollId: string, bus: Bus) => { startPollBoard(pollId); airPersist("poll", { title: `Vota en ${window.location.host}`, bus }); };
+  const executors: Record<string, Executor> = {
+    "graphic:goal": async (t) => {
+      guard(t, "goal-pro");
+      const e = evOf(t);
+      const ref = needMatch();
+      if (!e?.team) throw new Error("Evento sin equipo");
+      const d = await detailWithCrests(ref);
+      const team = teamOf(d, e.type === "own-goal" ? (e.team === "home" ? "away" : "home") : e.team);
+      await showGoalRef.current({ teamName: team.name, teamLogo: team.logo, teamColor: team.color, scorer: e.player?.name ?? team.name, minute: e.minute,
+        assist: e.assist?.name ? `Asistencia: ${e.assist.name}` : undefined, score: `${d.home.score ?? 0}-${d.away.score ?? 0}`, competition: d.leagueName }, e.player?.id);
+      return `Gol de ${e.player?.name ?? team.name} al aire`;
+    },
+    "graphic:scorer": async (t) => {
+      guard(t, "player");
+      const e = evOf(t);
+      if (!e?.player) throw new Error("Gol sin anotador identificado");
+      const ins = await insight(e.player.id);
+      airData("player", playerCardFrom(ins, `Anotador · ${e.minute}`), e.player.name, 12, busFor(t));
+      return `Ficha de ${e.player.name}`;
+    },
+    "graphic:player-in": async (t) => {
+      guard(t, "player");
+      const e = evOf(t);
+      if (!e?.player) throw new Error("Cambio sin jugador identificado");
+      const ins = await insight(e.player.id);
+      airData("player", playerCardFrom(ins, `Entra · ${e.minute}`), e.player.name, 10, busFor(t));
+      return `Ficha de ${e.player.name}`;
+    },
+    "graphic:card": async (t) => {
+      guard(t, "card");
+      const e = evOf(t);
+      if (!e?.team || !e.player || (e.type !== "yellow" && e.type !== "red")) throw new Error("Tarjeta sin datos");
+      const d = await detailWithCrests(needMatch());
+      airData("card", { team: teamOf(d, e.team), minute: e.minute, player: e.player.name, color: e.type, competition: d.leagueName }, e.player.name, 7, busFor(t));
+      return `Tarjeta ${e.type === "red" ? "roja" : "amarilla"} · ${e.player.name}`;
+    },
+    "graphic:sub": async (t) => {
+      guard(t, "sub");
+      const e = evOf(t);
+      if (!e?.team || !e.player) throw new Error("Cambio sin datos");
+      const d = await detailWithCrests(needMatch());
+      airData("sub", { team: teamOf(d, e.team), minute: e.minute, playerIn: e.player.name, playerOut: e.playerOut, injury: /injury/i.test(e.text ?? ""), competition: d.leagueName }, e.player.name, 8, busFor(t));
+      return `Cambio · ${e.player.name}`;
+    },
+    "graphic:timeline": async (t) => { guard(t, "timeline"); await runOn(t, () => airMatchGraphic(needMatch(), "timeline")); return "Cronología"; },
+    "graphic:stats": async (t) => { guard(t, "stats"); await runOn(t, () => airForMatch(needMatch(), "stats")); return "Estadísticas"; },
+    "graphic:lineups": async (t) => { guard(t, "lineup-home"); await runOn(t, () => airForMatch(needMatch(), "lineups")); return "Alineaciones"; },
+    "graphic:lineup-home": async (t) => { guard(t, "lineup-home"); await runOn(t, () => airForMatch(needMatch(), "lineups")); return "Alineaciones"; },
+    "graphic:scoreboard": async (t) => { await runOn(t, () => airForMatch(needMatch(), "pro")); return "Marcador"; },
+    "graphic:pro": async (t) => { await runOn(t, () => airForMatch(needMatch(), "pro")); return "Marcador"; },
+    "graphic:result": async (t) => {
+      guard(t, "result-card");
+      const d = await detailWithCrests(needMatch());
+      const label = String(t.action.params?.label ?? (d.state === "post" ? "FINAL" : "RESULTADO"));
+      airData("result-card", resultFrom(d, label), label, 20, busFor(t));
+      return `${label} ${d.home.score ?? 0}-${d.away.score ?? 0}`;
+    },
+    "graphic:result-card": async (t) => executors["graphic:result"](t),
+    "graphic:standings": async (t) => {
+      guard(t, "standings");
+      const ref = needMatch();
+      const res = await fetch(`/api/football/table?league=${encodeURIComponent(ref.league)}&event=${encodeURIComponent(ref.id)}`);
+      const body = await res.json() as { available?: boolean; name?: string; highlight?: string[]; rows?: [] };
+      if (!res.ok || !body.available) throw new Error("La fuente no publicó posiciones para este partido");
+      airData("standings", { name: body.name ?? "Tabla", highlight: body.highlight ?? [], rows: body.rows ?? [] }, body.name ?? "", Number(t.action.params?.seconds ?? 25), busFor(t));
+      return "Tabla de posiciones";
+    },
+    "graphic:player": async (t) => {
+      guard(t, "player");
+      const d = await detailWithCrests(needMatch());
+      const f = featuredPlayerId(d);
+      if (!f) throw new Error("Nadie marcó: usa la encuesta «Figura del partido»");
+      const ins = await insight(f.id);
+      airData("player", playerCardFrom(ins, `Figura (datos) · ${f.goals} ${f.goals === 1 ? "gol" : "goles"}`), f.name, Number(t.action.params?.seconds ?? 15), busFor(t));
+      return `Jugador destacado: ${f.name}`;
+    },
+    "graphic:duel": async (t) => {
+      guard(t, "duel");
+      const l = await loadLineups(needMatch());
+      const a = duelDefault(l.homePlayers);
+      const b = duelDefault(l.awayPlayers);
+      if (!a || !b) throw new Error("Alineaciones no publicadas");
+      await runOn(t, () => airDuel(a, b));
+      return "Duelo";
+    },
+    "graphic:prematch": async (t) => { airPersist("prematch", { bus: busFor(t) }); return "Previa"; },
+    "graphic:multi": async (t) => { airPersist("multi", { title: "Resultados en vivo", bus: busFor(t) }); return "Multipantalla"; },
+    "graphic:cinta": async (t) => { airPersist("cinta", { bus: busFor(t) }); return "Cinta"; },
+    "graphic:ad": async (t) => { airPersist("ad", { position: FOOTBALL_POSITIONS.ad, bus: busFor(t) }); return "Publicidad"; },
+    "graphic:poll": async (t) => { const id = onAirPollId(); if (!id) throw new Error("No hay votación abierta"); airPollOnScreen(id, busFor(t)); return "Votación"; },
+    "poll:air": async (t) => { airPollOnScreen(String(t.action.params?.pollId), busFor(t)); return "Votación al aire"; },
+    "scene": async (t) => {
+      const scene = STAGE_SCENES.find((sc) => sc.id === t.action.params?.scene);
+      if (!scene) throw new Error("Escena desconocida");
+      await runOn(t, () => applyStageScene(scene, showTheme(productionMatch?.league)));
+      return scene.label;
+    },
+    "show:recap": async () => { toast.info("Bloque de análisis: inicia el «Programa automático» con la jornada"); return "Programa automático indicado al operador"; },
+  };
+  const graphicList: [GraphicVariant, string][] = [["pro", "Marcador"], ["multi", "Multipantalla"], ["cinta", "Cinta"], ["lineup-home", "Alineaciones"], ["stats", "Estadísticas"], ["prematch", "Previa"], ["poll", "Votación"]];
+  const onStudioCommand = (cmd: ControlCommand) => {
+    if (cmd.type === "take") { if (prepareMode) takeFootball(); return; }
+    if (cmd.type === "hide-all") { onProgram(retireAllProgram); return; }
+    if (cmd.type === "prepare") { setPrepareMode(cmd.on); return; }
+    if (cmd.type === "graphic") { stageToggle(cmd.variant as GraphicVariant, productionMatch); return; }
+    if (cmd.type === "scene") { const sc = STAGE_SCENES.find((x) => x.id === cmd.id); if (sc) void applyStageScene(sc, showTheme(productionMatch?.league)); return; }
+    if (cmd.type === "poll" && cmd.op === "show") { airPollOnScreen(cmd.pollId, currentBus()); return; }
+    if (cmd.type === "poll" && cmd.op === "result" && productionMatch) {
+      void listMatchPolls(productionMatch.league, productionMatch.id).then((ps) => { const poll = ps.find((x) => x.id === cmd.pollId); if (poll) airData("poll-result", pollResult({ question: poll.question, kind: poll.kind, options: poll.options }), ""); });
+    }
+  };
+  const production = useProduction({
+    active: active && studioMode === "football",
+    match: productionMatch,
+    executors,
+    onStudioCommand,
+    studioState: () => ({
+      live, recording, prepare: prepareMode,
+      signal: { cameras: inputs.filter((i) => i.kind === "camera" || i.kind === "screen").length, program: true, preview: prepareMode, stream: live ? "live" : "off" },
+      onAir: programGraphicsSnapshot.map((g) => ({ id: g.id, name: g.name })), preview: pvwGraphics.map((g) => ({ id: g.id, name: g.name })),
+      graphics: graphicList.map(([variant, label]) => ({ variant, label, on: stageToggleOn(variant) })),
+      scenes: STAGE_SCENES.map((sc) => ({ id: sc.id, label: sc.label })),
+    }),
+    onRetracted: (e) => { if (e.type.includes("goal")) exitEverywhere((g) => g.variant === "goal-pro" || (g.variant === "player" && g.name.includes(e.player?.name ?? "\u0000"))); },
+    notify: (m) => toast.warning(m),
+  });
+  prodRef.current = production;
+  productionCoversRef.current = production.automationOn && Boolean(productionMatch && fm.fixture && productionMatch.id === fm.fixture.id);
+  const airPollResultById = (pollId: string) => {
+    const poll = production.polls.find((x) => x.id === pollId);
+    if (poll) airData("poll-result", pollResult({ question: poll.question, kind: poll.kind, options: poll.options }), "");
+  };
+  const airAudienceMessage = (author: string, body: string) => airPersist("lower", { title: author, subtitle: body });
 
   // Template buttons: line-ups leave by themselves after 20 s; the rest stays until removed.
   const templatePersist = (variant: GraphicVariant, options: { title?: string; subtitle?: string } = {}) => {
@@ -1261,6 +1425,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     }
     if (sfxOn) playSfx(highlight.kind === "void" ? "var" : highlight.kind, sfxVolumeRef.current, sfxBus());
     if (!autoReact) return;
+    if (productionCoversRef.current) return; // the Automation Engine reacts to confirmed events of this match
     if (highlight.kind === "goal") {
       const m = fm.match;
       const home = highlight.team === "home";
@@ -2145,7 +2310,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             </button>
           )}
           {live ? (
-            <button type="button" onClick={() => void stopLive()} aria-label="Detener emisión" className={`px-2.5 py-2 text-[10px] sm:px-3.5 sm:text-xs ${ui.btnLive}`}>
+            <button type="button" onClick={() => { if (window.confirm("¿Detener la transmisión? Los espectadores dejarán de verte.")) void stopLive(); }} aria-label="Detener emisión" className={`px-2.5 py-2 text-[10px] sm:px-3.5 sm:text-xs ${ui.btnLive}`}>
               <Wifi size={14} /><span className="hidden sm:inline">Detener emisión</span>
             </button>
           ) : (
@@ -2186,6 +2351,11 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             loadLineups={loadLineups}
             onDuel={(a, b) => void airDuel(a, b)}
             onPollResult={airPollResult}
+            production={production}
+            onActiveChange={setProductionMatch}
+            onAirPoll={(id) => airPollOnScreen(id, currentBus())}
+            onPollResultById={airPollResultById}
+            onAudienceMessage={airAudienceMessage}
             onToggle={(variant, target) => stageToggle(variant, target)}
             isMatchOn={isMatchOn}
             onMatch={toggleMatch}
