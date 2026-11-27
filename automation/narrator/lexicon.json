@@ -1,0 +1,16 @@
+[
+  { "term": "Nottingham Forest", "say": "Nótingam Fórest", "kind": "club" },
+  { "term": "Chelsea", "say": "Chélsi", "kind": "club" },
+  { "term": "Liverpool", "say": "Líverpul", "kind": "club" },
+  { "term": "Manchester United", "say": "Mánchester Yunáited", "kind": "club" },
+  { "term": "Manchester City", "say": "Mánchester Síti", "kind": "club" },
+  { "term": "Tottenham", "say": "Tótenam", "kind": "club" },
+  { "term": "Newcastle", "say": "Niúcasel", "kind": "club" },
+  { "term": "Premier League", "say": "Prémier Lig", "kind": "competition" },
+  { "term": "Champions League", "say": "Chámpions Lig", "kind": "competition" },
+  { "term": "Europa League", "say": "Európa Lig", "kind": "competition" },
+  { "term": "LaLiga", "say": "La Liga", "kind": "competition" },
+  { "term": "Liga BetPlay", "say": "Liga Bet Pléi", "kind": "competition" },
+  { "term": "NEXUS SPORT", "say": "Néxus Sport", "kind": "brand" },
+  { "term": "VAR", "say": "var", "kind": "term" }
+]

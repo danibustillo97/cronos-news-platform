@@ -42,6 +42,7 @@ $Backend = Join-Path $Root "backend"
 $Frontend = Join-Path $Root "frontend"
 $Automation = Join-Path $Root "automation"
 $Runtime = Join-Path $Automation "runtime"
+$Narrator = Join-Path $Automation "narrator"
 $Lab = Join-Path $Automation "lab"
 $Compose = Join-Path $Root "infrastructure\docker\docker-compose.yml"
 $LogDir = Join-Path $Root ".nexus\logs"
@@ -154,6 +155,11 @@ function Get-ServiceStatus {
     }
     $result["Automation (Runtime)"] = @{ Ok = $runtimeHttp.Ok -and $runtimeConnected; Detail = if ($runtimeHttp.Ok) { "pid $($runtimePids -join ',')" } else { $runtimeHttp.Body } }
 
+    # NEXUS Narrator: local free TTS (Kokoro / Piper) for the broadcaster, bound to 127.0.0.1 only
+    $narratorPids = Get-PortOwner 8802
+    $narratorHttp = if ($narratorPids.Count -gt 0) { Test-Http "http://127.0.0.1:8802/status" } else { @{ Ok = $false; Body = "port 8802 not listening" } }
+    $result["Narrator (TTS)"] = @{ Ok = $narratorHttp.Ok; Detail = if ($narratorHttp.Ok) { "pid $($narratorPids -join ',')" } else { $narratorHttp.Body } }
+
     $labStatus = Test-LabReady
     $result["LAB"] = @{ Ok = $labStatus.Ok; Detail = $labStatus.Detail; Label = "READY" }
 
@@ -256,6 +262,13 @@ function Cmd-Up {
         Wait-ForPort -Port 8801 -Label "Automation (Runtime)" | Out-Null
     }
     if ((Test-Http "http://127.0.0.1:8801/status").Ok) { C-Green "  [OK]   Automation" } else { C-Red "  [FAIL] Automation" }
+
+    if ((Test-Path (Join-Path $Narrator "venv\Scripts\python.exe")) -and (Get-PortOwner 8802).Count -eq 0) {
+        Start-Native -Name "narrator" -WorkDir $Narrator -FilePath (Join-Path $Narrator "venv\Scripts\python.exe") `
+            -ArgList @("-m", "uvicorn", "app:app", "--host", "127.0.0.1", "--port", "8802") -LogName "narrator" | Out-Null
+        Wait-ForPort -Port 8802 -Label "Narrator (TTS)" | Out-Null
+    }
+    if ((Test-Http "http://127.0.0.1:8802/status").Ok) { C-Green "  [OK]   Narrator (TTS)" } else { C-Yellow "  [--]   Narrator (TTS) -- automation\narrator no instalado o no iniciado" }
 
     if ((Get-PortOwner 3000).Count -eq 0) {
         $npmCmd = (Get-Command npm.cmd -ErrorAction SilentlyContinue).Source
