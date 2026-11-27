@@ -53,18 +53,19 @@ function crest(ctx: CanvasRenderingContext2D, t: TeamRef, x: number, y: number, 
   ctx.fillText((t.short || t.name).slice(0, 3).toUpperCase(), x, y);
 }
 function frame(ctx: CanvasRenderingContext2D, w: number, h: number, kicker?: string) {
+  // soft surface: a calm gradient and one gentle light from above (no hard lines)
   const g = ctx.createLinearGradient(0, 0, 0, h);
-  g.addColorStop(0, "#14161b"); g.addColorStop(1, "#090a0c");
+  g.addColorStop(0, "#16181d"); g.addColorStop(1, "#0a0b0d");
   ctx.fillStyle = g; ctx.fillRect(0, 0, w, h);
-  // architectural hairlines: the wall is a surface of the set, not a floating card
-  ctx.strokeStyle = "rgba(255,255,255,0.035)"; ctx.lineWidth = 1;
-  for (let x = 0; x < w; x += w / 24) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke(); }
-  ctx.fillStyle = C.gold; ctx.fillRect(0, 0, w, Math.max(4, h * 0.008));
+  const glow = ctx.createRadialGradient(w / 2, -h * 0.25, 0, w / 2, -h * 0.25, h * 0.95);
+  glow.addColorStop(0, "rgba(245,197,24,0.10)"); glow.addColorStop(1, "rgba(245,197,24,0)");
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, w, h);
   if (kicker) {
-    ctx.font = F(800, h * 0.034); ctx.textAlign = "left"; ctx.textBaseline = "alphabetic";
-    const kw = ctx.measureText(kicker.toUpperCase()).width + w * 0.03;
-    ctx.fillStyle = C.gold; ctx.fillRect(w * 0.05, h * 0.075, kw, h * 0.058);
-    ctx.fillStyle = C.goldInk; ctx.fillText(kicker.toUpperCase(), w * 0.065, h * 0.118);
+    ctx.font = F(800, h * 0.032); ctx.textAlign = "left"; ctx.textBaseline = "middle";
+    const kw = ctx.measureText(kicker.toUpperCase()).width + w * 0.036, kh = h * 0.058;
+    ctx.fillStyle = C.gold; ctx.beginPath(); ctx.roundRect(w * 0.05, h * 0.075, kw, kh, kh / 2); ctx.fill();
+    ctx.fillStyle = C.goldInk; ctx.fillText(kicker.toUpperCase(), w * 0.05 + w * 0.018, h * 0.075 + kh / 2 + 1);
+    ctx.textBaseline = "alphabetic";
   }
 }
 
@@ -237,7 +238,7 @@ export function drawSide(ctx: CanvasRenderingContext2D, w: number, h: number, si
     ctx.fillStyle = C.text; ctx.font = F(900, fit(ctx, info.label.toUpperCase(), w * 0.86, 900, w * 0.13)); ctx.fillText(info.label.toUpperCase(), w / 2, h * 0.46);
     if (info.sub) { ctx.fillStyle = C.dim; ctx.font = F(600, w * 0.055); wrap(ctx, info.sub, w * 0.84, 3).forEach((l, i) => ctx.fillText(l, w / 2, h * (0.56 + i * 0.06))); }
   } else {
-    ctx.fillStyle = C.text; ctx.font = F(900, w * 0.2); ctx.fillText(info.clock, w / 2, h * 0.14);
+    ctx.fillStyle = C.text; ctx.font = F(900, fit(ctx, info.clock, w * 0.86, 900, w * 0.2)); ctx.fillText(info.clock, w / 2, h * 0.14);
     ctx.fillStyle = C.metal; ctx.font = F(700, w * 0.055); ctx.fillText(info.date.toUpperCase(), w / 2, h * 0.22);
     ctx.fillStyle = C.gold; ctx.fillRect(w * 0.1, h * 0.27, w * 0.8, h * 0.006);
     if (info.live.length) {
@@ -260,27 +261,28 @@ export interface OverlayInfo { lower: LowerThird | null; segment: string; clock:
 export function drawOverlay(ctx: CanvasRenderingContext2D, o: OverlayInfo) {
   // station bug, top-left
   ctx.save();
-  ctx.fillStyle = "rgba(10,11,13,0.82)"; ctx.fillRect(48, 40, 300, 54);
-  ctx.fillStyle = C.gold; ctx.fillRect(48, 40, 8, 54);
+  const box = (x: number, y: number, w: number, h: number, r: number, fill: string) => { ctx.fillStyle = fill; ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill(); };
+  box(48, 40, 286, 54, 27, "rgba(12,13,16,0.72)");
+  ctx.fillStyle = C.gold; ctx.beginPath(); ctx.arc(76, 67, 7, 0, Math.PI * 2); ctx.fill();
   ctx.textBaseline = "middle"; ctx.textAlign = "left";
-  ctx.font = F(900, 28); ctx.fillStyle = C.text; ctx.fillText("NEXUS", 72, 67);
-  ctx.fillStyle = C.gold; ctx.fillText("SPORT", 182, 67);
+  ctx.font = F(800, 27); ctx.fillStyle = C.text; ctx.fillText("NEXUS", 96, 67);
+  ctx.fillStyle = C.gold; ctx.fillText("SPORT", 203, 67);
   if (o.clock) {
-    ctx.fillStyle = "rgba(10,11,13,0.82)"; ctx.fillRect(1640, 40, 232, 54);
+    box(1640, 40, 232, 54, 27, "rgba(12,13,16,0.72)");
     ctx.fillStyle = C.text; ctx.font = F(800, 26); ctx.textAlign = "center"; ctx.fillText(o.clock, 1756, 67);
   }
   if (o.segment) {
     ctx.font = F(800, 20); const sw = ctx.measureText(o.segment.toUpperCase()).width + 36;
-    ctx.fillStyle = C.gold; ctx.fillRect(48, 100, sw, 34);
-    ctx.fillStyle = C.goldInk; ctx.textAlign = "left"; ctx.fillText(o.segment.toUpperCase(), 66, 118);
+    box(48, 104, sw, 34, 17, C.gold);
+    ctx.fillStyle = C.goldInk; ctx.textAlign = "left"; ctx.fillText(o.segment.toUpperCase(), 66, 122);
   }
   if (o.lower) {
     const x = 120, y = 820, w = 1680;
-    ctx.fillStyle = "rgba(10,11,13,0.9)"; ctx.fillRect(x, y, w, 118);
-    ctx.fillStyle = C.gold; ctx.fillRect(x, y, 12, 118);
-    ctx.font = F(800, 22); const kw = ctx.measureText(o.lower.kicker.toUpperCase()).width + 30;
-    ctx.fillStyle = C.gold; ctx.fillRect(x + 12, y - 36, kw, 36);
-    ctx.fillStyle = C.goldInk; ctx.textAlign = "left"; ctx.fillText(o.lower.kicker.toUpperCase(), x + 27, y - 18);
+    box(x, y, w, 118, 22, "rgba(12,13,16,0.84)");
+    box(x + 22, y + 26, 6, 66, 3, C.gold);
+    ctx.font = F(800, 22); const kw = ctx.measureText(o.lower.kicker.toUpperCase()).width + 36;
+    box(x + 22, y - 44, kw, 36, 18, C.gold);
+    ctx.fillStyle = C.goldInk; ctx.textAlign = "left"; ctx.fillText(o.lower.kicker.toUpperCase(), x + 40, y - 26);
     ctx.fillStyle = C.text; ctx.font = F(800, fit(ctx, o.lower.text, w - 80, 800, 46, 24)); ctx.fillText(o.lower.text, x + 44, y + 52);
     if (o.lower.source) { ctx.fillStyle = C.metal; ctx.font = F(600, 22); ctx.fillText(`Fuente: ${o.lower.source}`, x + 44, y + 96); }
   }
@@ -290,7 +292,7 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, o: OverlayInfo) {
     const y0 = 1048 - (lines.length - 1) * 40;
     lines.forEach((l, i) => {
       const tw = ctx.measureText(l).width + 40;
-      ctx.fillStyle = "rgba(0,0,0,0.78)"; ctx.fillRect(960 - tw / 2, y0 + i * 40 - 19, tw, 38);
+      box(960 - tw / 2, y0 + i * 40 - 19, tw, 38, 12, "rgba(0,0,0,0.7)");
       ctx.fillStyle = C.text; ctx.textAlign = "center"; ctx.fillText(l, 960, y0 + i * 40);
     });
   }

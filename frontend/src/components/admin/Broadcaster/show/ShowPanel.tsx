@@ -11,6 +11,7 @@ import { Check, ChevronDown, ChevronUp, Download, Loader2, Lock, MonitorPlay, Pa
 import { ui } from "../football/ui";
 import { previewCanvas, show, useShow } from "./controller";
 import { SHOW_LEAGUES } from "./data";
+import { LIGHT_PRESETS, type Lighting } from "./studio3d";
 import { MODE_LABEL, STAGE_LABEL, type DirectorMode, type Mode, type Quality, type StageId } from "./types";
 
 const fmt = (s: number) => `${Math.floor(s / 60)}:${String(Math.round(s % 60)).padStart(2, "0")}`;
@@ -48,7 +49,11 @@ export function ShowPanel() {
       {/* ------------------------------------------------ setup, preview, controls */}
       <section className="space-y-2">
         <div className={`${ui.panelPad} space-y-2`}>
-          <div className={ui.title}>Nueva edición · datos reales</div>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className={ui.title}>Programa automático · datos reales</div>
+            <button type="button" disabled={Boolean(st.building) || d?.status === "playing"} onClick={() => void show.play(d?.status === "done" ? 0 : undefined)} className={`ml-auto px-3 py-1.5 ${ui.btnLive}`}>{st.building ? <Loader2 size={13} className="animate-spin" /> : <Play size={13} />} {d?.status === "paused" ? "Reanudar" : "Emitir programa"}</button>
+          </div>
+          <p className="text-[11px] text-[var(--nx-dim)]">Recopila los datos, arma la escaleta, pone el estudio en Program y arranca. Con narrador local habla; sin él, va con subtítulos.</p>
           <div className="flex flex-wrap gap-1">{(Object.keys(MODE_LABEL) as Mode[]).map((m) => <button key={m} type="button" onClick={() => toggleMode(m)} className={st.options.modes.includes(m) ? ui.chipOn : ui.chip}>{MODE_LABEL[m]}</button>)}</div>
           <div className="flex flex-wrap gap-1">
             <button type="button" onClick={() => show.setOptions({ leagues: [] })} className={st.options.leagues.length === 0 ? ui.chipOn : ui.chip}>Todas</button>
@@ -116,6 +121,8 @@ export function ShowPanel() {
             <span className="text-[var(--nx-dim)]">baja sola mientras habla el narrador</span>
           </div>
         </div>
+
+        <LightingPanel light={st.lighting} />
       </section>
 
       {/* ------------------------------------------------ rundown */}
@@ -188,4 +195,59 @@ function Btn({ on, label, icon, disabled, primary }: { on: () => void; label: st
 }
 function IconBtn({ on, title, icon }: { on: () => void; title: string; icon: React.ReactNode }) {
   return <button type="button" onClick={on} title={title} aria-label={title} className="rounded p-1 text-[var(--nx-muted)] hover:bg-white/10 hover:text-[var(--nx-text)]">{icon}</button>;
+}
+
+// ---------------------------------------------------------------- set & lighting
+const SLIDERS: { k: keyof Lighting; label: string; min: number; max: number; step: number }[] = [
+  { k: "exposure", label: "Exposición", min: 0.6, max: 1.6, step: 0.02 },
+  { k: "key", label: "Luz principal", min: 0, max: 2, step: 0.05 },
+  { k: "ambient", label: "Relleno", min: 0, max: 1.6, step: 0.05 },
+  { k: "rim", label: "Contraluz", min: 0, max: 2, step: 0.05 },
+  { k: "glow", label: "Brillo de luces", min: 0, max: 1.5, step: 0.05 },
+  { k: "gloss", label: "Piso brillante", min: 0, max: 1, step: 0.05 },
+  { k: "haze", label: "Profundidad", min: 0, max: 1, step: 0.05 },
+];
+const COLORS: { k: keyof Lighting; label: string }[] = [
+  { k: "accent", label: "Color de luz" }, { k: "backdropTop", label: "Fondo arriba" }, { k: "backdropBottom", label: "Fondo abajo" }, { k: "floor", label: "Piso" },
+];
+
+function LightingPanel({ light }: { light: Lighting }) {
+  return (
+    <div className={`${ui.panelPad} space-y-2`}>
+      <div className="flex items-center gap-2">
+        <div className={ui.title}>Escenario e iluminación</div>
+        <span className="text-[10.5px] text-[var(--nx-dim)]">se aplica en vivo · se guarda en este PC</span>
+      </div>
+      <div className="flex flex-wrap gap-1">
+        {Object.entries(LIGHT_PRESETS).map(([name, p]) => (
+          <button key={name} type="button" onClick={() => show.lightPreset(name)} className={`${light.preset === name ? ui.chipOn : ui.chip} inline-flex items-center gap-1.5`}>
+            <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: `linear-gradient(135deg, ${p.backdropBottom}, ${p.accent})` }} />{name}
+          </button>
+        ))}
+      </div>
+      <div className="flex flex-wrap gap-1">
+        <span className="self-center text-[11px] text-[var(--nx-muted)]">Ver escenario:</span>
+        {(Object.keys(STAGE_LABEL) as StageId[]).map((k) => <button key={k} type="button" onClick={() => show.previewStage(k)} className={ui.chip}>{STAGE_LABEL[k]}</button>)}
+      </div>
+      <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
+        {SLIDERS.map(({ k, label, min, max, step }) => (
+          <label key={k} className="grid grid-cols-[96px_1fr_34px] items-center gap-2 text-[11px] text-[var(--nx-muted)]">
+            {label}
+            <input type="range" min={min} max={max} step={step} value={Number(light[k])} onChange={(ev) => show.setLighting({ [k]: Number(ev.target.value), preset: "Personalizado" } as Partial<Lighting>)} />
+            <span className="tabular-nums text-[var(--nx-dim)]">{Number(light[k]).toFixed(2)}</span>
+          </label>
+        ))}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 text-[11px] text-[var(--nx-muted)]">
+        {COLORS.map(({ k, label }) => (
+          <label key={k} className="inline-flex items-center gap-1.5">
+            <input type="color" value={String(light[k])} onChange={(ev) => show.setLighting({ [k]: ev.target.value, preset: "Personalizado" } as Partial<Lighting>)} className="h-6 w-8 cursor-pointer rounded border border-[var(--nx-line-2)] bg-transparent" />
+            {label}
+          </label>
+        ))}
+        <button type="button" onClick={() => show.setLighting({ drift: !light.drift })} className={light.drift ? ui.chipOn : ui.chip}>Cámara con respiración suave</button>
+        <button type="button" onClick={() => show.lightPreset("Nexus noche")} className={`ml-auto ${ui.chip}`}>Restablecer</button>
+      </div>
+    </div>
+  );
 }

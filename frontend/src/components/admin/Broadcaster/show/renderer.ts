@@ -6,7 +6,7 @@
 
 import { startFrameClock } from "../frameClock";
 import { drawOverlay, drawScreen, drawSide, setImageListener, type OverlayInfo, type SideInfo } from "./screens";
-import { drawFallback, VirtualStudio, webglAvailable } from "./studio3d";
+import { DEFAULT_LIGHTING, drawFallback, VirtualStudio, webglAvailable, type Lighting } from "./studio3d";
 import type { LowerThird, Quality, ScreenContent, Shot, StageId } from "./types";
 
 export interface RendererStats { mode: "3d" | "2d"; quality: Quality; framesPerSecond: number; error?: string }
@@ -22,14 +22,16 @@ export class ShowRenderer {
   private overlayDirty = true;
   private stop: (() => void) | null = null;
   private frames: number[] = [];
+  private light: Lighting;
   error?: string;
 
-  constructor(readonly quality: Quality = "MEDIUM") {
+  constructor(readonly quality: Quality = "MEDIUM", lighting: Lighting = DEFAULT_LIGHTING) {
+    this.light = { ...lighting };
     this.output = document.createElement("canvas");
     this.output.width = 1920; this.output.height = 1080;
     this.ctx = this.output.getContext("2d")!;
     if (webglAvailable()) {
-      try { this.studio = new VirtualStudio(quality); } catch (err) { this.error = err instanceof Error ? err.message : String(err); }
+      try { this.studio = new VirtualStudio(quality, this.light); } catch (err) { this.error = err instanceof Error ? err.message : String(err); }
     }
     if (!this.studio) {
       const mk = (w: number, h: number) => { const c = document.createElement("canvas"); c.width = w; c.height = h; return c; };
@@ -51,7 +53,7 @@ export class ShowRenderer {
     const rendered = this.studio ? this.studio.tick(now) : false;
     if (!rendered && !this.overlayDirty) return;
     if (this.studio) this.ctx.drawImage(this.studio.canvas, 0, 0, 1920, 1080);
-    else { const f = this.fb!; drawFallback(this.ctx, f.main, f.left, f.right); }
+    else { const f = this.fb!; drawFallback(this.ctx, f.main, f.left, f.right, this.light); }
     drawOverlay(this.ctx, this.overlay);
     this.overlayDirty = false;
     this.frames.push(now);
@@ -102,6 +104,8 @@ export class ShowRenderer {
   setLower(lower: LowerThird | null) { this.setOverlay({ lower }); }
   setStage(stage: StageId, shot?: Shot) { this.studio?.setStage(stage, true, shot); this.overlayDirty = true; }
   setShot(shot: Shot, ms?: number) { this.studio?.setShot(shot, ms); }
+  /** Operator lighting, applied live. */
+  setLighting(patch: Partial<Lighting>) { this.light = { ...this.light, ...patch }; this.studio?.setLighting(patch); this.overlayDirty = true; }
 
   dispose() {
     this.stop?.(); this.stop = null;

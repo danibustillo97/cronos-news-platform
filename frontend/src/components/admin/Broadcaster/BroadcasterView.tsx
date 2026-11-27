@@ -2008,6 +2008,10 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
         }
         showHostRef.current.retireAllProgram();
         showHostRef.current.setProgramLook({ layout: "set-show", backgroundId: SHOW_INPUT, inputIds: [] }, "program");
+        // the operator must SEE what is on air: leave "Preparar" (it shows Preview on the big screen)
+        setPrepareModeState(false);
+        try { localStorage.setItem("nexus.broadcast.prepare", "0"); } catch { /* ignore */ }
+        toast.success("Programa automático en Program");
       },
       leave: () => { showHostRef.current.setProgramLook({ backgroundId: null }, "program"); },
       audioBus: async () => {

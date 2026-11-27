@@ -13,6 +13,7 @@ import { Director, type DirectorState } from "./director";
 import { buildEdition, reestimate, type EditionOptions } from "./editorial";
 import { gatherShowData, type GatherReport } from "./data";
 import { ShowRenderer, type RendererStats } from "./renderer";
+import { DEFAULT_LIGHTING, LIGHT_PRESETS, type Lighting } from "./studio3d";
 import type { DirectorMode, Edition, Quality, Segment, StageId } from "./types";
 
 export interface ShowHost {
@@ -36,11 +37,17 @@ export interface ShowState {
   narrator: ProviderStatus | null;
   voice: VoiceChoice;
   music: { on: boolean; volume: number };
+  lighting: Lighting;
   error: string | null;
 }
 
 const SAVE_KEY = "nexus-ai-show";
 const LIB_KEY = "nexus-ai-show-library";
+const LIGHT_KEY = "nexus-ai-show-light";
+const initialLighting = (): Lighting => {
+  if (typeof window === "undefined") return DEFAULT_LIGHTING;
+  try { return { ...DEFAULT_LIGHTING, ...JSON.parse(window.localStorage.getItem(LIGHT_KEY) ?? "{}") }; } catch { return DEFAULT_LIGHTING; }
+};
 const PROVISIONAL_VOICE: VoiceChoice = { provider: "kokoro", voice: "em_alex" }; // provisional until the owner picks one
 
 let host: ShowHost | null = null;
@@ -60,7 +67,7 @@ const initialVoice = (): VoiceChoice => {
 let state: ShowState = {
   options: { modes: ["yesterday", "today"], leagues: [], targetMin: 30, quality: "MEDIUM" },
   edition: null, originals: {}, report: [], building: null, director: null, onAir: false, renderer: null, narrator: null,
-  voice: initialVoice(), music: { on: true, volume: 0.3 }, error: null,
+  voice: initialVoice(), music: { on: true, volume: 0.3 }, lighting: initialLighting(), error: null,
 };
 
 function set(patch: Partial<ShowState>) {
@@ -85,7 +92,7 @@ export function setShowHost(h: ShowHost | null) { host = h; }
 function ensureRenderer(): ShowRenderer {
   if (renderer && renderer.quality === state.options.quality) return renderer;
   renderer?.dispose();
-  renderer = new ShowRenderer(state.options.quality);
+  renderer = new ShowRenderer(state.options.quality, state.lighting);
   renderer.start();
   window.clearInterval(statsTimer);
   statsTimer = window.setInterval(() => { if (renderer) set({ renderer: renderer.stats() }); }, 2000);
@@ -146,6 +153,20 @@ export const show = {
   },
   setVoice(v: VoiceChoice) { set({ voice: v }); queue?.setVoice(v); },
 
+  // ---- set & lighting (live, saved on this PC)
+  setLighting(p: Partial<Lighting>) {
+    const lighting = { ...state.lighting, ...p };
+    set({ lighting });
+    renderer?.setLighting(p);
+    try { window.localStorage.setItem(LIGHT_KEY, JSON.stringify(lighting)); } catch { /* full */ }
+  },
+  lightPreset(name: string) {
+    const p = LIGHT_PRESETS[name];
+    if (p) show.setLighting({ ...p, preset: name });
+  },
+  /** Moves the studio to a configuration (operator preview of the set, outside the rundown). */
+  previewStage(stage: StageId) { ensureRenderer().setStage(stage); },
+
   async build() {
     set({ building: "Reuniendo datos reales…", error: null });
     try {
@@ -162,9 +183,12 @@ export const show = {
     }
   },
 
+  /** One button: gathers the data if there is no edition yet, puts the studio on Program and plays. */
   async play(from?: number) {
+    if (!state.edition) await show.build();
     const e = state.edition;
     if (!e) return;
+    if (!state.onAir) show.air(true);
     const d = ensureDirector(e);
     const voice = await ensureNarration().catch(() => false);
     d.setVoice(voice);

@@ -1,8 +1,12 @@
 # NEXUS SPORT AI Broadcast: Virtual Studio, editorial engine y director
 
-La pestaña **★ Programa IA** del broadcaster genera y emite un programa deportivo completo a partir
-de datos reales: escenario 3D, escaleta editorial, narración, cámaras, gráficos, música y audiencia.
-El «Programa automático» anterior sigue disponible sin cambios.
+La pestaña **▶ Programa automático** del broadcaster (una sola; reemplaza a la antigua de
+diapositivas y a «★ Programa IA») genera y emite un programa deportivo completo a partir de datos
+reales: escenario 3D, escaleta editorial, narración, cámaras, gráficos, música y audiencia.
+
+**Emitir programa** hace todo con un botón: recopila los datos (si no hay edición), arma la
+escaleta, pone el estudio en Program, sale del modo «Preparar» para que el operador vea lo que está
+al aire, y arranca. Con el narrador local habla; sin él, va con subtítulos.
 
 ## Arquitectura (sin segundo motor)
 
@@ -60,6 +64,24 @@ Un solo estudio en Three.js (dependencia ya instalada, sin modelos ni texturas d
 
   `dispose()` libera la GPU.
 - **Fallback 2D** (`drawFallback`) si el navegador no tiene WebGL.
+
+### Estudio suave (v2) e iluminación en vivo
+
+- **Diseño minimalista y redondeado:**
+  - ciclorama curvo infinito que se funde con el piso;
+  - pantallas flotantes de esquinas redondeadas, con halo suave;
+  - tarima de borde redondeado que parece flotar sobre un anillo de luz;
+  - mesa y atriles de líneas redondeadas en blanco perla;
+  - lamas de luz verticales y sombras de contacto suaves.
+
+  La mayor parte de la luz va «horneada» en gradientes, así que es barata en GPU integrada.
+- **Panel «Escenario e iluminación»** (se aplica en vivo y se guarda en el PC):
+  - presets: Nexus noche, Estudio claro, Grafito suave, Atardecer, Hielo, Champions y Césped;
+  - color de luz, fondo arriba y abajo, piso;
+  - exposición, luz principal, relleno, contraluz, brillo de luces, piso brillante y profundidad;
+  - cámara con respiración suave (deriva lenta de unos centímetros, a 24 cuadros por segundo como
+    máximo; se apaga para volver a renderizar solo bajo demanda);
+  - botón «Ver escenario» para recorrer las ocho configuraciones.
 
 ## Gráficos (`show/screens.ts`)
 

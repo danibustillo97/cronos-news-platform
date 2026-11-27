@@ -22,10 +22,10 @@ import { BACKGROUND_LABEL, type BackgroundTheme } from "./backgrounds";
 import type { BoardMatch } from "./liveBoard";
 import { MatchRail } from "./MatchRail";
 import { DataDeck } from "./DataDeck";
-import { AutoShowPanel, type AutoShowHandlers } from "./AutoShowPanel";
+import type { AutoShowHandlers } from "./AutoShowPanel";
+import { show } from "../show/controller";
 import { NarratorPanel } from "./NarratorPanel";
 import { ShowPanel } from "../show/ShowPanel";
-import { yyyymmdd } from "./recap";
 import { duelDefault } from "./eventGraphics";
 import type { MatchCenter } from "../engine/useMatchCenter";
 import { STATUS_LABEL as MATCH_STATUS_LABEL, USAGE_LABEL, bogotaDate, bogotaTime, liveEligible, liveLabel, usageOf, type CenterMatch } from "../engine/matchStatus";
@@ -207,8 +207,7 @@ function Section({ id, title, icon, children, defaultOpen = true, extra }: { id:
 export function FootballStage(props: Props) {
   const { fm, monitor, live, board } = props;
   const [mobileTab, setMobileTab] = useState<"graficos" | "hoy" | "escenas" | "fondos" | "calendario" | "datos" | "auto">("graficos");
-  const [showDate, setShowDate] = useState<string | null>(null);
-  const [bottomTab, setBottomTab] = useState<"centro" | "audiencia" | "hoy" | "calendario" | "datos" | "auto" | "narrador" | "programa-ia">("centro");
+  const [bottomTab, setBottomTab] = useState<"centro" | "audiencia" | "hoy" | "calendario" | "datos" | "auto" | "narrador">("centro");
   const [tablet, setTablet] = useState(false);
   const [sideTab, setSideTab] = useState<"escaleta" | "auto" | "graficos" | "escenas">("escaleta");
   const [mobileSource, setMobileSource] = useState<"local" | "remote">("local");
@@ -640,7 +639,7 @@ export function FootballStage(props: Props) {
       <section className="mb-1">
         <div className="mb-1.5 flex flex-wrap items-center gap-2">
           <h4 className="text-[11px] font-black uppercase tracking-[0.16em] text-[var(--nx-muted)]">Partidos anteriores ({cats.previous.length})</h4>
-          <button type="button" onClick={() => openShow(yyyymmdd(new Date(Date.now() - 86400000)))} className={`ml-auto ${ui.btnPrimary} px-2.5 py-1 text-[11px]`}>▶ Programa automático con la jornada de ayer</button>
+          <button type="button" onClick={() => openShow()} className={`ml-auto ${ui.btnPrimary} px-2.5 py-1 text-[11px]`}>▶ Programa automático con la jornada de ayer</button>
         </div>
         <div className="flex flex-wrap gap-1">
           {cats.previous.slice(0, 18).map((m) => (
@@ -655,11 +654,12 @@ export function FootballStage(props: Props) {
       </section>
     </div>
   );
-  const openShow = (date: string) => { setShowDate(date); setBottomTab("auto"); setMobileTab("auto"); };
+  // one automatic program: the shortcut opens it with "Resumen de ayer" selected
+  const openShow = () => { show.setOptions({ modes: ["yesterday"] }); setBottomTab("auto"); setMobileTab("auto"); };
 
   const calendar = <MatchRail fm={fm} onAirMatch={(ref, what) => { setTarget(ref); props.onMatch(ref, what); }} embedded />;
   const data = <DataDeck fm={fm} onAir={props.onDataAir} embedded />;
-  const autoPanel = <AutoShowPanel handlers={props.autoShow} presetDate={showDate} />;
+  const autoPanel = <ShowPanel />;
   const P = props.production;
   const dataCenter = <DataCenter p={P} />;
   const audienceDesk = <AudienceDesk p={P} onAirPoll={props.onAirPoll} onResult={props.onPollResultById} onMessage={props.onAudienceMessage} />;
@@ -749,11 +749,11 @@ export function FootballStage(props: Props) {
   const bottomTabs = (
     <div className={`flex min-h-0 flex-1 flex-col ${ui.panel}`}>
       <div className="flex gap-1 overflow-x-auto whitespace-nowrap border-b border-[var(--nx-line)] p-1 [scrollbar-width:none]">
-        {([["centro", "Centro de datos"], ["audiencia", "Audiencia"], ["hoy", "Partidos de hoy"], ["programa-ia", "★ Programa IA"], ["auto", "▶ Programa automático"], ["narrador", "Narrador IA"], ["calendario", "Calendario"], ["datos", "Datos para narrar"]] as const).map(([id, label]) => (
+        {([["centro", "Centro de datos"], ["audiencia", "Audiencia"], ["hoy", "Partidos de hoy"], ["auto", "▶ Programa automático"], ["narrador", "Narrador IA"], ["calendario", "Calendario"], ["datos", "Datos para narrar"]] as const).map(([id, label]) => (
           <button key={id} type="button" onClick={() => setBottomTab(id)} className={bottomTab === id ? ui.tabOn : ui.tab}>{label}</button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">{bottomTab === "centro" ? dataCenter : bottomTab === "audiencia" ? audienceDesk : bottomTab === "hoy" ? todayPanel : bottomTab === "auto" ? autoPanel : bottomTab === "narrador" ? <NarratorPanel categories={props.center.categories} /> : bottomTab === "programa-ia" ? <ShowPanel /> : bottomTab === "calendario" ? calendar : data}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto">{bottomTab === "centro" ? dataCenter : bottomTab === "audiencia" ? audienceDesk : bottomTab === "hoy" ? todayPanel : bottomTab === "auto" ? autoPanel : bottomTab === "narrador" ? <NarratorPanel categories={props.center.categories} /> : bottomTab === "calendario" ? calendar : data}</div>
     </div>
   );
 
