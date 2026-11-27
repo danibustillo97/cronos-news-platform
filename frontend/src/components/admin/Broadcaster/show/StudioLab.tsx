@@ -9,6 +9,7 @@ import { LocalNarrator, NarrationQueue } from "../engine/narration";
 import { Director, type DirectorState } from "./director";
 import { buildEdition } from "./editorial";
 import { gatherShowData } from "./data";
+import { aiRewrite, editionContext } from "./aiWriter";
 import { ShowRenderer } from "./renderer";
 import type { Edition, Mode, Quality, Shot, StageId } from "./types";
 
@@ -32,7 +33,15 @@ export default function StudioLab() {
       if (q.get("stage")) { r.setStage(q.get("stage") as StageId, (q.get("shot") as Shot) ?? undefined); setMsg("Escena fija"); lab.ready = true; return; }
       const { data, report } = await gatherShowData(modes, (q.get("leagues") ?? "").split(",").filter(Boolean), setMsg);
       const edition: Edition = buildEdition(data, { modes, leagues: [], targetMin: Number(q.get("min") ?? 30) as 30 });
-      lab.edition = edition; lab.report = report; lab.data = { recaps: data.recaps.length, live: data.live.length, upcoming: data.upcoming.length, news: data.news.length, polls: data.polls.length, logos: Object.keys(data.logos).length };
+      lab.edition = edition; lab.report = report;
+      // AI narration test hook: the test injects the provider call (window.__ask)
+      lab.aiRewrite = async () => {
+        const ask = (window as unknown as { __ask: (p: string) => Promise<string> }).__ask;
+        const results = data.recaps.flatMap((x) => x.leagues.flatMap((l) => l.matches));
+        const out = await aiRewrite(edition, editionContext(data, results), setMsg, ask);
+        lab.aiEdition = out.edition; lab.aiReport = out.report;
+        return out.report;
+      }; lab.data = { recaps: data.recaps.length, live: data.live.length, upcoming: data.upcoming.length, news: data.news.length, polls: data.polls.length, logos: Object.keys(data.logos).length };
       let narrate: ((l: Parameters<NarrationQueue["speak"]>[0]) => Promise<void>) | undefined;
       let queue: NarrationQueue | null = null;
       if (q.get("voice") === "1") {

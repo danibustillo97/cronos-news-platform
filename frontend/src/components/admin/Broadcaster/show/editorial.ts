@@ -19,6 +19,7 @@
 import { estimateSeconds, lineSegments, type NarrationLine, type NarrationProfile } from "../engine/narration";
 import { spokenDate, spokenTime } from "../engine/narratorScript";
 import { scorersLine, type RecapLeague, type RecapMatch } from "../football/recap";
+import { dayInsights, matchInsights, type Insight } from "./insights";
 import { PRIORITY_RANK, SEGMENT_LABEL, type Beat, type Edition, type Item, type Mode, type Priority, type ScreenContent, type Segment, type SegmentKind, type Source, type StageId, type TeamRef } from "./types";
 
 // ------------------------------------------------------------------ input
@@ -161,7 +162,7 @@ export function collectItems(data: ShowData, opts: EditionOptions): { items: Ite
 }
 
 // ------------------------------------------------------------------ narrative: one story = a sequence of beats
-function resultStory(m: RecapMatch, item: Item, logos: Record<string, string>, deep: boolean): Beat[] {
+function resultStory(m: RecapMatch, item: Item, logos: Record<string, string>, deep: boolean, insights: Insight[] = []): Beat[] {
   const critical = item.priority === "CRITICAL";
   const home = team(m.home, logos), away = team(m.away, logos);
   const scr = (reveal: number): ScreenContent => ({ type: "result", league: m.leagueName, home, away, status: "FINAL", scorers: { home: m.goals.home.map((g) => `${g.player.split(" ").slice(-1)[0]} ${g.minute}`), away: m.goals.away.map((g) => `${g.player.split(" ").slice(-1)[0]} ${g.minute}`) }, reveal });
@@ -175,8 +176,11 @@ function resultStory(m: RecapMatch, item: Item, logos: Record<string, string>, d
   const spoken = [m.goals.home.length ? `por ${m.home.name}, ${said(m.goals.home)}` : "", m.goals.away.length ? `por ${m.away.name}, ${said(m.goals.away)}` : ""].filter(Boolean).join("; ");
   const written = [m.goals.home.length ? `${m.home.short ?? m.home.name}: ${scorersLine(m.goals.home)}` : "", m.goals.away.length ? `${m.away.short ?? m.away.name}: ${scorersLine(m.goals.away)}` : ""].filter(Boolean).join("   ·   ");
   if (spoken) beats.push({ id: uid("b"), screen: scr(2), narration: line(`Los goles: ${spoken}.`, "NEWS"), lower: { kicker: "Goles", text: written, source: "ESPN" } });
-  if (surprise) beats.push({ id: uid("b"), narration: line(`Y es una sorpresa con datos: en las cuotas previas, el ganador pagaba ${(m.home.score > m.away.score ? m.odds!.home : m.odds!.away).toFixed(2)}.`, "ANALYSIS"), lower: { kicker: "Dato", text: "El ganador era el menos favorito en las cuotas previas", source: m.odds?.provider ?? "ESPN" } });
-  if (m.reds.length) beats.push({ id: uid("b"), narration: line(`Partido marcado por la expulsión de ${m.reds.map((r) => `${r.player} al ${r.minute}`).join(" y de ")}.`, "NEWS") });
+  // the angles the data reveals (comeback, late winner, hat-trick, upset, possession paradox…)
+  const keys = insights.slice(0, deep ? 5 : 2);
+  keys.forEach((k) => beats.push({ id: uid("b"), narration: line(k.text, k.weight >= 0.8 ? "EPIC" : "ANALYSIS", { emphasis: k.weight >= 0.9 }), lower: { kicker: "La clave", text: k.text, source: k.kind === "upset" ? m.odds?.provider ?? "ESPN" : "ESPN" }, weight: k.weight >= 0.85 ? "HIGH" : undefined }));
+  if (surprise && !keys.some((k) => k.kind === "upset")) beats.push({ id: uid("b"), narration: line(`Y es una sorpresa con datos: en las cuotas previas, el ganador pagaba ${(m.home.score > m.away.score ? m.odds!.home : m.odds!.away).toFixed(2)}.`, "ANALYSIS"), lower: { kicker: "Dato", text: "El ganador era el menos favorito en las cuotas previas", source: m.odds?.provider ?? "ESPN" } });
+  if (m.reds.length && !keys.some((k) => k.kind === "red")) beats.push({ id: uid("b"), narration: line(`Partido marcado por la expulsión de ${m.reds.map((r) => `${r.player} al ${r.minute}`).join(" y de ")}.`, "NEWS") });
   if (deep && m.stats.length) {
     // progressive comparison: the most telling stats first, one at a time
     const rows = [...m.stats].sort((a, b) => Math.abs(b.home - b.away) / (b.home + b.away || 1) - Math.abs(a.home - a.away) / (a.home + a.away || 1)).slice(0, 4);
@@ -283,7 +287,8 @@ export function buildEdition(data: ShowData, opts: EditionOptions): Edition {
   const deepItem = resultsItems.find((i) => (results.get(i.matchId!)?.stats.length ?? 0) > 0);
   const mc: Beat[] = [];
   const liveStories = items.filter((i) => i.kind === "live").map((i) => ({ id: i.id, beats: liveStory(matches.get(i.matchId!)!, data.logos) }));
-  const resultStories = resultsItems.filter((i) => i.id !== deepItem?.id).map((i) => ({ id: i.id, beats: resultStory(results.get(i.matchId!)!, i, data.logos, false) }));
+  const keysOf = (m: RecapMatch) => matchInsights(m, data.standings[m.league]?.rows ?? []);
+  const resultStories = resultsItems.filter((i) => i.id !== deepItem?.id).map((i) => { const m = results.get(i.matchId!)!; return { id: i.id, beats: resultStory(m, i, data.logos, false, keysOf(m)) }; });
   if (liveStories.length || resultStories.length) {
     mc.push({ id: uid("b"), stage: "MATCH_CENTER", shot: "WIDE", screen: { type: "title", kicker: "Match Center", title: liveStories.length ? "Partidos en juego y resultados" : "Los resultados" }, narration: line(liveStories.length ? "Vamos al Match Center: hay partidos en juego." : "Vamos al Match Center con los resultados.", liveStories.length ? "EPIC" : "NEWS", { pauseAfterMs: 200 }) });
     const ids = fill(mc, [...liveStories, ...resultStories], max("matchcenter"), used);
@@ -293,7 +298,7 @@ export function buildEdition(data: ShowData, opts: EditionOptions): Edition {
   // ---- 4. ANALYSIS: the story of the edition, in depth (stats revealed one by one)
   if (deepItem) {
     const m = results.get(deepItem.matchId!)!;
-    const beats = [{ id: uid("b"), stage: "ANALYSIS" as StageId, shot: "WIDE" as const, screen: { type: "title" as const, kicker: "Análisis", title: m.headline }, narration: line(`El partido que más dejó para analizar: ${m.home.name} contra ${m.away.name}.`, "ANALYSIS", { pauseAfterMs: 250 }) }, ...resultStory(m, deepItem, data.logos, true)];
+    const beats = [{ id: uid("b"), stage: "ANALYSIS" as StageId, shot: "WIDE" as const, screen: { type: "title" as const, kicker: "Análisis", title: m.headline }, narration: line(`El partido que más dejó para analizar: ${m.home.name} contra ${m.away.name}.`, "ANALYSIS", { pauseAfterMs: 250 }) }, ...resultStory(m, deepItem, data.logos, true, keysOf(m))];
     used.add(deepItem.id);
     segs.push(segment("analysis", beats, scale, [deepItem.id], [{ name: "ESPN" }], deepItem.priority));
   } else warnings.push("Análisis: no hay un partido con estadísticas en el periodo.");
@@ -341,6 +346,8 @@ export function buildEdition(data: ShowData, opts: EditionOptions): Edition {
     data6.push({ id: uid("b"), stage: "STATS", shot: "WIDE", screen: { ...base, reveal: 0 }, narration: line("Pasamos a la Data Arena.", "ANALYSIS", { pauseAfterMs: 200 }) });
     data6.push({ id: uid("b"), shot: "DATA", screen: { ...base, reveal: 3 }, narration: line(`${finished.length} partidos, ${goals} goles: ${(goals / finished.length).toFixed(1)} por partido.`, "ANALYSIS") });
     data6.push({ id: uid("b"), screen: { ...base, reveal: 6 }, narration: line(`${homeW} victorias locales y ${draws} empates. La mayor diferencia: ${best.home.name} ${best.home.score} a ${best.away.score} ${best.away.name}.`, "ANALYSIS") });
+    // what the period says beyond the totals
+    dayInsights(finished).slice(0, 3).forEach((k) => data6.push({ id: uid("b"), shot: "HERO", narration: line(k.text, "ANALYSIS"), lower: { kicker: "Tendencia", text: k.text, source: "ESPN" } }));
   }
   void allLeagues;
   const tableLeague = Object.keys(data.standings).filter((l) => !opts.leagues.length || opts.leagues.includes(l)).sort((a, b) => weightOf(b) - weightOf(a))[0];

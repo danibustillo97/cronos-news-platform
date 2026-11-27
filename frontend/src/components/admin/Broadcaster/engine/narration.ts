@@ -38,6 +38,8 @@ export interface NarrationLine {
   emphasis?: boolean;
   /** Silence before the next line, on top of the profile's sentence pause. */
   pauseAfterMs?: number;
+  /** When the AI rewrote the line: the verified base line it replaced. */
+  base?: string;
 }
 export interface VoiceChoice { provider: ProviderId; voice: string }
 export interface SynthesisResult { audio: ArrayBuffer; durationS: number; elapsedS: number; cached: boolean }

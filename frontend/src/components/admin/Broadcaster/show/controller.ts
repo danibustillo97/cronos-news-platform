@@ -12,6 +12,7 @@ import { generateNexusLoop, music } from "../football/music";
 import { Director, type DirectorState } from "./director";
 import { buildEdition, reestimate, type EditionOptions } from "./editorial";
 import { gatherShowData, type GatherReport } from "./data";
+import { aiRewrite, editionContext } from "./aiWriter";
 import { ShowRenderer, type RendererStats } from "./renderer";
 import { DEFAULT_LIGHTING, LIGHT_PRESETS, type Lighting } from "./studio3d";
 import type { DirectorMode, Edition, Quality, Segment, StageId } from "./types";
@@ -26,7 +27,7 @@ export interface ShowHost {
 }
 
 export interface ShowState {
-  options: EditionOptions & { quality: Quality };
+  options: EditionOptions & { quality: Quality; ai: boolean };
   edition: Edition | null;
   originals: Record<string, Segment["beats"]>; // untouched beats per segment (duration edits trim from here)
   report: GatherReport[];
@@ -65,7 +66,7 @@ const initialVoice = (): VoiceChoice => {
 };
 
 let state: ShowState = {
-  options: { modes: ["yesterday", "today"], leagues: [], targetMin: 30, quality: "MEDIUM" },
+  options: { modes: ["yesterday", "today"], leagues: [], targetMin: 30, quality: "MEDIUM", ai: true },
   edition: null, originals: {}, report: [], building: null, director: null, onAir: false, renderer: null, narrator: null,
   voice: initialVoice(), music: { on: true, volume: 0.3 }, lighting: initialLighting(), error: null,
 };
@@ -176,7 +177,16 @@ export const show = {
     set({ building: "Reuniendo datos reales…", error: null });
     try {
       const { data, report } = await gatherShowData(state.options.modes, state.options.leagues, (m) => set({ building: m }));
-      const edition = buildEdition(data, state.options);
+      let edition = buildEdition(data, state.options);
+      if (state.options.ai) {
+        // the AI editor-narrator rewrites the lines from the verified facts (checked line by line)
+        const results = data.recaps.flatMap((r) => r.leagues.flatMap((l) => l.matches));
+        const { edition: written, report: ai } = await aiRewrite(edition, editionContext(data, results), (m) => set({ building: m }));
+        const segments = written.segments.map((s) => reestimate(s));
+        edition = { ...written, segments, estimatedS: segments.reduce((t, s) => t + s.estimatedS, 0) };
+        if (!ai.ok) edition.warnings = [...edition.warnings, `La IA no respondió (${ai.error ?? "sin detalle"}): va la narración base, verificada.`];
+        report.push({ source: "Narración IA", ok: ai.ok, detail: ai.ok ? `${ai.rewritten} de ${ai.total} frases escritas por la IA${ai.rejected ? ` · ${ai.rejected} descartadas por cifras no verificadas` : ""}` : ai.error ?? "no disponible" });
+      }
       director?.stop();
       director = null;
       set({ edition, originals: Object.fromEntries(edition.segments.map((s) => [s.id, s.beats])), report, building: null, director: null });

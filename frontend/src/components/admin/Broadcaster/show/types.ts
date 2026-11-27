@@ -92,6 +92,8 @@ export interface Segment {
   /** real seconds on air once played */
   actualS?: number;
   note?: string;
+  /** lines written by the AI narrator in this segment */
+  ai?: number;
 }
 
 export interface Edition {

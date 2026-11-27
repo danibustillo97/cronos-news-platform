@@ -148,7 +148,7 @@ const Rundown = memo(function Rundown({ edition: e, segment, beat }: { edition: 
               <span className={`grid h-7 w-7 place-items-center rounded-full text-[12px] font-bold ${live ? "bg-[var(--nx-gold)] text-black" : s.status === "done" ? "bg-white/10 text-[var(--nx-dim)]" : "bg-white/5 text-[var(--nx-muted)]"}`}>{s.status === "done" ? "✓" : i + 1}</span>
               <button type="button" onClick={() => setOpen(expanded ? null : s.id)} className="min-w-0 flex-1 text-left">
                 <div className="truncate text-[14px] font-semibold">{s.title}</div>
-                <div className="text-[11.5px] text-[var(--nx-dim)]">{STAGE_LABEL[s.stage]} · {fmt(s.actualS ?? s.estimatedS)}{s.priority === "CRITICAL" ? " · EN VIVO" : ""}</div>
+                <div className="text-[11.5px] text-[var(--nx-dim)]">{STAGE_LABEL[s.stage]} · {fmt(s.actualS ?? s.estimatedS)}{s.priority === "CRITICAL" ? " · EN VIVO" : ""}{s.ai ? <span className="ml-1.5 rounded bg-sky-500/20 px-1 text-[10px] font-bold text-sky-300">IA</span> : null}</div>
               </button>
               <button type="button" onClick={() => show.jump(i)} title="Emitir desde aquí" aria-label="Emitir desde aquí" className="rounded-full p-2 text-[var(--nx-muted)] hover:bg-white/10 hover:text-[var(--nx-text)]"><Play size={14} /></button>
             </div>
@@ -181,6 +181,7 @@ function SegmentEditor({ e, i, liveBeat }: { e: Edition; i: number; liveBeat: nu
           <li key={b.id}>
             <textarea defaultValue={b.narration!.text} disabled={s.locked} rows={Math.min(4, Math.ceil(b.narration!.text.length / 60))} onBlur={(ev) => { if (ev.target.value !== b.narration!.text) show.editLine(s.id, b.id, ev.target.value); }}
               className={`w-full rounded-lg border px-2 py-1 text-[12.5px] ${s.beats[liveBeat]?.id === b.id ? "border-[var(--nx-gold)] bg-[color-mix(in_srgb,var(--nx-gold)_8%,transparent)]" : "border-white/10 bg-black/30"}`} />
+            {b.narration!.base && <p className="px-1 text-[10.5px] text-[var(--nx-dim)]"><span className="font-bold text-sky-300">IA</span> · dato base: {b.narration!.base}</p>}
           </li>
         ))}
       </ol>
@@ -214,6 +215,10 @@ function Drawer({ st, onClose }: { st: ShowState; onClose: () => void }) {
                 <button type="button" onClick={() => show.setOptions({ leagues: [] })} className={st.options.leagues.length === 0 ? ui.chipOn : ui.chip}>Todas</button>
                 {SHOW_LEAGUES.map((l) => <button key={l.id} type="button" onClick={() => toggleLeague(l.id)} className={st.options.leagues.includes(l.id) ? ui.chipOn : ui.chip}>{l.name}</button>)}
               </div>
+            </Section>
+            <Section title="Inteligencia">
+              <button type="button" onClick={() => show.setOptions({ ai: !st.options.ai })} className={st.options.ai ? ui.chipOn : ui.chip}>{st.options.ai ? "Narración con IA: activada" : "Narración con IA: apagada"}</button>
+              <p className="text-[11.5px] leading-relaxed text-[var(--nx-dim)]">La IA configurada en el portal escribe la narración como un analista de TV a partir de los hechos verificados y de las claves calculadas (remontadas, goles agónicos, sorpresas, tabla). Cada frase se valida: si trae una cifra que no está en los datos, se descarta y queda la frase base.</p>
             </Section>
             <Section title="Duración objetivo">
               <div className="flex gap-1.5">{([15, 30, 45, 60] as const).map((m) => <button key={m} type="button" onClick={() => show.setOptions({ targetMin: m })} className={st.options.targetMin === m ? ui.chipOn : ui.chip}>{m} min</button>)}</div>

@@ -145,6 +145,43 @@ entrada → marcador → goles → dato de sorpresa → expulsión → (análisi
 interpretación) → consecuencia en la tabla. Cada frase sale de un dato real. `speakable()` adapta
 solo lo que dice la voz («37'» → 37, «9.º» → noveno, «4-1» → 4 a 1).
 
+## Inteligencia: análisis de datos + IA editora (`show/insights.ts`, `show/aiWriter.ts`)
+
+1. **Análisis calculado** (sin IA, solo con datos reales). Con la línea de tiempo de goles y
+   minutos, las estadísticas de ESPN, las cuotas previas y la tabla salen:
+   - remontadas y goles agónicos (decisivos desde el 85');
+   - goles tempraneros, dobletes y tripletes;
+   - goleadas y vallas invictas;
+   - sorpresas según las cuotas;
+   - la paradoja de posesión (ganó con 42 % o menos) y la eficacia (ganó con muchos menos remates);
+   - arqueros figura;
+   - expulsiones que pesaron (el rival marcó después);
+   - el líder que ganó o tropezó;
+   - tendencias del periodo: goleador, liga más goleadora, jornada de visitantes, partido con más
+     goles, cantidad de remontadas.
+
+   Los ángulos que dependen de minutos solo salen si están todos los goles en la línea de tiempo.
+   Entran como beats «La clave» en Match Center y Análisis, y como «Tendencia» en Data Arena.
+2. **IA editora y narradora.** Usa el proveedor de IA ya configurado en el portal (el mismo de
+   «IA automática» en votaciones y cápsulas, por `POST /api/admin/capsules/ai`), sin servicios
+   ni claves nuevas.
+   - **Una llamada por segmento** (16 beats como máximo por llamada, 3 en paralelo).
+   - **Qué recibe:** solo hechos (lo que está en pantalla, la frase base verificada, las claves
+     calculadas y las tablas).
+   - **Qué hace:** reescribe la narración como un analista de TV, conectando datos y con
+     transiciones.
+   - **Validación de cada frase.** Se rechaza la frase y queda la base cuando:
+     - menciona una cifra, en dígitos o en letras, que no está en los hechos;
+     - usa afirmaciones fuertes (clásico, histórico, récord, racha, invicto, «primera vez»,
+       declaraciones, lesiones, fichajes) que los hechos no traen;
+     - nombra países, ciudades o estadios que no están en los datos.
+   - **Sin IA disponible,** va la narración base con un aviso. Con la sesión de Claude Code de
+     este PC, una edición completa tarda entre 100 y 160 s. En producción depende de la API key
+     configurada.
+   - **En la escaleta,** los segmentos escritos por la IA llevan la marca «IA» y cada frase muestra
+     su dato base.
+   - **Interruptor:** Ajustes → Contenido → Inteligencia.
+
 ## Director audiovisual (`show/director.ts`)
 
 - **Orden de cada beat:** primero los visuales (escenario → cámara → pantalla → rótulo → efecto),
