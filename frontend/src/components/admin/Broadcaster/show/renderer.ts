@@ -101,7 +101,11 @@ export class ShowRenderer {
     this.overlayDirty = true;
   }
 
-  setLower(lower: LowerThird | null) { this.setOverlay({ lower }); }
+  /** A lower third that would repeat what the LED already shows becomes a small source tag. */
+  setLower(lower: LowerThird | null) {
+    const repeats = Boolean(lower && this.screen && ["result", "stats", "table", "fixtures", "numbers", "poll", "title", "closing"].includes(this.screen.type));
+    this.setOverlay(repeats ? { lower: null, source: lower?.source } : { lower, source: undefined });
+  }
   setStage(stage: StageId, shot?: Shot) { this.studio?.setStage(stage, true, shot); this.overlayDirty = true; }
   setShot(shot: Shot, ms?: number) { this.studio?.setShot(shot, ms); }
   /** Operator lighting, applied live. */

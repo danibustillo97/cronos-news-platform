@@ -43,8 +43,12 @@ export async function gatherShowData(modes: Mode[], leagues: string[], onProgres
   if (modes.includes("week")) for (let i = 0; i < 7; i++) days.add(ymd(now - i * 86400000));
 
   // ---- finished matches with analysis (recap)
-  onProgress(`Resultados y análisis (${days.size} día${days.size === 1 ? "" : "s"})…`);
+  onProgress("Reuniendo resultados, calendario, tablas y noticias…");
   const recaps: ShowData["recaps"] = [];
+  const live: MatchLite[] = [], upcoming: MatchLite[] = [];
+  const standings: ShowData["standings"] = {};
+  let news: NewsLite[] = [];
+  const pRecaps = (async () => {
   await Promise.all([...days].map(async (day) => {
     try {
       const body = await json<{ leagues: RecapLeague[] }>(`/api/football/recap?date=${day}&leagues=${lg.join(",")}`);
@@ -54,10 +58,11 @@ export async function gatherShowData(modes: Mode[], leagues: string[], onProgres
   const nRes = recaps.reduce((n, r) => n + r.leagues.reduce((k, l) => k + l.matches.length, 0), 0);
   report.push({ source: "Resultados ESPN", ok: true, detail: `${nRes} partidos finalizados` });
 
+  })();
+
   // ---- live and scheduled (fixtures, canonical status)
-  const live: MatchLite[] = [], upcoming: MatchLite[] = [];
+  const pFixtures = (async () => {
   if (modes.includes("today") || modes.includes("upcoming")) {
-    onProgress("Partidos en juego y calendario…");
     const range = `${ymd(now)}-${ymd(now + (modes.includes("upcoming") ? 3 : 0) * 86400000)}`;
     let failed = 0;
     await Promise.all(lg.map(async (league) => {
@@ -73,9 +78,10 @@ export async function gatherShowData(modes: Mode[], leagues: string[], onProgres
     report.push({ source: "Calendario ESPN", ok: failed < lg.length, detail: `${live.length} en juego · ${upcoming.length} programados${failed ? ` · ${failed} ligas sin respuesta` : ""}` });
   }
 
+  })();
+
   // ---- standings
-  onProgress("Tablas…");
-  const standings: ShowData["standings"] = {};
+  const pTables = (async () => {
   await Promise.all(lg.filter((l) => TABLE_LEAGUES.has(l)).map(async (league) => {
     try {
       type Row = { rank?: string; team: string; logo?: string; played?: string; points?: string; goalDifference?: string; goalsFor?: string };
@@ -88,9 +94,10 @@ export async function gatherShowData(modes: Mode[], leagues: string[], onProgres
   }));
   report.push({ source: "Tablas", ok: Object.keys(standings).length > 0, detail: `${Object.keys(standings).length} tablas` });
 
+  })();
+
   // ---- news (published, inside the period)
-  onProgress("Noticias publicadas…");
-  let news: NewsLite[] = [];
+  const pNews = (async () => {
   try {
     const floor = new Date(now - (modes.includes("week") ? 7 * 86400000 : 36 * 3600000)).toISOString();
     const { data, error } = await supabase.from("news").select("*").eq("status", "published").gte("published_at", floor).order("published_at", { ascending: false }).limit(30);
@@ -99,9 +106,15 @@ export async function gatherShowData(modes: Mode[], leagues: string[], onProgres
     report.push({ source: "Noticias", ok: true, detail: `${news.length} publicadas en el periodo` });
   } catch (err) { report.push({ source: "Noticias", ok: false, detail: err instanceof Error ? err.message : String(err) }); }
 
-  // ---- real polls: of the featured matches, else the portal's open ones
-  onProgress("Votaciones reales…");
+  })();
+
+  // the four sources run at the same time
+  await Promise.all([pRecaps, pFixtures, pTables, pNews]);
+
+  // ---- real polls: of the featured matches, else the portal's open ones (in parallel with the crests)
+  onProgress("Votaciones y escudos…");
   const polls: PollLite[] = [];
+  const pPolls = (async () => {
   const featured = [...live.slice(0, 3), ...recaps.flatMap((r) => r.leagues.flatMap((l) => l.matches.map((m) => ({ id: m.id, league: m.league })))).slice(0, 4)];
   await Promise.all(featured.map(async (m) => {
     try {
@@ -117,17 +130,19 @@ export async function gatherShowData(modes: Mode[], leagues: string[], onProgres
   }
   report.push({ source: "Votaciones", ok: true, detail: `${polls.length} votaciones reales` });
 
+  })();
+
   // ---- crests → data URLs (untainted canvases)
-  onProgress("Escudos…");
   const urls = new Set<string>();
   recaps.forEach((r) => r.leagues.forEach((l) => l.matches.forEach((m) => { if (m.home.logo) urls.add(m.home.logo); if (m.away.logo) urls.add(m.away.logo); })));
   [...live, ...upcoming.slice(0, 20)].forEach((m) => { if (m.home.logo) urls.add(m.home.logo); if (m.away.logo) urls.add(m.away.logo); });
   Object.values(standings).forEach((s) => s.rows.slice(0, 8).forEach((r) => { if (r.logo) urls.add(r.logo); }));
   const logos: Record<string, string> = {};
   const list = [...urls].slice(0, 80);
-  for (let i = 0; i < list.length; i += 8) {
-    await Promise.all(list.slice(i, i + 8).map(async (u) => { try { logos[u] = await logoToDataUrl(u, 200); } catch { /* monogram */ } }));
+  for (let i = 0; i < list.length; i += 16) {
+    await Promise.all(list.slice(i, i + 16).map(async (u) => { try { logos[u] = await logoToDataUrl(u, 200); } catch { /* monogram */ } }));
   }
+  await pPolls;
   recaps.sort((a, b) => b.day.localeCompare(a.day));
   return { data: { now, recaps, live, upcoming, news, standings, polls, logos }, report };
 }

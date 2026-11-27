@@ -25,13 +25,15 @@ export const QUALITY: Record<Quality, { w: number; h: number; antialias: boolean
 
 interface CamPose { pos: [number, number, number]; look: [number, number, number]; fov: number }
 export const SHOTS: Record<Shot, CamPose> = {
-  WIDE: { pos: [0, 4.6, 17], look: [0, 3.9, -6], fov: 46 },
-  HERO: { pos: [0, 3.4, 10.5], look: [0, 3.6, -8], fov: 42 },
-  SCREEN: { pos: [0, 4.6, 3.4], look: [0, 4.6, -8], fov: 46 },
-  DATA: { pos: [-3.4, 4.3, 5.6], look: [0.9, 4.3, -8], fov: 46 },
-  SPLIT: { pos: [0, 4.6, 7.8], look: [0, 4.3, -8], fov: 58 },
-  DEBATE: { pos: [6.2, 3.2, 9.4], look: [-1, 2.2, -2.5], fov: 44 },
-  CLOSING: { pos: [0, 7.4, 21], look: [0, 3.4, -6], fov: 44 },
+  // content shots are frontal and let the LED fill the frame (readable on a phone); only the
+  // opening, debate and closing show the whole set
+  WIDE: { pos: [0, 4.4, 17], look: [0, 4, -6], fov: 44 },
+  HERO: { pos: [0, 3.9, 9.6], look: [0, 4.1, -8], fov: 40 },
+  SCREEN: { pos: [0, 4.75, 4.4], look: [0, 4.75, -8], fov: 40 },
+  DATA: { pos: [-0.9, 4.7, 4.9], look: [0.2, 4.75, -8], fov: 40 },
+  SPLIT: { pos: [0, 4.7, 6.2], look: [0, 4.7, -8], fov: 44 },
+  DEBATE: { pos: [4.2, 3.5, 10.5], look: [-0.4, 3, -3.5], fov: 42 },
+  CLOSING: { pos: [0, 6.4, 20], look: [0, 3.8, -6], fov: 42 },
 };
 
 /** What each configuration of the single set changes. */
@@ -64,7 +66,7 @@ export interface Lighting {
 }
 
 export const LIGHT_PRESETS: Record<string, Omit<Lighting, "preset" | "drift">> = {
-  "Nexus noche": { accent: "#f5c518", backdropTop: "#08090c", backdropBottom: "#1c1f26", floor: "#15171c", exposure: 1, ambient: 0.7, key: 1, rim: 1, glow: 0.85, gloss: 0.6, haze: 0.35 },
+  "Nexus noche": { accent: "#f5c518", backdropTop: "#0a0b0e", backdropBottom: "#1e2128", floor: "#17191e", exposure: 1, ambient: 0.8, key: 1, rim: 0.8, glow: 0.5, gloss: 0.5, haze: 0.35 },
   "Estudio claro": { accent: "#f5c518", backdropTop: "#b9bec7", backdropBottom: "#eceef2", floor: "#d6d9de", exposure: 0.95, ambient: 1.25, key: 0.8, rim: 0.4, glow: 0.35, gloss: 0.35, haze: 0.2 },
   "Grafito suave": { accent: "#e9e4d4", backdropTop: "#1d2026", backdropBottom: "#3a3e47", floor: "#2a2d33", exposure: 1, ambient: 0.95, key: 0.9, rim: 0.7, glow: 0.5, gloss: 0.45, haze: 0.3 },
   "Atardecer": { accent: "#ff9d42", backdropTop: "#140b08", backdropBottom: "#3b2418", floor: "#20160f", exposure: 1.05, ambient: 0.7, key: 0.95, rim: 1.1, glow: 0.9, gloss: 0.55, haze: 0.4 },
@@ -72,7 +74,7 @@ export const LIGHT_PRESETS: Record<string, Omit<Lighting, "preset" | "drift">> =
   "Champions": { accent: "#9db8ff", backdropTop: "#040822", backdropBottom: "#101c52", floor: "#0b112e", exposure: 1, ambient: 0.75, key: 1, rim: 1.2, glow: 1, gloss: 0.65, haze: 0.4 },
   "Césped": { accent: "#45e08a", backdropTop: "#050f09", backdropBottom: "#123222", floor: "#0c1a12", exposure: 1, ambient: 0.75, key: 1, rim: 1, glow: 0.85, gloss: 0.55, haze: 0.35 },
 };
-export const DEFAULT_LIGHTING: Lighting = { preset: "Nexus noche", ...LIGHT_PRESETS["Nexus noche"], drift: true };
+export const DEFAULT_LIGHTING: Lighting = { preset: "Nexus noche", ...LIGHT_PRESETS["Nexus noche"], drift: false };
 
 const ease = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
 const rgba = (hex: string, a: number) => { const c = new THREE.Color(hex); return `rgba(${Math.round(c.r * 255)},${Math.round(c.g * 255)},${Math.round(c.b * 255)},${a})`; };
@@ -250,16 +252,6 @@ export class VirtualStudio {
       const hm = new THREE.Mesh(this.geo(new THREE.PlaneGeometry(3.2, 11)), h); hm.position.set(x, 5.2, m.position.z - 0.3); s.add(hm);
     });
 
-    // brand sign: clean type on the cyclorama
-    const signTex = this.canvasTex(1024, 160, (g) => {
-      g.font = "800 112px Inter, Arial, sans-serif"; g.textBaseline = "middle";
-      g.textAlign = "right"; g.fillStyle = "#f4f5f7"; g.fillText("NEXUS", 512, 84);
-      g.textAlign = "left"; g.fillStyle = "#f5c518"; g.fillText("SPORT", 540, 84);
-    });
-    const sign = new THREE.Mesh(this.geo(new THREE.PlaneGeometry(5.2, 0.81)), this.mat(new THREE.MeshBasicMaterial({ map: signTex, transparent: true, toneMapped: false })));
-    sign.position.set(0, 9.6, -8.6); s.add(sign);
-
-
     // central stage: a low rounded disc (lathe profile) that seems to float on a ring of light
     const prof: THREE.Vector2[] = [new THREE.Vector2(0, 0.34)];
     for (let i = 0; i <= 10; i++) { const a = (i / 10) * Math.PI / 2; prof.push(new THREE.Vector2(3.35 + Math.sin(a) * 0.17, 0.17 + Math.cos(a) * 0.17)); }
@@ -300,7 +292,7 @@ export class VirtualStudio {
     const pedLine = new THREE.Mesh(this.geo(new THREE.TorusGeometry(0.72, 0.012, 6, 64)), softMat()); pedLine.rotation.x = Math.PI / 2; pedLine.position.y = 0.22; noris.add(pedLine);
     const holoTex = this.canvasTex(8, 256, (g) => { const l = g.createLinearGradient(0, 0, 0, 256); l.addColorStop(0, "rgba(255,255,255,0)"); l.addColorStop(1, "rgba(255,255,255,0.5)"); g.fillStyle = l; g.fillRect(0, 0, 8, 256); });
     const holo = this.mat(new THREE.MeshBasicMaterial({ map: holoTex, transparent: true, depthWrite: false, side: THREE.DoubleSide, blending: THREE.AdditiveBlending, toneMapped: false })); halos.push(holo);
-    const holoMesh = new THREE.Mesh(this.geo(new THREE.CylinderGeometry(0.62, 0.68, 2.6, 48, 1, true)), holo); holoMesh.position.y = 1.52; noris.add(holoMesh);
+    const holoMesh = new THREE.Mesh(this.geo(new THREE.CylinderGeometry(0.62, 0.68, 2.6, 48, 1, true)), holo); holoMesh.position.y = 1.52; holoMesh.visible = false; noris.add(holoMesh); // reserved: shown when Noris exists
     noris.position.set(-5.4, 0, -2.4); s.add(noris);
 
     // real lights: few and soft

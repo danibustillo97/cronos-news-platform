@@ -233,31 +233,30 @@ export function drawSide(ctx: CanvasRenderingContext2D, w: number, h: number, si
   frame(ctx, w, h);
   ctx.textAlign = "center"; ctx.textBaseline = "middle";
   if (side === "left") {
-    ctx.fillStyle = C.metal; ctx.font = F(800, w * 0.06); ctx.fillText("NEXUS SPORT", w / 2, h * 0.1);
-    ctx.fillStyle = C.gold; ctx.fillRect(w * 0.1, h * 0.16, w * 0.8, h * 0.006);
-    ctx.fillStyle = C.text; ctx.font = F(900, fit(ctx, info.label.toUpperCase(), w * 0.86, 900, w * 0.13)); ctx.fillText(info.label.toUpperCase(), w / 2, h * 0.46);
-    if (info.sub) { ctx.fillStyle = C.dim; ctx.font = F(600, w * 0.055); wrap(ctx, info.sub, w * 0.84, 3).forEach((l, i) => ctx.fillText(l, w / 2, h * (0.56 + i * 0.06))); }
+    // calm brand panel: the mark and the section, nothing else
+    ctx.fillStyle = C.gold; ctx.beginPath(); ctx.arc(w / 2, h * 0.36, w * 0.13, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = C.goldInk; ctx.font = F(900, w * 0.12); ctx.fillText("N", w / 2, h * 0.365);
+    ctx.fillStyle = C.text; ctx.font = F(800, fit(ctx, info.label.toUpperCase(), w * 0.8, 800, w * 0.09)); ctx.fillText(info.label.toUpperCase(), w / 2, h * 0.6);
   } else {
-    ctx.fillStyle = C.text; ctx.font = F(900, fit(ctx, info.clock, w * 0.86, 900, w * 0.2)); ctx.fillText(info.clock, w / 2, h * 0.14);
-    ctx.fillStyle = C.metal; ctx.font = F(700, w * 0.055); ctx.fillText(info.date.toUpperCase(), w / 2, h * 0.22);
-    ctx.fillStyle = C.gold; ctx.fillRect(w * 0.1, h * 0.27, w * 0.8, h * 0.006);
+    ctx.fillStyle = C.dim; ctx.font = F(700, w * 0.055); ctx.fillText(info.date.toUpperCase(), w / 2, h * 0.14);
     if (info.live.length) {
-      ctx.fillStyle = C.live; ctx.font = F(900, w * 0.06); ctx.fillText("● EN VIVO", w / 2, h * 0.33);
-      info.live.slice(0, 5).forEach((m, i) => {
-        const y = h * (0.42 + i * 0.11);
-        ctx.fillStyle = C.panel; ctx.fillRect(w * 0.06, y - h * 0.045, w * 0.88, h * 0.09);
-        ctx.fillStyle = C.text; ctx.font = F(800, w * 0.055);
-        ctx.fillText(`${m.home.slice(0, 12)} ${m.score} ${m.away.slice(0, 12)}`.slice(0, 30), w / 2, y - h * 0.012);
-        ctx.fillStyle = C.dim; ctx.font = F(700, w * 0.045); ctx.fillText(m.minute, w / 2, y + h * 0.024);
+      ctx.fillStyle = C.live; ctx.font = F(800, w * 0.06); ctx.fillText("● EN VIVO", w / 2, h * 0.26);
+      info.live.slice(0, 4).forEach((m, i) => {
+        const y = h * (0.37 + i * 0.13);
+        ctx.fillStyle = C.panel2; ctx.beginPath(); ctx.roundRect(w * 0.07, y - h * 0.05, w * 0.86, h * 0.1, 18); ctx.fill();
+        ctx.fillStyle = C.text; ctx.font = F(800, w * 0.052);
+        ctx.fillText(`${m.home.slice(0, 10)} ${m.score} ${m.away.slice(0, 10)}`, w / 2, y - h * 0.012);
+        ctx.fillStyle = C.dim; ctx.font = F(700, w * 0.042); ctx.fillText(m.minute, w / 2, y + h * 0.027);
       });
     } else {
-      ctx.fillStyle = C.dim; ctx.font = F(600, w * 0.055); ctx.fillText("Sin partidos en juego", w / 2, h * 0.4);
+      ctx.fillStyle = C.text; ctx.font = F(800, w * 0.09); ctx.fillText("NEXUS", w / 2, h * 0.46);
+      ctx.fillStyle = C.gold; ctx.fillText("SPORT", w / 2, h * 0.56);
     }
   }
 }
 
 // ------------------------------------------------------------------ on-air overlay (drawn over the 3D frame, 1920×1080)
-export interface OverlayInfo { lower: LowerThird | null; segment: string; clock: string; caption?: string; live?: boolean }
+export interface OverlayInfo { lower: LowerThird | null; segment: string; clock: string; caption?: string; live?: boolean; source?: string }
 export function drawOverlay(ctx: CanvasRenderingContext2D, o: OverlayInfo) {
   // station bug, top-left
   ctx.save();
@@ -285,6 +284,11 @@ export function drawOverlay(ctx: CanvasRenderingContext2D, o: OverlayInfo) {
     ctx.fillStyle = C.goldInk; ctx.textAlign = "left"; ctx.fillText(o.lower.kicker.toUpperCase(), x + 40, y - 26);
     ctx.fillStyle = C.text; ctx.font = F(800, fit(ctx, o.lower.text, w - 80, 800, 46, 24)); ctx.fillText(o.lower.text, x + 44, y + 52);
     if (o.lower.source) { ctx.fillStyle = C.metal; ctx.font = F(600, 22); ctx.fillText(`Fuente: ${o.lower.source}`, x + 44, y + 96); }
+  }
+  if (!o.lower && o.source) {
+    ctx.font = F(600, 20); const t = `Fuente: ${o.source}`; const tw = ctx.measureText(t).width + 32;
+    box(1872 - tw, 1000, tw, 36, 18, "rgba(12,13,16,0.6)");
+    ctx.fillStyle = C.dim; ctx.textAlign = "left"; ctx.fillText(t, 1872 - tw + 16, 1018);
   }
   if (o.caption) {
     // narration as subtitles when there is no voice (never a fake voice)

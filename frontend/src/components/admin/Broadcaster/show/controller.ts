@@ -75,8 +75,13 @@ function set(patch: Partial<ShowState>) {
   listeners.forEach((l) => l());
   persist();
 }
+let persisted: { edition: Edition | null; segment: number; mode: string } = { edition: null, segment: -1, mode: "" };
 function persist() {
   if (typeof window === "undefined" || !state.edition) return;
+  // only when something worth recovering changed (the edition is large: never on every tick)
+  const segment = state.director?.segment ?? 0, mode = state.director?.mode ?? "AUTO";
+  if (persisted.edition === state.edition && persisted.segment === segment && persisted.mode === mode) return;
+  persisted = { edition: state.edition, segment, mode };
   try { window.localStorage.setItem(SAVE_KEY, JSON.stringify({ edition: state.edition, originals: state.originals, options: state.options, segment: state.director?.segment ?? 0, mode: state.director?.mode ?? "AUTO" })); } catch { /* full */ }
 }
 
@@ -95,7 +100,7 @@ function ensureRenderer(): ShowRenderer {
   renderer = new ShowRenderer(state.options.quality, state.lighting);
   renderer.start();
   window.clearInterval(statsTimer);
-  statsTimer = window.setInterval(() => { if (renderer) set({ renderer: renderer.stats() }); }, 2000);
+  statsTimer = window.setInterval(() => { if (!renderer) return; const r = renderer.stats(); if (JSON.stringify(r) !== JSON.stringify(state.renderer)) set({ renderer: r }); }, 2000);
   if (state.onAir) host?.air(renderer.output);
   return renderer;
 }

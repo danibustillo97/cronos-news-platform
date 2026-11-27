@@ -122,10 +122,12 @@ export class AutomationEngine {
   /** Scheduler step: expire, then run the most urgent due task (one at a time). */
   async tick(): Promise<void> {
     const now = this.now();
-    for (const t of this.tasks) if ((t.status === "awaiting-approval" || t.status === "queued") && t.expiresAt !== null && now > t.expiresAt) this.finish(t.id, "expired", false);
-    if (this.paused || this.running) { this.emit(); return; }
+    let expired = false;
+    for (const t of [...this.tasks]) if ((t.status === "awaiting-approval" || t.status === "queued") && t.expiresAt !== null && now > t.expiresAt) { this.finish(t.id, "expired", false); expired = true; }
+    // notify only when something changed: an idle tick must not re-render the whole studio every second
+    if (this.paused || this.running) { if (expired) this.emit(); return; }
     const due = this.tasks.filter((t) => t.status === "queued" && t.runAt <= now).sort((a, b) => b.priority - a.priority || a.runAt - b.runAt)[0];
-    if (!due) { this.emit(); return; }
+    if (!due) { if (expired) this.emit(); return; }
     const exec = this.executors[due.action.kind];
     this.running = true;
     this.update(due.id, (t) => ({ ...t, status: "running", attempts: t.attempts + 1 }));
