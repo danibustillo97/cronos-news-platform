@@ -25,7 +25,7 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
 
   // The broadcast output is captured as-is by KICK / Restream: no toasts, cookie banner,
   // ads, analytics or media bar may ever appear on it.
-  if (pathname.startsWith("/broadcast/output")) return <>{children}</>
+  if (pathname.startsWith("/broadcast/")) return <>{children}</>
 
   const body = (
     <AdminOnlyProviders isAdmin={isAdmin}>

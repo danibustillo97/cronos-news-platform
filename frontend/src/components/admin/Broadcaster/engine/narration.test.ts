@@ -38,6 +38,17 @@ describe("narration segmentation", () => {
   });
 });
 
+describe("speakable (what the voice says)", () => {
+  it("reads minutes, ordinals, scores and abbreviations like a narrator", async () => {
+    const { speakable } = await import("./narration");
+    expect(speakable("Cambiaso 37' · Silva 90+3'")).toBe("Cambiaso 37, Silva 90 más 3");
+    expect(speakable("Olympiacos queda 9.º con 10 puntos")).toBe("Olympiacos queda noveno con 10 puntos");
+    expect(speakable("Juventus goleó 4-1 a Omonia")).toBe("Juventus goleó 4 a 1 a Omonia");
+    expect(speakable("Maignan (e.c.) y Kane (p)")).toBe("Maignan en contra y Kane de penal");
+    expect(speakable("Millonarios vs América")).toBe("Millonarios contra América");
+  });
+});
+
 describe("spoken Spanish (Colombia time)", () => {
   it("says kick-off times the way a narrator does, in Bogotá time", () => {
     expect(spokenTime("2026-11-28T01:40:00Z")).toBe("a las 8 y 40 de la noche"); // 20:40 Bogotá

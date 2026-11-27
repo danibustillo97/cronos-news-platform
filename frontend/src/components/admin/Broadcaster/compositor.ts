@@ -99,17 +99,24 @@ export const isFootballDesign = (graphic: BroadcastGraphic) => graphic.mode === 
 
 const footballLogoCache = new Map<string, HTMLImageElement>();
 
+// Live canvases drawn as sources (e.g. the AI program's Virtual Studio): the compositor copies
+// their current frame every tick, so they behave like a camera without any capture/encode.
+const liveSources = new Map<string, HTMLCanvasElement>();
+export function setLiveSource(id: string, canvas: HTMLCanvasElement | null) {
+  if (canvas) liveSources.set(id, canvas); else liveSources.delete(id);
+}
+
 function drawCover(
   context: CanvasRenderingContext2D,
-  media: HTMLVideoElement | HTMLImageElement,
+  media: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement,
   x: number,
   y: number,
   width: number,
   height: number,
   crop?: CropRect,
 ) {
-  const mediaWidth = media instanceof HTMLVideoElement ? media.videoWidth : media.naturalWidth;
-  const mediaHeight = media instanceof HTMLVideoElement ? media.videoHeight : media.naturalHeight;
+  const mediaWidth = media instanceof HTMLVideoElement ? media.videoWidth : media instanceof HTMLCanvasElement ? media.width : media.naturalWidth;
+  const mediaHeight = media instanceof HTMLVideoElement ? media.videoHeight : media instanceof HTMLCanvasElement ? media.height : media.naturalHeight;
   if (!mediaWidth || !mediaHeight) return;
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
@@ -163,7 +170,10 @@ export function drawScene(
 
   const drawInput = (input: BroadcastInput, x: number, y: number, cellWidth: number, cellHeight: number, label = true) => {
     const video = videoElements.get(input.id);
-    if (input.kind === "image") {
+    const live = liveSources.get(input.id);
+    if (live) {
+      drawCover(context, live, x, y, cellWidth, cellHeight, input.crop);
+    } else if (input.kind === "image") {
       const image = imageElements.get(input.id);
       if (image?.complete) drawCover(context, image, x, y, cellWidth, cellHeight, input.crop);
     } else if (video) {
@@ -187,8 +197,9 @@ export function drawScene(
 
   const backdrop = scene.backgroundId ? inputs.find((input) => input.id === scene.backgroundId) : undefined;
   if (backdrop) {
-    const media = backdrop.kind === "image" ? imageElements.get(backdrop.id) : videoElements.get(backdrop.id);
-    if (media && (media instanceof HTMLVideoElement || media.complete)) drawCover(context, media, 0, 0, width, height);
+    const live = liveSources.get(backdrop.id);
+    const media = live ?? (backdrop.kind === "image" ? imageElements.get(backdrop.id) : videoElements.get(backdrop.id));
+    if (media && (!(media instanceof HTMLImageElement) || media.complete)) drawCover(context, media, 0, 0, width, height);
   }
 
   if (visibleInputs.length === 0) {

@@ -59,12 +59,12 @@ NVIDIA. Consecuencias:
 |---|---|---|
 | 0 | Auditoría y plan (este documento) | ✅ |
 | 3a | Narrador: servicio local Kokoro + Piper, `NarrationProvider`, cola con precarga, caché, diccionario, panel y prueba de 60 s | ✅ (detalle en `NARRATOR.md`) |
-| 1 | Estudio virtual 3D: arquitectura, ocho configuraciones, cámaras WIDE/HERO/SCREEN/DATA/SPLIT/DEBATE/CLOSING, pantallas con contenido, perfiles LOW/MEDIUM/HIGH, fallback 2D | Siguiente |
-| 2 | Motor editorial: modalidades (ayer, hoy, semana, próximos días, combinado), selección por relevancia, prioridades, vigencia, fuentes, escaleta de 15/30/45/60 min con duración mínima, recomendada y máxima | Pendiente |
-| 3b | Integración del narrador al programa | **Bloqueada hasta que el dueño escuche la prueba y elija voz** |
-| 4 | Dirección audiovisual: secuencias por segmento (cámara, pantalla, gráfico, voz, pausa), aparición progresiva, música por segmento y ducking | Pendiente |
-| 5 | Audiencia en Debate Arena (encuestas reales y resultados) | Pendiente; reutiliza `audience.ts` |
-| 6 | Editor de ediciones y modos AUTO, SEMI y MANUAL, con recuperación de estado | Pendiente |
+| 1 | Estudio virtual 3D: arquitectura, ocho configuraciones, cámaras WIDE/HERO/SCREEN/DATA/SPLIT/DEBATE/CLOSING, pantallas con contenido, perfiles LOW/MEDIUM/HIGH, fallback 2D | ✅ (ver `AI_BROADCAST.md`) |
+| 2 | Motor editorial: cuatro modalidades combinables, relevancia, prioridades, vigencia, fuentes y escaleta de 15/30/45/60 min con duraciones por contenido | ✅ |
+| 3b | Integración del narrador al programa | ✅ con voz provisional `em_alex`; si no hay servicio, subtítulos |
+| 4 | Dirección audiovisual: beats sincronizados, aparición progresiva, cámara por historia, ducking y efecto en CRITICAL | ✅ |
+| 5 | Audiencia en Debate Arena con votos reales | ✅ (lectura y muestra); la apertura de votaciones sigue en Audiencia |
+| 6 | Editor de ediciones, modos AUTO/SEMI/MANUAL y recuperación | ✅ |
 | 7 | Validación: E2E, sesión larga, audio y build | Continuo |
 
 ## 5. Riesgos

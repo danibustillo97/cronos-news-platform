@@ -24,6 +24,7 @@ import { MatchRail } from "./MatchRail";
 import { DataDeck } from "./DataDeck";
 import { AutoShowPanel, type AutoShowHandlers } from "./AutoShowPanel";
 import { NarratorPanel } from "./NarratorPanel";
+import { ShowPanel } from "../show/ShowPanel";
 import { yyyymmdd } from "./recap";
 import { duelDefault } from "./eventGraphics";
 import type { MatchCenter } from "../engine/useMatchCenter";
@@ -207,7 +208,7 @@ export function FootballStage(props: Props) {
   const { fm, monitor, live, board } = props;
   const [mobileTab, setMobileTab] = useState<"graficos" | "hoy" | "escenas" | "fondos" | "calendario" | "datos" | "auto">("graficos");
   const [showDate, setShowDate] = useState<string | null>(null);
-  const [bottomTab, setBottomTab] = useState<"centro" | "audiencia" | "hoy" | "calendario" | "datos" | "auto" | "narrador">("centro");
+  const [bottomTab, setBottomTab] = useState<"centro" | "audiencia" | "hoy" | "calendario" | "datos" | "auto" | "narrador" | "programa-ia">("centro");
   const [tablet, setTablet] = useState(false);
   const [sideTab, setSideTab] = useState<"escaleta" | "auto" | "graficos" | "escenas">("escaleta");
   const [mobileSource, setMobileSource] = useState<"local" | "remote">("local");
@@ -748,11 +749,11 @@ export function FootballStage(props: Props) {
   const bottomTabs = (
     <div className={`flex min-h-0 flex-1 flex-col ${ui.panel}`}>
       <div className="flex gap-1 overflow-x-auto whitespace-nowrap border-b border-[var(--nx-line)] p-1 [scrollbar-width:none]">
-        {([["centro", "Centro de datos"], ["audiencia", "Audiencia"], ["hoy", "Partidos de hoy"], ["auto", "▶ Programa automático"], ["narrador", "Narrador IA"], ["calendario", "Calendario"], ["datos", "Datos para narrar"]] as const).map(([id, label]) => (
+        {([["centro", "Centro de datos"], ["audiencia", "Audiencia"], ["hoy", "Partidos de hoy"], ["programa-ia", "★ Programa IA"], ["auto", "▶ Programa automático"], ["narrador", "Narrador IA"], ["calendario", "Calendario"], ["datos", "Datos para narrar"]] as const).map(([id, label]) => (
           <button key={id} type="button" onClick={() => setBottomTab(id)} className={bottomTab === id ? ui.tabOn : ui.tab}>{label}</button>
         ))}
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">{bottomTab === "centro" ? dataCenter : bottomTab === "audiencia" ? audienceDesk : bottomTab === "hoy" ? todayPanel : bottomTab === "auto" ? autoPanel : bottomTab === "narrador" ? <NarratorPanel categories={props.center.categories} /> : bottomTab === "calendario" ? calendar : data}</div>
+      <div className="min-h-0 flex-1 overflow-y-auto">{bottomTab === "centro" ? dataCenter : bottomTab === "audiencia" ? audienceDesk : bottomTab === "hoy" ? todayPanel : bottomTab === "auto" ? autoPanel : bottomTab === "narrador" ? <NarratorPanel categories={props.center.categories} /> : bottomTab === "programa-ia" ? <ShowPanel /> : bottomTab === "calendario" ? calendar : data}</div>
     </div>
   );
 

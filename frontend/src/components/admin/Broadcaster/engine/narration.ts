@@ -62,10 +62,23 @@ export interface NarrationProvider {
 export const DEFAULT_NARRATOR_URL = "http://127.0.0.1:8802";
 export const DEFAULT_VOICE: VoiceChoice = { provider: "kokoro", voice: "em_santa" };
 
+const ORD = ["", "primero", "segundo", "tercero", "cuarto", "quinto", "sexto", "séptimo", "octavo", "noveno", "décimo", "undécimo", "duodécimo", "decimotercero", "decimocuarto", "decimoquinto", "decimosexto", "decimoséptimo", "decimoctavo", "decimonoveno", "vigésimo"];
+/** What the VOICE says (the screen keeps the written form): minutes, ordinals, scores, abbreviations. */
+export function speakable(text: string): string {
+  return text
+    .replace(/(\d+)\s*\+\s*(\d+)'/g, "$1 más $2")          // 90+3'
+    .replace(/(\d+)'/g, "$1")                                // 37'
+    .replace(/\b(\d{1,2})\s*\.?\s*[º°]/g, (_, n) => ORD[Number(n)] ?? `${n}`) // 9.º
+    .replace(/\(e\.c\.\)/g, "en contra").replace(/\(p\)/g, "de penal")
+    .replace(/\s+vs\.?\s+/gi, " contra ")
+    .replace(/\b(\d+)\s*-\s*(\d+)\b/g, "$1 a $2")           // 4-1
+    .replace(/\s+·\s+/g, ", ");
+}
+
 /** Splits narration into phrases: a pause after every sentence and a shorter one after clauses. */
 export function segment(text: string, profile: NarrationProfile, emphasis = false, trailingMs = 0): NarrationSegment[] {
   const style = PROFILES[profile];
-  const clean = text.replace(/\s+/g, " ").trim();
+  const clean = speakable(text).replace(/\s+/g, " ").trim();
   if (!clean) return [];
   // sentences (keep the ¿…? / ¡…! marks with their sentence)
   const sentences = clean.match(/[^.!?…]+(?:[.!?…]+["»”)]?|$)/g)?.map((s) => s.trim()).filter(Boolean) ?? [clean];
@@ -178,6 +191,7 @@ export class NarrationQueue {
   private paused = false;
   private cache = new Map<string, AudioBuffer>(); // LRU of decoded audio
   private aborts = new Map<string, AbortController>();
+  private waiters = new Map<string, { resolve: () => void; reject: (e: Error) => void }>();
   readonly gain: GainNode;
 
   constructor(
@@ -215,7 +229,7 @@ export class NarrationQueue {
             const r = await this.provider.synthesize(lineSegments(line), this.voice, { speed: style.speed, gain: style.gain * (line.emphasis ? 1.08 : 1), signal: ctrl.signal });
             const buffer = await this.context.decodeAudioData(r.audio.slice(0));
             this.cache.set(key, buffer);
-            if (this.cache.size > 80) this.cache.delete(this.cache.keys().next().value!);
+            if (this.cache.size > 30) this.cache.delete(this.cache.keys().next().value!); // ~1 MB per 10 s of decoded audio
             return buffer;
           } catch (err) {
             lastErr = err;
@@ -237,8 +251,14 @@ export class NarrationQueue {
     if (!this.running) void this.loop();
   }
 
+  /** Plays one line (after whatever is queued) and resolves when it has been heard; rejects if it failed. */
+  speak(line: NarrationLine): Promise<void> {
+    return new Promise((resolve, reject) => { this.waiters.set(line.id, { resolve, reject }); this.enqueue([line]); });
+  }
+
   /** Stops the current line and drops everything queued (the director took over). */
   interrupt() {
+    this.queue.forEach((l) => { this.waiters.get(l.id)?.resolve(); this.waiters.delete(l.id); });
     this.queue = [];
     this.aborts.forEach((a) => a.abort());
     this.current?.source.stop();
@@ -265,13 +285,16 @@ export class NarrationQueue {
           source.start();
         });
         this.onEvent({ type: "end", line });
+        this.waiters.get(line.id)?.resolve(); this.waiters.delete(line.id);
       } catch (err) {
-        this.onEvent({ type: "error", line, message: err instanceof Error ? err.message : String(err) });
+        const message = err instanceof Error ? err.message : String(err);
+        this.onEvent({ type: "error", line, message });
+        this.waiters.get(line.id)?.reject(new Error(message)); this.waiters.delete(line.id);
       }
     }
     this.running = false;
     this.onEvent({ type: "idle" });
   }
 
-  dispose() { this.interrupt(); this.gain.disconnect(); this.cache.clear(); }
+  dispose() { this.interrupt(); this.waiters.forEach((w) => w.resolve()); this.waiters.clear(); this.gain.disconnect(); this.cache.clear(); }
 }

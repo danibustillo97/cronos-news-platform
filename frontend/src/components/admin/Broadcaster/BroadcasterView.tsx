@@ -56,6 +56,8 @@ import { FootballDeck } from "./football/FootballDeck";
 import { AudioBar } from "./football/AudioBar";
 import { FootballMedia } from "./football/FootballMedia";
 import { playSfx } from "./football/sfx";
+import { setLiveSource } from "./compositor";
+import { setShowHost } from "./show/controller";
 import { deleteMedia, listMedia, saveMedia, type MediaCategory, type MediaItem } from "./football/mediaLibrary";
 import { getCompetition } from "./football/competitions";
 import { footballDesignDocument } from "./football/designs";
@@ -1989,6 +1991,42 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     onEnd: () => { exitProgram((g) => g.variant === "recap" || g.variant === "ad"); setRecapSlide(null); },
     attachMusic,
   };
+
+  // ---- AI program (NEXUS SPORT AI Broadcast): its Virtual Studio enters Program as a live backdrop,
+  // so Preview/Program, TAKE, the other graphics and /broadcast/output keep working unchanged.
+  const SHOW_INPUT = "nexus-ai-show";
+  const showHostRef = useRef({ retireAllProgram, setProgramLook, attachMusic, sfxBus, center });
+  showHostRef.current = { retireAllProgram, setProgramLook, attachMusic, sfxBus, center };
+  useEffect(() => {
+    setShowHost({
+      air: (canvas) => {
+        setLiveSource(SHOW_INPUT, canvas);
+        if (!inputsRef.current.some((i) => i.id === SHOW_INPUT)) {
+          const input: BroadcastInput = { id: SHOW_INPUT, name: "Programa IA · Virtual Studio", kind: "image", muted: true, volume: 0 };
+          inputsRef.current = [...inputsRef.current, input];
+          setInputs((cur) => [...cur, input]);
+        }
+        showHostRef.current.retireAllProgram();
+        showHostRef.current.setProgramLook({ layout: "set-show", backgroundId: SHOW_INPUT, inputIds: [] }, "program");
+      },
+      leave: () => { showHostRef.current.setProgramLook({ backgroundId: null }, "program"); },
+      audioBus: async () => {
+        const audioContext = audioContextRef.current ?? new AudioContext();
+        audioContextRef.current = audioContext;
+        await audioContext.resume();
+        if (!mixerRef.current) {
+          mixerRef.current = new ProgramMixer(audioContext, masterVolumeRef.current);
+          outputHostRef.current?.refreshAudio();
+        }
+        return { context: mixerRef.current.context, node: mixerRef.current.master };
+      },
+      attachMusic: () => showHostRef.current.attachMusic(),
+      sfx: (kind) => playSfx(kind, sfxVolumeRef.current, showHostRef.current.sfxBus()),
+      liveSide: () => showHostRef.current.center.categories.live.map((m) => ({ home: m.home.short || m.home.name, away: m.away.short || m.away.name, score: `${m.home.score}-${m.away.score}`, minute: liveLabel(m) })),
+    });
+    return () => { setShowHost(null); setLiveSource(SHOW_INPUT, null); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Any match: is its scoreboard / line-ups / stats on air? Pressing again takes it off.
   const matchFamily = (g: BroadcastGraphic, ref: MatchRef, what: "pro" | "lineups" | "stats") => g.matchRef?.id === ref.id
