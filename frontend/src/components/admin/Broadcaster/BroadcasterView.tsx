@@ -17,6 +17,7 @@ import { MediaPosition } from "./MediaPosition";
 import { SessionClock } from "./SessionClock";
 import { ProgramMixer, type MixerSource } from "./audioMixer";
 import { startFrameClock } from "./frameClock";
+import { OUTPUT_PATH, ProgramOutputHost, type HostStatus } from "./engine/programOutput";
 import { createRoomCode, guestUrl, hostPeerId, peerOptions } from "./guestLink";
 import { FootballConsole } from "./football/FootballConsole";
 import { gatewayEndpoint } from "./live/whip";
@@ -245,6 +246,9 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
   const outputStreamRef = useRef<MediaStream | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const mixerRef = useRef<ProgramMixer | null>(null);
+  // Broadcast Output (/broadcast/output): Program delivered to clean capture tabs (KICK Web Go Live, Restream...)
+  const outputHostRef = useRef<ProgramOutputHost | null>(null);
+  const [outputStatus, setOutputStatus] = useState<HostStatus>({ outputs: [] });
   const [masterVolume, setMasterVolume] = useState(1);
   const masterVolumeRef = useRef(1);
   masterVolumeRef.current = masterVolume;
@@ -630,8 +634,10 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     audioContextRef.current = audioContext;
     await audioContext.resume();
     // The mixer outlives each output: going live again reuses the same routes and media element wiring.
+    const fresh = !mixerRef.current;
     const mixer = mixerRef.current ?? new ProgramMixer(audioContext, masterVolumeRef.current);
     mixerRef.current = mixer;
+    if (fresh) outputHostRef.current?.refreshAudio();
     mixer.sync(mixerSources(inputsRef.current), new Set(programSceneSnapshot.inputIds));
     const stream = canvas.captureStream(30);
     const track = mixer.createTrack();
@@ -644,6 +650,35 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     outputStreamRef.current?.getTracks().forEach((track) => track.stop());
     outputStreamRef.current = null;
   }, []);
+
+  useEffect(() => {
+    const host = new ProgramOutputHost(setOutputStatus, () => mixerRef.current?.createTrack() ?? null);
+    outputHostRef.current = host;
+    host.start(); // also stops itself on pagehide, so outputs learn at once that the studio left
+    return () => { host.stop(); outputHostRef.current = null; };
+  }, []);
+
+  // With an output playing the Program mix, the studio stops monitoring the music locally (no double audio).
+  const outputsLive = outputStatus.outputs.some((o) => o.state === "connected");
+  useEffect(() => { music.setMonitor(!outputsLive); }, [outputsLive]);
+
+  // Opens the clean output tab. The click is the user gesture browsers need to start the audio mix,
+  // so the output carries Program sound (music, effects, microphones) from the first frame.
+  const openOutput = async () => {
+    try {
+      const audioContext = audioContextRef.current ?? new AudioContext();
+      audioContextRef.current = audioContext;
+      await audioContext.resume();
+      if (!mixerRef.current) {
+        mixerRef.current = new ProgramMixer(audioContext, masterVolumeRef.current);
+        mixerRef.current.sync(mixerSources(inputsRef.current), new Set(programSceneSnapshot.inputIds));
+      }
+      outputHostRef.current?.refreshAudio();
+    } catch { /* picture still goes out; audio joins when the mix exists */ }
+    const tab = window.open(OUTPUT_PATH, "_blank");
+    if (!tab) toast.error("El navegador bloqueó la pestaña", { description: `Abre ${window.location.origin}${OUTPUT_PATH} manualmente.` });
+    else toast.success("Salida de emisión abierta", { description: "En KICK, comparte SOLO la pestaña «NEXUS SPORT · Salida de emisión»." });
+  };
 
   const startRecording = useCallback(async () => {
     if (recording) return;
@@ -1643,7 +1678,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
     inputs, previewScene, programScene, previewGraphics, programGraphics,
     fbScene: pvwScene, fbGraphics: pvwGraphics, drawFb: active && prepareMode && studioMode === "football",
     // Off screen and off air there is nothing to draw; on air Program keeps rendering even while hidden.
-    drawProgram: active || live || recording,
+    drawProgram: active || live || recording || outputStatus.outputs.length > 0,
     drawPreview: active,
   };
 
@@ -1674,6 +1709,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
         }
       }
       const program = programCanvasRef.current;
+      outputHostRef.current?.syncCanvas(program);
       if (program && frame.drawProgram) {
         const active = transitionStateRef.current;
         if (active) {
@@ -2357,6 +2393,7 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
             {recording ? <span className={ui.liveDot} /> : <Circle size={9} />}
             <SessionClock session={session} />
           </span>
+          <OutputButton status={outputStatus} onOpen={() => void openOutput()} />
           {recording ? (
             <button type="button" onClick={stopRecording} aria-label="Detener grabación" className="inline-flex items-center gap-1.5 rounded-[var(--nx-r)] border border-[var(--nx-live)] px-2.5 py-2 text-[10px] font-semibold text-[var(--nx-live)] hover:bg-[var(--nx-live)]/10 sm:px-3.5 sm:text-xs">
               <Square size={13} fill="currentColor" /><span className="hidden sm:inline">Detener</span>
@@ -3259,5 +3296,23 @@ export default function BroadcasterView({ active = true }: { active?: boolean })
       })()}
 
     </div>
+  );
+}
+
+// Broadcast Output control: opens the clean capture tab and shows the REAL measured signal of each output.
+function OutputButton({ status, onOpen }: { status: HostStatus; onOpen: () => void }) {
+  const live = status.outputs.filter((o) => o.state === "connected");
+  const fps = live.length ? Math.min(...live.map((o) => o.stats?.fps ?? 0)) : 0;
+  const warn = live.some((o) => (o.stats?.fps ?? 0) < 24 || o.stats?.audio === "blocked");
+  const title = live.length
+    ? live.map((o, i) => `Salida ${i + 1}: ${o.stats ? `${o.stats.fps} fps recibidos · ${o.sentFps} fps enviados · ${o.stats.width}×${o.stats.height} · audio ${o.stats.audio} · caídos ${o.stats.dropped}${o.stats.memoryMb !== null ? ` · ${o.stats.memoryMb} MB` : ""}` : "midiendo…"}${o.limitation && o.limitation !== "none" ? ` · límite: ${o.limitation}` : ""}`).join(" | ")
+    : "Abre la salida limpia para KICK / Restream (comparte solo esa pestaña)";
+  return (
+    <button type="button" onClick={onOpen} title={title} aria-label="Abrir salida de emisión"
+      className={`inline-flex items-center gap-1.5 rounded-[var(--nx-r)] border px-2.5 py-2 text-[10px] font-semibold sm:px-3 sm:text-xs ${live.length ? (warn ? "border-amber-400/50 text-amber-300" : "border-emerald-400/40 text-emerald-300") : "border-[var(--nx-line-2)] text-[var(--nx-muted)] hover:text-[var(--nx-text)]"}`}>
+      <MonitorUp size={13} />
+      <span className="hidden sm:inline">Salida</span>
+      {live.length > 0 && <span className="tabular-nums">{live.length > 1 ? `${live.length}× · ` : ""}{fps} fps</span>}
+    </button>
   );
 }

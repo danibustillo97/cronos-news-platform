@@ -87,6 +87,8 @@ export async function generateNexusLoop(): Promise<Blob> {
 class MusicPlayer {
   readonly el: HTMLAudioElement | null = typeof Audio !== "undefined" ? new Audio() : null;
   private attachedTo: AudioContext | null = null;
+  private monitor: GainNode | null = null;
+  private monitorOn = true;
   private url: string | null = null;
   name = "";
 
@@ -109,8 +111,16 @@ class MusicPlayer {
     if (!this.el || this.attachedTo === context) return;
     const src = context.createMediaElementSource(this.el);
     src.connect(bus);
-    src.connect(context.destination);
+    this.monitor = context.createGain();
+    this.monitor.gain.value = this.monitorOn ? 1 : 0;
+    src.connect(this.monitor);
+    this.monitor.connect(context.destination);
     this.attachedTo = context;
+  }
+  /** Studio speakers. Off while a Broadcast Output tab plays the mix, so the music is never heard twice. */
+  setMonitor(on: boolean) {
+    this.monitorOn = on;
+    if (this.monitor) this.monitor.gain.value = on ? 1 : 0;
   }
 }
 

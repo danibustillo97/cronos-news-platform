@@ -23,6 +23,10 @@ export default function AppLayoutClient({ children }: { children: React.ReactNod
   const pathname = usePathname()
   const isAdmin = pathname.startsWith("/admin")
 
+  // The broadcast output is captured as-is by KICK / Restream: no toasts, cookie banner,
+  // ads, analytics or media bar may ever appear on it.
+  if (pathname.startsWith("/broadcast/output")) return <>{children}</>
+
   const body = (
     <AdminOnlyProviders isAdmin={isAdmin}>
       <Toaster position="top-center" richColors theme="dark" closeButton />

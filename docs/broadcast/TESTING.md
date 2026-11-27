@@ -48,3 +48,16 @@ the 21-nov match gone; 3 matches selected + main changed, kept after switching p
 showed exactly those 3; timeline with one filter per match detected "Segundo tiempo" live; key `E` on a not-started
 main match refused centrally ("El partido no ha comenzado"); TAKE of the live multi-screen; selection from a phone
 (390 px) reached the PC studio.
+
+## Broadcast Output (salida limpia para KICK)
+
+- Unitarias: `engine/programOutput.test.ts` cubre el ajuste de bitrate en el SDP (solo códecs de
+  video, ni audio ni rtx), la preferencia H.264 y la medición real de fps.
+- E2E (Playwright fuera del repo, con el módulo real como host): salida sin interfaz ni scroll,
+  previa → en vivo → gol → estadística → encuesta → cambio de partido → postpartido sin recargar,
+  último cuadro conservado al cerrar el estudio, reconexión automática, detección de un estudio
+  congelado por latido y corrida de 3 minutos con fps, cuadros perdidos y memoria. Los resultados
+  están en `BROADCAST_OUTPUT.md`.
+- Manual con el estudio real: pulsar **Salida**, hacer un TAKE y ver el cambio en la pestaña de
+  salida; revisar en el tooltip del botón los fps medidos en tu equipo.
+
