@@ -11,6 +11,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import Link from 'next/link'
 import { Loader2, RefreshCw } from 'lucide-react'
 import LiveStrip from './LiveStrip'
+import MatchdayBoard from './MatchdayBoard'
 import MomentCard from './MomentCard'
 import { useMoments } from '@/lib/useMoments'
 import { useInsightsFeed } from '@/lib/useInsightsFeed'
@@ -61,7 +62,7 @@ export default function ReelsFeed({
       matchSlots: 3,
       capsuleSlots: 3,
       picks: true,
-      momentSlots: 8,
+      momentSlots: 12,
     })
     // La publicidad del feed ahora va en ubicaciones con nombre (feed-1/2/3), no en el compositor.
     return interleavePolls(base, polls.length).filter((i) => i.type !== 'ad')
@@ -171,6 +172,7 @@ export default function ReelsFeed({
         </div>
 
         <LiveStrip matches={matches} />
+        <MatchdayBoard />
 
         <ol className="nx-reels flex w-full min-w-0 flex-col gap-5 lg:gap-6" aria-labelledby="feed-heading">
           {items.map((item, index) => {

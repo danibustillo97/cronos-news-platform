@@ -9,9 +9,9 @@ import { apiUrl } from '@/studio/lab/api-client'
 // site's <head>. They must never drift into being treated as the source
 // of truth again; the real values live in Supabase's `site_settings` row.
 const FALLBACK_SEO = {
-  title: 'Nexus News | Noticias Deportivas al Instante',
-  description: 'El mejor portal de noticias deportivas con análisis IA en tiempo real. Cobertura de fútbol, NBA, F1 y más.',
-  keywords: ['deportes', 'noticias', 'fútbol', 'NBA', 'F1', 'resultados en vivo'],
+  title: 'NEXUS News | Fútbol colombiano, Liga BetPlay y actualidad',
+  description: 'Noticias de fútbol colombiano e internacional, Liga BetPlay, partidos y resultados. Actualidad con datos, contexto y debate para el hincha.',
+  keywords: ['fútbol colombiano', 'Liga BetPlay', 'noticias de fútbol', 'partidos', 'resultados', 'tabla de posiciones'],
 }
 
 async function getSeoSettings(): Promise<{ title: string; description: string; keywords: string[] }> {
@@ -36,13 +36,15 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#0a0a0a',
+  themeColor: '#0B0D0F',
 }
 
 export async function generateMetadata(): Promise<Metadata> {
   const seo = await getSeoSettings()
   return {
   metadataBase: new URL('https://www.nexusnews.info'),
+  // Canonical URLs belong to their route. A root-level '/' canonical is inherited
+  // by child routes in Next.js and incorrectly tells Google every route is the homepage.
   title: {
     default: seo.title,
     template: '%s | Nexus News'
@@ -54,32 +56,31 @@ export async function generateMetadata(): Promise<Metadata> {
   publisher: 'Nexus News',
   openGraph: {
     type: 'website',
-    locale: 'es_ES',
+    locale: 'es_CO',
     url: 'https://www.nexusnews.info',
-    title: 'Nexus News | Noticias Deportivas al Instante',
-    description: 'El mejor portal de noticias deportivas con análisis IA en tiempo real.',
+    title: seo.title,
+    description: seo.description,
     siteName: 'Nexus News',
     images: [
       {
-        url: '/og-image.jpg', // Asegúrate de tener esta imagen en public/
+        url: '/opengraph-image',
         width: 1200,
         height: 630,
-        alt: 'Nexus News - Noticias Deportivas',
+        alt: 'NEXUS News: fútbol con contexto, datos y debate',
       },
     ],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'Nexus News | Noticias Deportivas',
-    description: 'Noticias deportivas al instante con IA.',
-    creator: '@nexusnews',
-    images: ['/og-image.jpg'],
+    description: seo.description,
+    images: ['/opengraph-image'],
   },
-  applicationName: 'NEXUS Fútbol',
-  appleWebApp: { capable: true, title: 'NEXUS', statusBarStyle: 'black-translucent' },
+  applicationName: 'NEXUS News',
+  appleWebApp: { capable: true, title: 'NEXUS News', statusBarStyle: 'black-translucent' },
   icons: {
-    icon: [{ url: '/favicon.ico' }, { url: '/icons/favicon-32.png', sizes: '32x32', type: 'image/png' }],
-    apple: [{ url: '/icons/apple-touch-icon.png', sizes: '180x180' }],
+    icon: [{ url: '/favicon.svg', type: 'image/svg+xml' }],
+    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
   },
   formatDetection: { telephone: false },
   robots: {

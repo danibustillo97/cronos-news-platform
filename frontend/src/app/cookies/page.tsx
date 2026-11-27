@@ -2,8 +2,9 @@ import type { Metadata } from 'next'
 
 export const metadata: Metadata = {
   title: 'Política de Cookies',
-  description: 'Información sobre cookies y almacenamiento local utilizado por Nexus News.',
-  robots: { index: true, follow: true },
+  description: 'Información sobre cookies y almacenamiento local en NEXUS News: sesiones, preferencias, analítica y publicidad.',
+  alternates: { canonical: '/cookies' },
+  robots: { index: false, follow: true },
 }
 
 export default function CookiesPage() {

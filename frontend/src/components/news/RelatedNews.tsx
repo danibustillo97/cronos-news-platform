@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
+import { supabase } from '@/lib/supabaseClient'
+import { filterCurrentNews, newsQueryFloor } from '@/lib/newsFreshness';
 import NewsCard from '@/components/news/NewsCard';
 import { RefreshCw } from 'lucide-react';
 
@@ -35,7 +36,7 @@ export default function RelatedNews({ currentNewsId, category, onNewsClick }: Re
         let query = supabase
           .from('news')
           .select('*')
-          .eq('status', 'published')
+          .eq('status', 'published').gte('published_at', newsQueryFloor())
           .neq('id', currentNewsId) // Exclude current news
           .limit(4);
 
@@ -45,7 +46,7 @@ export default function RelatedNews({ currentNewsId, category, onNewsClick }: Re
             
             // If we have enough category matches, use them
             if (categoryData && categoryData.length >= 3) {
-                setRelatedNews(categoryData);
+                setRelatedNews(filterCurrentNews(categoryData));
                 setLoading(false);
                 return;
             }
@@ -57,11 +58,12 @@ export default function RelatedNews({ currentNewsId, category, onNewsClick }: Re
             .from('news')
             .select('*')
             .eq('status', 'published')
+            .gte('published_at', newsQueryFloor())
             .neq('id', currentNewsId)
             .order('published_at', { ascending: false })
             .limit(4);
             
-        setRelatedNews(generalData || []);
+        setRelatedNews(filterCurrentNews(generalData || []));
 
       } catch (error) {
         console.error("Error fetching related news:", error);

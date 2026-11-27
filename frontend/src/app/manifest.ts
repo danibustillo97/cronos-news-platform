@@ -4,26 +4,24 @@ import type { MetadataRoute } from 'next'
 // las metas appleWebApp de app/layout.tsx.
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: 'NEXUS Fútbol',
+    name: 'NEXUS News',
     short_name: 'NEXUS',
-    description: 'Noticias, partidos en vivo, tablas y datos del fútbol de Colombia y el mundo.',
+    description: 'Noticias deportivas, partidos en directo, análisis y datos de Colombia y el mundo.',
     id: '/?app=nexus',
     start_url: '/?source=pwa',
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',
-    background_color: '#0a0a0a',
-    theme_color: '#0a0a0a',
+    background_color: '#0B0D0F',
+    theme_color: '#0B0D0F',
     lang: 'es-CO',
     categories: ['sports', 'news'],
     icons: [
-      { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-      { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-      { src: '/icons/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      { src: '/favicon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
     ],
     shortcuts: [
-      { name: 'Partidos', url: '/deportes/futbol?view=matches', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
-      { name: 'Tablas', url: '/deportes/futbol/tabla', icons: [{ src: '/icons/icon-192.png', sizes: '192x192' }] },
+      { name: 'Partidos', url: '/deportes/futbol?view=matches', icons: [{ src: '/favicon.svg', sizes: 'any' }] },
+      { name: 'Tablas', url: '/deportes/futbol/tabla', icons: [{ src: '/favicon.svg', sizes: 'any' }] },
     ],
   }
 }

@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { ArrowUpRight, Clock, Loader2, Search, Swords } from 'lucide-react'
-import PortalPage, { pageShell } from '@/components/portal/PortalPage'
 import { PlayerAvatar } from '@/components/portal/PlayerBits'
 import { usePlayerSearch } from '@/lib/usePlayers'
 import { POPULAR_PLAYERS, pushRecent, readRecent, safeStorage, type PlayerHit } from '@/lib/players'
@@ -53,15 +52,8 @@ export default function PlayersSearchClient() {
   const visit = (hit: PlayerHit) => setRecent(pushRecent(safeStorage(), hit))
 
   return (
-    <PortalPage>
-      <div className={`${pageShell} max-w-[1200px] pb-20 pt-8 sm:pt-12`}>
-        <header className="max-w-2xl">
-          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--nx-accent-text)]">Base de jugadores</p>
-          <h1 className="mt-2 text-[clamp(1.75rem,1.4rem+1.5vw,2.5rem)] font-bold leading-[1.1] tracking-[-0.015em] text-[var(--nx-ink)]">Jugadores</h1>
-          <p className="mt-2 text-[15px] leading-relaxed text-[var(--nx-ink-2)]">Busca a cualquier futbolista, revisa sus números por temporada y compáralo con otro.</p>
-        </header>
-
-        <div className="mt-6 max-w-2xl">
+    <div className="mx-auto w-full max-w-[1200px] px-4 pb-20 pt-6 sm:px-6 lg:px-8">
+        <div className="max-w-2xl">
           <label htmlFor="players-q" className="sr-only">Buscar jugador</label>
           <div className="flex items-center gap-2 rounded-2xl border border-[var(--nx-line-strong)] bg-[var(--nx-surface)] px-4 focus-within:border-[#FACC15]">
             <Search size={18} className="shrink-0 text-[var(--nx-muted)]" aria-hidden="true" />
@@ -114,7 +106,6 @@ export default function PlayersSearchClient() {
         <Link href="/jugadores/comparar" className="mt-10 inline-flex min-h-[48px] items-center gap-2 rounded-full bg-[var(--nx-ink)] px-5 text-sm font-bold text-[var(--nx-bg)]">
           <Swords size={16} aria-hidden="true" /> Comparar dos jugadores <ArrowUpRight size={15} aria-hidden="true" />
         </Link>
-      </div>
-    </PortalPage>
+    </div>
   )
 }

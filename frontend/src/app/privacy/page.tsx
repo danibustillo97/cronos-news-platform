@@ -4,7 +4,8 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Política de Privacidad',
-  description: 'Política de privacidad de Nexus News.',
+  description: 'Conoce qué datos procesa NEXUS News, para qué se utilizan y cómo se protegen al navegar, crear una cuenta o utilizar las funciones del sitio.',
+  alternates: { canonical: '/privacy' },
 };
 
 export default function PrivacyPolicy() {

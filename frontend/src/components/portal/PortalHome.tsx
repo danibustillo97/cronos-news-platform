@@ -19,6 +19,7 @@
 
 import { portalFont } from './fonts'
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
+import Link from 'next/link'
 import { MotionConfig } from 'framer-motion'
 import NewsModal from '@/components/news/NewsModal'
 import Footer from '@/components/layout/Footer'
@@ -148,6 +149,11 @@ export default function PortalHome({ initialNews, initialLayout }: { initialNews
             <h1 className="sr-only">NEXUS News: noticias de fútbol de Colombia y el mundo</h1>
 
             <section id="portal-stage" aria-label="Portada" className={`nx-section nx-snap-item min-w-0 ${shell} pt-4 lg:pt-6`}>
+              <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-[10px] font-black uppercase tracking-[0.18em]">
+                <span className="text-[var(--nx-accent-text)]">NEXUS / Portada</span>
+                <span aria-hidden className="h-px w-8 bg-[#FACC15]" />
+                <span className="text-[var(--nx-muted)]">El fútbol, más allá del marcador</span>
+              </div>
               {renderStage()}
             </section>
 
@@ -174,6 +180,42 @@ export default function PortalHome({ initialNews, initialLayout }: { initialNews
                 onLoadMore={news.loadMore}
                 onRefresh={news.refresh}
               />
+            </section>
+
+            <section aria-labelledby="nexus-editorial-promise" className={`${shell} pb-16`}>
+              <div className="border-t border-[var(--nx-line)] pt-8">
+                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--nx-accent-text)]">La mirada NEXUS</p>
+                <h2 id="nexus-editorial-promise" className="mt-2 text-2xl font-black tracking-tight text-[var(--nx-ink)] sm:text-3xl">
+                  El fútbol no se queda en el marcador.
+                </h2>
+                <p className="mt-3 max-w-3xl text-sm leading-relaxed text-[var(--nx-ink-2)]">
+                  Conectamos la noticia con el contexto de la competición, los datos disponibles y la conversación
+                  del hincha. Nuestro foco está en el fútbol colombiano y la Liga BetPlay, sin perder de vista
+                  las historias y torneos del escenario internacional.
+                </p>
+                <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Link href="/deportes" className="rounded-xl border border-[var(--nx-line)] bg-[var(--nx-surface)] p-4 hover:border-[#FACC15]">
+                    <span className="block text-sm font-bold text-[var(--nx-ink)]">Deportes</span>
+                    <span className="mt-1 block text-xs leading-relaxed text-[var(--nx-muted)]">Noticias y resultados de Colombia y el mundo.</span>
+                  </Link>
+                  <Link href="/deportes/futbol/tabla" className="rounded-xl border border-[var(--nx-line)] bg-[var(--nx-surface)] p-4 hover:border-[#FACC15]">
+                    <span className="block text-sm font-bold text-[var(--nx-ink)]">Tabla Liga BetPlay</span>
+                    <span className="mt-1 block text-xs leading-relaxed text-[var(--nx-muted)]">Clasificación y recorrido de los clubes.</span>
+                  </Link>
+                  <Link href="/jugadores" className="rounded-xl border border-[var(--nx-line)] bg-[var(--nx-surface)] p-4 hover:border-[#FACC15]">
+                    <span className="block text-sm font-bold text-[var(--nx-ink)]">Jugadores</span>
+                    <span className="mt-1 block text-xs leading-relaxed text-[var(--nx-muted)]">Perfiles y comparaciones por competición.</span>
+                  </Link>
+                  <Link href="/encuestas" className="rounded-xl border border-[var(--nx-line)] bg-[var(--nx-surface)] p-4 hover:border-[#FACC15]">
+                    <span className="block text-sm font-bold text-[var(--nx-ink)]">Debates</span>
+                    <span className="mt-1 block text-xs leading-relaxed text-[var(--nx-muted)]">La voz de la comunidad en cada jornada.</span>
+                  </Link>
+                </div>
+                <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-xs font-semibold text-[var(--nx-muted)]">
+                  <Link href="/explorar" className="hover:text-[var(--nx-accent-text)]">Explorar categorías</Link>
+                  <Link href="/about" className="hover:text-[var(--nx-accent-text)]">Conoce el enfoque editorial</Link>
+                </div>
+              </div>
             </section>
           </main>
 

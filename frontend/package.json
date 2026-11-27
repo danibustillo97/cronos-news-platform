@@ -3,7 +3,8 @@
   "version": "0.1.0",
   "private": true,
   "overrides": {
-    "postcss": "^8.5.32"
+    "postcss": "^8.5.32",
+    "jsdom": "25.0.1"
   },
   "scripts": {
     "dev": "next dev",

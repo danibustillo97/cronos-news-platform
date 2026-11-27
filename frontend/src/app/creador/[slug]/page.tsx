@@ -18,6 +18,7 @@ import { supabase } from '@/lib/supabaseClient'
 import { usePortalTheme } from '@/context/ThemeContext'
 import type { NewsView } from '@/types/news'
 import { publicAuthorName } from '@/lib/byline'
+import { filterCurrentNews, newsQueryFloor } from '@/lib/newsFreshness'
 
 export default function CreatorProfilePage() {
   const { theme } = usePortalTheme()
@@ -27,9 +28,9 @@ export default function CreatorProfilePage() {
   const [posts, setPosts] = useState<Post[] | null>(null)
 
   useEffect(() => {
-    supabase.from('news').select('*').eq('status', 'published').order('published_at', { ascending: false }).limit(200)
+    supabase.from('news').select('*').eq('status', 'published').gte('published_at', newsQueryFloor()).order('published_at', { ascending: false }).limit(200)
       .then(({ data }) => {
-        const all = (data || []) as NewsView[]
+        const all = filterCurrentNews((data || []) as NewsView[])
         const mine = all.filter((n) => slugifyName(publicAuthorName(n.author)) === params.slug)
         setPosts(mine.map((n) => newsToPost(n, all)))
       })

@@ -4,10 +4,13 @@ import { notFound } from 'next/navigation';
 import ArticleClient from './ArticleClient';
 import { publicAuthorName } from '@/lib/byline';
 import { jsonLdScript } from '@/lib/jsonLd';
+import { buildArticleSeoTitle } from '@/lib/seoTitle';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
+
+export const revalidate = 300
 
 export async function generateMetadata(
   { params }: PageProps
@@ -21,20 +24,22 @@ export async function generateMetadata(
     .single();
 
   if (!data) {
-    return { title: 'Noticia no encontrada | Nexus News' };
+    return { title: 'Noticia no encontrada | Nexus News', robots: { index: false, follow: false } };
   }
 
   const url = `https://www.nexusnews.info/noticia/${data.slug}`;
-  const description = data.summary || data.excerpt || data.title;
+  const description = String(data.summary || data.excerpt || data.title).replace(/\s+/g, ' ').trim().slice(0, 160);
 
   return {
-    title: data.title,
+    // Short display title for search snippets; the article H1, Open Graph and NewsArticle headline stay unchanged.
+    title: { absolute: buildArticleSeoTitle(data.title) },
     description,
     alternates: { canonical: url },
     keywords: data.tags && data.tags.length > 0 ? data.tags : undefined,
     authors: [{ name: publicAuthorName(data.author) }],
     openGraph: {
       type: 'article',
+      locale: 'es_CO',
       title: data.title,
       description,
       url,
@@ -73,18 +78,22 @@ export default async function Page({ params }: PageProps) {
   const jsonLd: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'NewsArticle',
+    inLanguage: 'es-CO',
+    isAccessibleForFree: true,
     headline: news.title,
     description: news.summary || news.excerpt || undefined,
-    image: news.image_url ? [news.image_url] : undefined,
+    image: news.image_url ? [{ '@type': 'ImageObject', url: news.image_url, caption: news.title }] : undefined,
     datePublished: news.published_at,
     dateModified,
     author: { '@type': 'Person', name: publicAuthorName(news.author) },
     publisher: {
-      '@type': 'Organization',
-      name: 'Nexus News',
+      '@type': 'NewsMediaOrganization',
+      '@id': 'https://www.nexusnews.info/#organization',
+      name: 'NEXUS News',
+      url: 'https://www.nexusnews.info',
       logo: {
         '@type': 'ImageObject',
-        url: 'https://www.nexusnews.info/image/logo.png',
+        url: 'https://www.nexusnews.info/brand/nexus-symbol.svg',
       },
     },
     articleSection: news.category || undefined,

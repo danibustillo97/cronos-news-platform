@@ -9,9 +9,10 @@ from __future__ import annotations
 # repository, because there's no business state of ours involved.
 
 import asyncio
+from datetime import date as Date, datetime
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Response
 
 from app.domain.football.match_status import belongs_to_today, bogota_today, espn_dates, legacy_bucket, normalize_status
 
@@ -29,12 +30,22 @@ LEAGUE_NAMES: dict[str, str] = {
     "ita.1": "Serie A",
     "ger.1": "Bundesliga",
     "uefa.champions": "Champions League",
+    "uefa.europa": "Europa League",
+    "fra.1": "Ligue 1",
     "conmebol.libertadores": "Libertadores",
     "conmebol.sudamericana": "Sudamericana",
 }
 
 _DEFAULT_SCOREBOARD_LEAGUES = [
     "col.1", "uefa.champions", "conmebol.libertadores", "conmebol.sudamericana", "esp.1", "eng.1",
+]
+
+# Cobertura ampliada del centro de jornada. Se mantiene separada del marcador
+# compacto para no cambiar el contrato ni el volumen de los consumidores actuales.
+_MATCHDAY_LEAGUES = [
+    "col.1", "uefa.champions", "uefa.europa",
+    "conmebol.libertadores", "conmebol.sudamericana",
+    "eng.1", "esp.1", "ita.1", "ger.1", "fra.1",
 ]
 # Orden de prioridad real pedido: copas continentales primero, ligas locales
 # después. ESPN devuelve tabla vacía (children == []) para competiciones en
@@ -55,12 +66,12 @@ async def _fetch_league_day(client: httpx.AsyncClient, league: str, day: str) ->
         return []
 
 
-async def _fetch_league_scoreboard(client: httpx.AsyncClient, league: str) -> list[dict]:
-    """Matches of TODAY in Colombia (plus any still being played since last night), with their real state.
+async def _fetch_league_scoreboard(client: httpx.AsyncClient, league: str, day: Date | None = None) -> list[dict]:
+    """Matches of a Colombia day (today by default, plus any still being played since the night before), with their real state.
 
     Before: ESPN's date-less scoreboard returned its "current round", mixing yesterday's and older games.
     """
-    today = bogota_today()
+    today = day or bogota_today()
     days = await asyncio.gather(*(_fetch_league_day(client, league, d) for d in espn_dates(today)))
     seen: set[str] = set()
     events = [e for day in days for e in day if str(e.get("id")) not in seen and not seen.add(str(e.get("id")))]
@@ -109,6 +120,33 @@ async def get_scoreboard(leagues: str = Query(",".join(_DEFAULT_SCOREBOARD_LEAGU
     order = {"live": 0, "finished": 1, "scheduled": 2}
     all_matches.sort(key=lambda m: order.get(m["status"], 3))
     return all_matches[:12]
+
+
+@router.get("/day")
+async def get_matchday(
+    response: Response,
+    date: str | None = Query(default=None, pattern=r"^\d{8}$"),
+    limit: int = Query(default=100, ge=1, le=120),
+) -> list[dict]:
+    """Fixtures completos del día en Colombia para el Matchday Board."""
+    if date:
+        try:
+            day = datetime.strptime(date, "%Y%m%d").date()
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="date must be a valid YYYYMMDD value") from exc
+    else:
+        day = bogota_today()
+
+    response.headers["Cache-Control"] = "public, s-maxage=20, stale-while-revalidate=40"
+
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(
+            *(_fetch_league_scoreboard(client, league, day) for league in _MATCHDAY_LEAGUES)
+        )
+
+    matches = [match for group in results for match in group]
+    matches.sort(key=lambda match: (match.get("date") or "9999-12-31", match["league"], str(match.get("id") or "")))
+    return matches[:limit]
 
 
 @router.get("/standings")

@@ -4,7 +4,8 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: 'Términos de Servicio',
-  description: 'Términos y condiciones de uso de Nexus News.',
+  description: 'Lee las condiciones de uso de NEXUS News, las reglas de publicación y las responsabilidades asociadas a nuestros servicios y contenidos digitales.',
+  alternates: { canonical: '/terms' },
 };
 
 export default function TermsOfService() {

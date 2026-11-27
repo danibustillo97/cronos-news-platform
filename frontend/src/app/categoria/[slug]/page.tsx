@@ -21,6 +21,7 @@ import FilterToolbar from '@/components/ui/FilterToolbar'
 import { supabase } from '@/lib/supabaseClient'
 import type { NewsView } from '@/types/news'
 import { usePortalTheme } from '@/context/ThemeContext'
+import { filterCurrentNews, newsQueryFloor } from '@/lib/newsFreshness'
 
 const MAX_TAGS = 6
 
@@ -44,9 +45,9 @@ export default function CategoriaPage() {
 
   useEffect(() => {
     setTag('todos')
-    supabase.from('news').select('*').eq('status', 'published').order('published_at', { ascending: false }).limit(200)
+    supabase.from('news').select('*').eq('status', 'published').gte('published_at', newsQueryFloor()).order('published_at', { ascending: false }).limit(200)
       .then(({ data }) => {
-        const all = (data || []) as NewsView[]
+        const all = filterCurrentNews((data || []) as NewsView[])
         const targetSlug = slugify(params.slug ?? '')
 
         const matches = all.filter((n) => {

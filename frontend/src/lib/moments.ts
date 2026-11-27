@@ -1,11 +1,16 @@
 // Momentos de partido para el feed (goles, rojas, finales):
 //   GET /api/matches/moments -> { moments: Moment[], live: number, updatedAt }
 
-export type MomentKind = 'goal' | 'red' | 'final'
+export type MomentKind = 'goal' | 'red' | 'incident' | 'final'
+export type MomentEventType = 'goal' | 'own-goal' | 'penalty-goal' | 'penalty-miss' | 'yellow' | 'red' | 'var' | 'sub' | null
 export interface MomentTeam { name: string; short: string; logo: string | null }
 export interface Moment {
   id: string
   kind: MomentKind
+  eventType: MomentEventType
+  text: string
+  scoreBefore: { home: number; away: number } | null
+  impact: string | null
   matchId: string
   league: string
   leagueName: string
@@ -24,7 +29,7 @@ export interface Moment {
 
 /** Un ítem del feed: un gol, una roja, un final suelto o varios finales de la misma liga. */
 export type MomentItem =
-  | { type: 'goal' | 'red' | 'final'; key: string; moment: Moment }
+  | { type: 'goal' | 'red' | 'incident' | 'final'; key: string; moment: Moment }
   | { type: 'results'; key: string; league: string; leagueName: string; moments: Moment[] }
 
 function isRecord(v: unknown): v is Record<string, unknown> {
@@ -46,12 +51,17 @@ export function normalizeMoments(raw: unknown): Moment[] {
   for (const m of list) {
     if (!isRecord(m)) continue
     const id = str(m.id, 128)
-    const kind = m.kind === 'goal' || m.kind === 'red' || m.kind === 'final' ? m.kind : null
+    const kind = m.kind === 'goal' || m.kind === 'red' || m.kind === 'incident' || m.kind === 'final' ? m.kind : null
     if (!id || !kind || seen.has(id) || !str(m.matchId, 64)) continue
     seen.add(id)
     const sc = isRecord(m.score) ? m.score : {}
+    const before = isRecord(m.scoreBefore) ? m.scoreBefore : null
     out.push({
       id, kind,
+      eventType: m.eventType === 'goal' || m.eventType === 'own-goal' || m.eventType === 'penalty-goal' || m.eventType === 'penalty-miss' || m.eventType === 'yellow' || m.eventType === 'red' || m.eventType === 'var' || m.eventType === 'sub' ? m.eventType : null,
+      text: str(m.text, 500),
+      scoreBefore: before ? { home: num(before.home), away: num(before.away) } : null,
+      impact: str(m.impact, 220) || null,
       matchId: str(m.matchId, 64), league: str(m.league, 40), leagueName: str(m.leagueName, 80),
       minute: str(m.minute, 12), minuteValue: num(m.minuteValue),
       team: m.team === 'home' || m.team === 'away' ? m.team : null,

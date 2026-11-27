@@ -2,10 +2,10 @@
  * - Estáticos (/_next/static, /icons, fuentes, imágenes): caché primero.
  * - Páginas y /api: red primero; sin red, lo último guardado o "Sin conexión".
  * Solo se registra en producción o con NEXT_PUBLIC_ENABLE_SW=1. */
-const VERSION = 'nexus-v1'
+const VERSION = 'nexus-v2'
 const STATIC = `${VERSION}-static`
 const PAGES = `${VERSION}-pages`
-const SHELL = ['/offline.html', '/icons/icon-192.png', '/icons/icon-512.png', '/manifest.webmanifest']
+const SHELL = ['/offline.html', '/favicon.svg', '/brand/nexus-symbol.svg', '/manifest.webmanifest']
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(STATIC).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()))
