@@ -9,6 +9,7 @@ import {
   getAnalyticsDashboard,
   type AnalyticsDashboard,
 } from "@/lib/siteAnalytics";
+import OperationsPanel from "./commandCenter/OperationsPanel";
 
 type DateRange = 7 | 30;
 
@@ -580,5 +581,10 @@ function ActivityIcon() {
 }
 
 export default function AdminDashboard() {
-  return <AudienceAnalytics />;
+  return (
+    <>
+      <OperationsPanel />
+      <AudienceAnalytics />
+    </>
+  );
 }

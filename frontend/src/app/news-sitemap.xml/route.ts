@@ -1,6 +1,7 @@
 import { supabase } from '@/lib/supabaseClient'
 
-export const revalidate = 1800
+// Google News re-reads this often: new stories must appear within minutes.
+export const revalidate = 300
 
 function xmlEscape(value: unknown): string {
   return String(value ?? '')

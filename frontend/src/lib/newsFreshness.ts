@@ -1,34 +1,21 @@
 /**
  * Editorial freshness policy for the public "current news" surfaces.
- * A story remains current until 06:00 America/Bogota on the calendar day
- * after its publication date. Its permanent article URL is NOT expired.
- *
- * Bogotá is UTC-5 year-round; using Intl for the calendar date avoids
- * interpreting timestamps in the visitor's browser timezone.
+ * A story is current for exactly 24 hours after it was published; after that
+ * it leaves the feed, the home and the category pages and lives in /archivo.
+ * Its permanent article URL is NOT expired (SEO keeps the page indexed).
  */
 export const NEWS_TIME_ZONE = 'America/Bogota'
-export const NEWS_DAILY_CUTOFF_HOUR = 6
-// A story published just after midnight can remain current for almost 30h.
-export const NEWS_QUERY_LOOKBACK_HOURS = 31
+/** Hours a story stays in the current feed. */
+export const NEWS_FEED_HOURS = 24
+// Bounded reads fetch a little more than the window; filterCurrentNews applies the exact cutoff.
+export const NEWS_QUERY_LOOKBACK_HOURS = NEWS_FEED_HOURS + 1
 
-function bogotaDateParts(value: Date): { year: number; month: number; day: number } {
-  const parts = new Intl.DateTimeFormat('en-CA', {
-    timeZone: NEWS_TIME_ZONE,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).formatToParts(value)
-  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value)
-  return { year: get('year'), month: get('month'), day: get('day') }
-}
-
-/** UTC instant for 06:00 Bogotá on the day after publication. */
+/** UTC instant when the story leaves the current feed (published + 24 h). */
 export function newsExpiresAt(publishedAt: string | null | undefined): Date | null {
   if (!publishedAt) return null
   const published = new Date(publishedAt)
   if (!Number.isFinite(published.getTime())) return null
-  const { year, month, day } = bogotaDateParts(published)
-  return new Date(Date.UTC(year, month - 1, day + 1, NEWS_DAILY_CUTOFF_HOUR + 5, 0, 0))
+  return new Date(published.getTime() + NEWS_FEED_HOURS * 60 * 60 * 1000)
 }
 
 export function isCurrentNews(

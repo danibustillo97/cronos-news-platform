@@ -277,6 +277,8 @@ class Container:
         self.run_editorial_autopilot = RunEditorialAutopilot(
             self.editorial_automation_repo, self.discovery_repo, self.artifact_job_repo,
             self.decide_discovery_item, self.trigger_artifact, self.run_artifact_job,
+            artifacts=self.artifact_repo, check_originality=self.check_article_originality,
+            review_artifact=self.review_artifact, publish_artifact=self.publish_artifact,
         )
 
 

@@ -8,11 +8,16 @@
 // medida ("feed-1 · 300×250"), "apagado" si está desactivada, y responde a
 // { type: "nexus:ads-highlight", placement } desplazándose y resaltando.
 // Si el backend aún no tiene ubicaciones, usa la publicidad anterior.
+// Sin campaña directa, el espacio lo llena AdSense (si está configurado y hay
+// consentimiento): primero patrocinadores directos, AdSense como respaldo.
 
 import { useEffect, useRef, useState } from 'react'
 import { creativeImage, shouldRender, shouldTrackImpression, sizeLabel, type AdPlacement } from '@/lib/adSlots'
 import { useAdSlots } from '@/lib/useAdSlots'
 import FeedAd from './FeedAd'
+import AdSpace from '@/components/ads/AdSpace'
+import { useConsent } from '@/components/ads/ConsentProvider'
+import { adsenseSlotFor } from '@/lib/adConfig'
 import type { AdPosition } from '@/components/ads/AdSlot'
 
 const HIGHLIGHT = 'nexus:ads-highlight'
@@ -36,6 +41,8 @@ export default function PlacementAd({ placement, legacy, className = '' }: { pla
   const img = slot?.creative && device ? creativeImage(slot.creative, device) : null
   const campaignId = slot?.creative?.campaignId ?? null
   const visible = Boolean(device) && shouldRender(slot, outline, device ?? 'mobile')
+  const { choice } = useConsent()
+  const adsenseSlot = choice === 'accepted' ? adsenseSlotFor(placement) : null
 
   // Vista previa del admin: resaltar al seleccionar la ubicación.
   useEffect(() => {
@@ -69,6 +76,13 @@ export default function PlacementAd({ placement, legacy, className = '' }: { pla
   if (slots === undefined || !device) return null
   // Backend sin ubicaciones: publicidad anterior (banner propio o AdSense) para no perder inventario.
   if (slots === null) return legacy ? <div className={className}><FeedAd position={legacy} /></div> : null
+  if (!visible && slot?.enabled && size && !outline && adsenseSlot) {
+    return (
+      <aside aria-label="Publicidad" data-ad-placement={placement} data-ad-provider="adsense" className={`mx-auto w-full ${className}`} style={{ maxWidth: size[0], minHeight: size[1] }}>
+        <AdSpace slotId={adsenseSlot} className="my-0" />
+      </aside>
+    )
+  }
   if (!visible || !slot || !size) return null
   const [w, h] = size
 

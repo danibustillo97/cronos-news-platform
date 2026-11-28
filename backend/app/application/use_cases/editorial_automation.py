@@ -4,7 +4,9 @@ autopilot that runs after each scraper pass (GitHub Actions).
 The autopilot only orchestrates existing, already-tested use cases --
 DecideDiscoveryItem (SELECT -> SEND_TO_EDITORIAL), TriggerArtifact and
 RunArtifactJob -- so an automatic draft is exactly the same thing as one an
-editor asked for by hand. It never publishes.
+editor asked for by hand. It publishes ONLY when "Publicación automática"
+is ON and the draft passes the AutoPublishGate below (blocking checks, every
+claim backed by evidence, plagiarism check); otherwise it stays in Revisión.
 """
 from __future__ import annotations
 
@@ -12,7 +14,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 
-from app.domain.artifact.entities import ProviderId
+from app.domain.artifact.entities import ArtifactStatus, EvidenceLabel, ProviderId
 from app.domain.automation.entities import EditorialAutomationSettings
 from app.domain.discovery.entities import DiscoveryFilters, DiscoveryItem, DiscoveryStatus
 from app.domain.discovery.trends import rank_clusters
@@ -46,6 +48,8 @@ class UpdateEditorialAutomationInput:
     max_articles_per_day: int
     min_text_chars: int
     updated_by: str | None = None
+    auto_publish: bool = False
+    min_originality: int = 85
 
 
 class UpdateEditorialAutomation:
@@ -62,6 +66,8 @@ class UpdateEditorialAutomation:
             max_articles_per_run=input.max_articles_per_run,
             max_articles_per_day=input.max_articles_per_day,
             min_text_chars=input.min_text_chars,
+            auto_publish=input.auto_publish and input.enabled,
+            min_originality=input.min_originality,
             updated_at=datetime.now(timezone.utc),
             updated_by=input.updated_by,
         )
@@ -79,7 +85,33 @@ class AutopilotReport:
     candidates: int = 0
     generated: list[str] = field(default_factory=list)
     failed: list[str] = field(default_factory=list)
+    published: list[str] = field(default_factory=list)        # artifact ids published automatically
+    held: dict[str, str] = field(default_factory=dict)         # artifact id -> why it stayed in Revisión
     reason: str | None = None
+
+
+def auto_publish_blocker(artifact, report, min_originality: int) -> str | None:
+    """None = the draft may go out without a human; otherwise the reason it stays in Revisión.
+    The gate is strict on purpose: a false "hold" costs an editor a click, a false
+    "publish" puts copied or unverified text in front of readers."""
+    if artifact is None:
+        return "no se encontró el artículo generado"
+    if artifact.status != ArtifactStatus.VALIDATED:
+        return f"no pasó las validaciones ({artifact.status.value})"
+    unverified = [c for c in artifact.claims if c.label == EvidenceLabel.UNVERIFIED and not c.reviewed]
+    if unverified:
+        return f"{len(unverified)} afirmación(es) sin evidencia"
+    if report is None:
+        return "no se pudo ejecutar el control de plagio"
+    if report.article_words < 150:
+        return f"texto demasiado corto para publicar solo ({report.article_words} palabras)"
+    if report.compared_sources == 0:
+        return "el control de plagio no encontró fuentes para comparar"
+    if report.copied:
+        return f"{len(report.copied)} frase(s) copiadas de {report.copied[0].source}"
+    if report.originality < min_originality:
+        return f"originalidad {report.originality:.0f}% (mínimo {min_originality}%)"
+    return None
 
 
 def candidate_rank(item: DiscoveryItem) -> float:
@@ -103,7 +135,12 @@ class RunEditorialAutopilot:
         decide_item: DecideDiscoveryItem,
         trigger_artifact: TriggerArtifact,
         run_artifact_job: RunArtifactJob,
+        artifacts=None, check_originality=None, review_artifact=None, publish_artifact=None,
     ) -> None:
+        self._artifacts = artifacts
+        self._originality = check_originality
+        self._review = review_artifact
+        self._publish = publish_artifact
         self._settings = settings
         self._items = discovery_items
         self._jobs = artifact_jobs
@@ -168,6 +205,8 @@ class RunEditorialAutopilot:
                 report.failed.append(item_id)
             else:
                 report.generated.append(item_id)
+                if settings.auto_publish:
+                    self._auto_publish(getattr(finished, "artifact_id", None), settings.min_originality, report)
                 for sibling_id in siblings:  # other outlets' copies of the same story
                     try:
                         self._decide.execute(DecideDiscoveryItemInput(item_id=sibling_id, decision="ARCHIVE"))
@@ -175,3 +214,26 @@ class RunEditorialAutopilot:
                         continue
         return report
 
+    def _auto_publish(self, artifact_id: str | None, min_originality: int, report: AutopilotReport) -> None:
+        if not artifact_id or not (self._artifacts and self._originality and self._review and self._publish):
+            return
+        from app.application.use_cases.artifact import PublishArtifactInput, ReviewArtifactInput
+        try:
+            artifact = self._artifacts.find_by_id(artifact_id)
+            check = None
+            if artifact is not None and artifact.status == ArtifactStatus.VALIDATED:
+                try:
+                    check = self._originality.execute(artifact_id)
+                except Exception:  # noqa: BLE001 -- no check => no auto-publish
+                    logger.exception("autopilot_originality_failed artifact_id=%s", artifact_id)
+            blocker = auto_publish_blocker(artifact, check, min_originality)
+            if blocker:
+                report.held[artifact_id] = blocker
+                return
+            self._review.execute(ReviewArtifactInput(artifact_id=artifact_id, decision="APPROVE"))
+            self._publish.execute(PublishArtifactInput(artifact_id=artifact_id))
+            report.published.append(artifact_id)
+            logger.info("autopilot_published artifact_id=%s originality=%s", artifact_id, check.originality)
+        except Exception as exc:  # noqa: BLE001 -- a failed publish leaves it in Revisión
+            logger.exception("autopilot_publish_failed artifact_id=%s", artifact_id)
+            report.held[artifact_id] = f"falló la publicación: {exc}"

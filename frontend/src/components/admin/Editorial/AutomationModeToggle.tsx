@@ -9,6 +9,8 @@ type AutomationSettings = {
   maxArticlesPerRun: number;
   maxArticlesPerDay: number;
   minTextChars: number;
+  autoPublish?: boolean;
+  minOriginality?: number;
   updatedAt?: string | null;
   updatedBy?: string | null;
 };
@@ -28,8 +30,10 @@ async function readError(response: Response): Promise<string> {
  * Modo automático editorial.
  *  - Apagado (manual): el scraper trae noticias a "Descubrir IA" y tú las redactas en el editor.
  *  - Encendido (API): tras cada pasada del scraper (cada 10 min) la IA redacta borradores
- *    de las mejores candidatas, dentro de los límites. Siempre quedan en Revisión: nada se
- *    publica solo.
+ *    de las mejores candidatas, dentro de los límites. Quedan en Revisión…
+ *  - …salvo con «Publicar solo si es original»: el borrador sale sin aprobación humana
+ *    únicamente si pasó las validaciones, todas sus afirmaciones tienen evidencia y el
+ *    detector de plagio da originalidad ≥ mínimo y ninguna frase copiada.
  */
 export default function AutomationModeToggle() {
   const [settings, setSettings] = useState<AutomationSettings | null>(null);
@@ -81,6 +85,8 @@ export default function AutomationModeToggle() {
           maxArticlesPerRun: next.maxArticlesPerRun,
           maxArticlesPerDay: next.maxArticlesPerDay,
           minTextChars: next.minTextChars,
+          autoPublish: next.enabled && Boolean(next.autoPublish),
+          minOriginality: next.minOriginality ?? 85,
         }),
       });
       if (!response.ok) throw new Error(await readError(response));
@@ -111,7 +117,7 @@ export default function AutomationModeToggle() {
         }`}
       >
         {!settings && !error ? <Loader2 size={14} className="animate-spin" /> : <Icon size={14} />}
-        {enabled ? "Automático (IA)" : "Manual"}
+        {enabled ? (settings?.autoPublish ? "Automático · publica" : "Automático (IA)") : "Manual"}
       </button>
 
       {open && draft && (
@@ -131,7 +137,9 @@ export default function AutomationModeToggle() {
 
           <p className="mb-3 leading-relaxed text-neutral-400">
             {draft.enabled
-              ? "Cada 10 min la IA (API de Anthropic) redacta borradores de las mejores noticias nuevas. Quedan en Revisión: tú decides qué se publica. Cada borrador consume créditos de la API."
+              ? draft.autoPublish
+                ? "Cada 10 min la IA (API de Anthropic) redacta las mejores noticias nuevas y publica sola las que pasan el control: validaciones, afirmaciones con evidencia y detector de plagio. Las dudosas quedan en Revisión. Cada artículo consume créditos de la API."
+                : "Cada 10 min la IA (API de Anthropic) redacta borradores de las mejores noticias nuevas. Quedan en Revisión: tú decides qué se publica. Cada borrador consume créditos de la API."
               : "El scraper trae noticias a «Descubrir IA» y tú las redactas en el editor. Sin costo de IA."}
           </p>
 
@@ -153,6 +161,36 @@ export default function AutomationModeToggle() {
               />
             </label>
           </div>
+
+          {draft.enabled && (
+            <div className="mt-3 rounded-md border border-white/10 bg-black/40 p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-medium text-white">Publicar solo si es original</span>
+                <button
+                  type="button"
+                  role="switch"
+                  aria-checked={Boolean(draft.autoPublish)}
+                  onClick={() => setDraft({ ...draft, autoPublish: !draft.autoPublish })}
+                  className={`relative h-5 w-9 flex-shrink-0 rounded-full transition-colors ${draft.autoPublish ? "bg-emerald-500" : "bg-white/15"}`}
+                >
+                  <span className={`absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all ${draft.autoPublish ? "left-[18px]" : "left-0.5"}`} />
+                </button>
+              </div>
+              {draft.autoPublish && (
+                <label className="mt-2 flex items-center justify-between gap-3">
+                  <span className="text-neutral-500">Originalidad mínima</span>
+                  <span className="flex items-center gap-1">
+                    <input
+                      type="number" min={60} max={100} value={draft.minOriginality ?? 85}
+                      onChange={(e) => setDraft({ ...draft, minOriginality: Number(e.target.value) })}
+                      className="w-16 rounded border border-white/10 bg-black px-2 py-1 text-right text-white"
+                    />
+                    <span className="text-neutral-500">%</span>
+                  </span>
+                </label>
+              )}
+            </div>
+          )}
 
           {error && <p className="mt-3 rounded border border-red-500/30 bg-red-500/10 px-2 py-1.5 text-red-300">{error}</p>}
 

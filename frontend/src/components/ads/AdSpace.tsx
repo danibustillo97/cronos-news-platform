@@ -24,12 +24,13 @@ export default function AdSpace({
     if (!config.adsenseEnabled || !config.adsensePublisherId) return
 
     try {
-      // @ts-ignore
-      if (window.adsbygoogle && Array.isArray(window.adsbygoogle)) {
-        // @ts-ignore
-        window.adsbygoogle.push({})
-        loaded.current = true
-      }
+      // Standard AdSense queue: works even if adsbygoogle.js hasn't finished loading
+      // (the script drains the array when it arrives). The old check skipped the push
+      // whenever the script was still loading, so the unit never filled.
+      const w = window as unknown as { adsbygoogle?: unknown[] }
+      w.adsbygoogle = w.adsbygoogle || []
+      w.adsbygoogle.push({})
+      loaded.current = true
     } catch (err) {
       console.error('AdSense error:', err)
     }

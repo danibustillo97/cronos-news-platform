@@ -165,3 +165,86 @@ def test_enabling_requires_working_anthropic_provider():
 def test_settings_validation():
     with pytest.raises(ValueError):
         EditorialAutomationSettings(enabled=True, max_articles_per_run=5, max_articles_per_day=2)
+
+
+# ── Publicación automática con control de plagio ───────────────────────────
+
+from app.application.use_cases.editorial_automation import auto_publish_blocker  # noqa: E402
+from app.domain.artifact.entities import ArtifactStatus, EvidenceLabel  # noqa: E402
+from app.domain.editorial.originality import CopiedPassage, OriginalityReport  # noqa: E402
+
+
+def _artifact(status=ArtifactStatus.VALIDATED, claims=()):
+    return SimpleNamespace(status=status, claims=list(claims))
+
+
+def _report(originality=96.0, words=420, sources=4, copied=()):
+    return OriginalityReport(originality=originality, article_words=words, compared_sources=sources, copied=list(copied))
+
+
+def test_gate_publishes_only_a_validated_original_article():
+    assert auto_publish_blocker(_artifact(), _report(), 85) is None
+
+
+@pytest.mark.parametrize("artifact,report,expected", [
+    (None, _report(), "no se encontró"),
+    (_artifact(ArtifactStatus.REVIEW_REQUIRED), _report(), "validaciones"),
+    (_artifact(claims=[SimpleNamespace(label=EvidenceLabel.UNVERIFIED, reviewed=False)]), _report(), "sin evidencia"),
+    (_artifact(), None, "control de plagio"),
+    (_artifact(), _report(words=90), "demasiado corto"),
+    (_artifact(), _report(sources=0), "no encontró fuentes"),
+    (_artifact(), _report(copied=[CopiedPassage(text="x", source="El Tiempo", ratio=0.8)]), "copiadas de El Tiempo"),
+    (_artifact(), _report(originality=72.0), "originalidad 72%"),
+])
+def test_gate_holds_anything_doubtful(artifact, report, expected):
+    assert expected in auto_publish_blocker(artifact, report, 85)
+
+
+class _Artifacts:
+    def __init__(self, artifact):
+        self.artifact = artifact
+
+    def find_by_id(self, _id):
+        return self.artifact
+
+
+class _Check:
+    def __init__(self, report):
+        self.report = report
+
+    def execute(self, _artifact_id):
+        return self.report
+
+
+def _run_with_publish(report, enabled_publish=True):
+    settings = EditorialAutomationSettings(enabled=True, auto_publish=enabled_publish)
+    run = Recorder()
+    run.execute = lambda input: SimpleNamespace(id="job", status=SimpleNamespace(value="COMPLETED"), artifact_id="art-1")
+    review, publish = Recorder(), Recorder()
+    use_case = RunEditorialAutopilot(
+        SettingsRepo(settings), ItemsRepo([_item("a", "Millonarios gana el clásico")]), JobsRepo(), Recorder(), Recorder(), run,
+        artifacts=_Artifacts(_artifact()), check_originality=_Check(report), review_artifact=review, publish_artifact=publish,
+    )
+    return use_case.execute(now=NOW), review, publish
+
+
+def test_autopilot_publishes_original_drafts():
+    report, review, publish = _run_with_publish(_report())
+    assert report.published == ["art-1"] and not report.held
+    assert review.calls[0].decision == "APPROVE" and publish.calls[0].artifact_id == "art-1"
+
+
+def test_autopilot_keeps_copied_drafts_in_review():
+    report, review, publish = _run_with_publish(_report(originality=60.0))
+    assert report.published == [] and "originalidad" in report.held["art-1"]
+    assert not review.calls and not publish.calls
+
+
+def test_autopilot_never_publishes_when_auto_publish_is_off():
+    report, review, publish = _run_with_publish(_report(), enabled_publish=False)
+    assert report.published == [] and not review.calls and not publish.calls
+
+
+def test_auto_publish_requires_automatic_mode():
+    with pytest.raises(ValueError):
+        EditorialAutomationSettings(enabled=False, auto_publish=True)

@@ -181,6 +181,8 @@ class EditorialAutomationOut(CamelModel):
     max_articles_per_run: int
     max_articles_per_day: int
     min_text_chars: int
+    auto_publish: bool = False
+    min_originality: int = 85
     updated_at: datetime | None = None
     updated_by: str | None = None
     provider: str = "anthropic"
@@ -191,6 +193,8 @@ class UpdateEditorialAutomationRequest(CamelModel):
     max_articles_per_run: int = Field(default=2, ge=1, le=10)
     max_articles_per_day: int = Field(default=10, ge=1, le=100)
     min_text_chars: int = Field(default=400, ge=0, le=20000)
+    auto_publish: bool = False
+    min_originality: int = Field(default=85, ge=60, le=100)
 
 
 class AdBannerOut(CamelModel):

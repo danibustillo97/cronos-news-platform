@@ -37,6 +37,7 @@ def _automation_out(settings) -> EditorialAutomationOut:
     return EditorialAutomationOut(
         enabled=settings.enabled, max_articles_per_run=settings.max_articles_per_run,
         max_articles_per_day=settings.max_articles_per_day, min_text_chars=settings.min_text_chars,
+        auto_publish=settings.auto_publish, min_originality=settings.min_originality,
         updated_at=settings.updated_at, updated_by=settings.updated_by,
     )
 
@@ -62,6 +63,7 @@ def update_editorial_automation(
         settings = container.update_editorial_automation.execute(UpdateEditorialAutomationInput(
             enabled=body.enabled, max_articles_per_run=body.max_articles_per_run,
             max_articles_per_day=body.max_articles_per_day, min_text_chars=body.min_text_chars,
+            auto_publish=body.auto_publish, min_originality=body.min_originality,
             updated_by=getattr(admin, "email", None),
         ))
     except ValueError as exc:

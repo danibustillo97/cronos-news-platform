@@ -22,6 +22,11 @@ class EditorialAutomationSettings:
     max_articles_per_run: int = 2
     max_articles_per_day: int = 10
     min_text_chars: int = 400
+    # Publish automatically (no human approval) ONLY when the draft passed every
+    # blocking check AND the plagiarism check: originality >= min_originality and
+    # no sentence copied from a source. Anything else stays in Revisión.
+    auto_publish: bool = False
+    min_originality: int = 85
     updated_at: datetime | None = None
     updated_by: str | None = None
 
@@ -34,3 +39,7 @@ class EditorialAutomationSettings:
             raise ValueError("max_articles_per_run cannot exceed max_articles_per_day")
         if not 0 <= self.min_text_chars <= 20000:
             raise ValueError("min_text_chars must be between 0 and 20000")
+        if not 60 <= self.min_originality <= 100:
+            raise ValueError("min_originality must be between 60 and 100")
+        if self.auto_publish and not self.enabled:
+            raise ValueError("auto_publish requires the automatic mode to be ON")
